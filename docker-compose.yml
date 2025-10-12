@@ -15,6 +15,8 @@ services:
       - POSTGRES_USER=lms_user
       - POSTGRES_PASSWORD=lms_pass
       - POSTGRES_DB=lms_db
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
