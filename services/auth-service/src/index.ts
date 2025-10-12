@@ -1,22 +1,41 @@
-import express, { Application, Request, Response } from 'express';
+import app from "./app.js"
+import dotenv from "dotenv";
+import env from "./config/env.js";
+import { Server } from "http";
 
+dotenv.config();
 
-const app: Application = express();
-const PORT = process.env.PORT || 4000;
+const PORT = env.PORT || 4000;
 
-app.get("/",(req:Request,res:Response) => {
-    return res.json({
-        message: "Auth Service"
-    })
+let server: Server | null = null;
+
+server = app.listen(PORT, ()=>{
+    console.log(`🚀 Auth Service is running on port ${PORT} in ${env.NODE_ENV} mode`);
+});
+
+// Handle unhandled promise rejections
+process.on("unhandledRejection",(err:any)=>{
+    console.error("UNHANDLED REJECTION! 💥 Shutting down...");
+    console.error(err.name,err.message);
+    process.exit(1);
 })
 
-//health check
-app.get("/health",(req:Request,res:Response) => {
-    return res.json({
-        status: "Auth Service is healthy"
-    })
+// Handle uncaught exceptions
+process.on("uncaughtException",(err:any)=>{
+    console.error("UNCAUGHT EXCEPTION! 💥 Shutting down...");
+    console.error(err.name,err.message);
+    process.exit(1);
 })
-
-app.listen(PORT,() => {
-    console.log(`Auth Service is running on port ${PORT}`);
-})
+// Handle SIGTERM signal (e.g., from process manager)
+process.on("SIGTERM",()=>{
+    console.log("SIGTERM RECEIVED. Shutting down gracefully...");
+    if (server) {
+        server.close(() => {
+            console.log("💥 Process terminated!");
+            process.exit(0);
+        });
+    } else {
+        // no server to close
+        process.exit(0);
+    }
+});

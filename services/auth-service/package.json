@@ -8,30 +8,34 @@
     "dev": "tsc-watch --onSuccess \"node ./dist/index.js\"",
     "build": "tsc -p .",
     "start": "node ./dist/index.js",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
-    "@types/cuid": "^2.0.4",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.3",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/morgan": "^1.9.10",
     "@types/node": "^24.7.2",
-    "@types/pg": "^8.15.5",
-    "drizzle-kit": "^0.31.5",
     "tsc-watch": "^7.2.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "cuid": "^3.0.0",
+    "@prisma/client": "^6.17.1",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.2.3",
-    "drizzle-orm": "^0.44.6",
     "express": "^5.1.0",
-    "pg": "^8.16.3",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "prisma": "^6.17.1",
     "zod": "^4.1.12"
   }
 }

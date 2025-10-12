@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  studentsection
+  regestral
+  adminstractor
+}
+
+model Organization {
+  id                     String    @id @default(cuid())
+  name                   String    @db.VarChar(255)
+  email                  String    @unique @db.VarChar(255)
+  password               String    @db.VarChar(255)
+  recoveryEmail          String?   @db.VarChar(255)
+  address                String    @db.Text
+  phone                  String    @db.VarChar(20)@unique
+
+  totalStudents          Int       @default(0)
+  totalTeachers          Int       @default(0)
+  totalDeans             Int       @default(0)
+  totalNonTeachingStaff  Int
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  // Relations
+  colleges               College[]
+}
+
+model College {
+  id         String  @id @default(cuid())
+  name       String  @db.VarChar(255)
+  organizationId String
+  email      String  @unique @db.VarChar(255)
+  deanId     String?
+  password   String  @db.VarChar(255)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deans        Dean[]
+  hods         Hod[]
+  nonTeachingStaff NonTeachingStaff[]
+  departments  Department[]
+}
+
+model Dean {
+  id         String  @id @default(cuid())
+  collegeId  String
+  mailId     String  @unique @db.VarChar(255)
+  password   String  @db.VarChar(255)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+}
+
+model Hod {
+  id         String  @id @default(cuid())
+  collegeId  String
+  name       String  @db.VarChar(255)
+  email      String  @unique @db.VarChar(255)
+  password   String  @db.VarChar(255)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  departments Department[]
+}
+
+model NonTeachingStaff {
+  id         String   @id @default(cuid())
+  collegeId  String
+  name       String   @db.VarChar(255)
+  email      String   @unique @db.VarChar(255)
+  password   String   @db.VarChar(255)
+  role       UserRole @default(studentsection)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+}
+
+model Department {
+  id         String  @id @default(cuid())
+  name       String  @db.VarChar(255)
+  shortName  String  @db.VarChar(50)
+  hodId      String?
+  collegeId  String
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  hod         Hod?    @relation(fields: [hodId], references: [id])
+}
