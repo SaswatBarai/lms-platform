@@ -5,15 +5,8 @@ import { createOrganization } from "../controller/organization/auth.controller.j
 
 const router: Router = Router()
 
-router.get("/create", (req:Request, res:Response) => {
-    res.json({
-        message:"Hello",
-        success:true
-    })
-})
 
-
-
+router.post("/create", createOrganization);
 
 
 export default router

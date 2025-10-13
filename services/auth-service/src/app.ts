@@ -21,12 +21,14 @@ app.get("/",(req,res)=>{
 
 //All routes
 
-app.use("/",organizationRoutes)
+app.use("/api",organizationRoutes)
 
 //health check
 app.get("/health",(req,res)=>{
     res.status(200).json({status:"ok"});
 })
+
+
 
 // Error handling middleware must be last
 app.use(errorHandler);
