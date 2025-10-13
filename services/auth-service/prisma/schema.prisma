@@ -21,7 +21,7 @@ model Organization {
   name                   String    @db.VarChar(255)
   email                  String    @unique @db.VarChar(255)
   password               String    @db.VarChar(255)
-  recoveryEmail          String?   @db.VarChar(255)
+  recoveryEmail          String?   @db.VarChar(255) 
   address                String    @db.Text
   phone                  String    @db.VarChar(20)@unique
 

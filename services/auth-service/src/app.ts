@@ -11,6 +11,7 @@ const app:Application = express();
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(morgan("dev"));
+app.use(errorHandler); // global error handling middleware
 
 
 // Set security HTTP headers
@@ -23,9 +24,10 @@ app.get("/",(req,res)=>{
 
 
 //All routes 
+import organizationRoutes from "./routes/organization.route.js"
+import errorHandler from "./middleware/errorHandler.js";
 
-
-
+app.use("/api/v1/organizations",organizationRoutes);
 
 
 
