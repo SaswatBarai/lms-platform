@@ -1,10 +1,12 @@
-import { Prisma } from "@prisma/client";
+import pkg from "@prisma/client";
 import { z, ZodError } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/AppError.js";
 import { CreateOrganizationInput, ServiceResult } from "../types/organization.js";
 import {hashPassword} from "../utils/security.js"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
+
+const { Prisma } = pkg;
 
 
 export interface OrganizationResponse {

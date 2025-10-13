@@ -50,9 +50,9 @@
       "@middleware/*": ["middleware/*"],
       "@routes/*": ["routes/*"],
       "@services/*": ["services/*"],
+      "@schemas/*": ["schemas/*"],
       "@types/*": ["types/*"],
-      "@utils/*": ["utils/*"],
-      "@zod/*": ["zod/*"]
+      "@utils/*": ["utils/*"]
     }
   },
 

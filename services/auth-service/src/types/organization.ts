@@ -1,5 +1,5 @@
 import {z} from "zod"
-import { createOrganizationSchema } from "../zod/organization.js"
+import { createOrganizationSchema } from "@schemas/organization.js"
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
 

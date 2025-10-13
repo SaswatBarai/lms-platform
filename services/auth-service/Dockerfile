@@ -13,6 +13,7 @@ RUN pnpm install --frozen-lockfile
 # -----------------------------
 FROM base AS build
 COPY . .
+RUN pnpm db:generate
 RUN pnpm run build
 
 
@@ -22,8 +23,9 @@ RUN pnpm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 RUN npm install -g pnpm
-COPY --from=base /app/node_modules ./node_modules
+COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+COPY prisma ./prisma
 EXPOSE 4001
 CMD [ "pnpm", "start" ]
