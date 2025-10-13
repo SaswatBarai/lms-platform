@@ -95,7 +95,8 @@ services:
       - mongo
     networks:
       - internal_net
-  
+    ports:
+      - "5555:5555" # for the prisma studio
 
 
 volumes:
