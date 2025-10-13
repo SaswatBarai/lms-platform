@@ -5,8 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "tsc-watch --onSuccess \"node ./dist/index.js\"",
-    "build": "tsc -p .",
+    "dev": "tsc-watch --onSuccess \"tsc-alias && node ./dist/index.js\"",
+    "build": "tsc -p . && tsc-alias",
     "start": "node ./dist/index.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -24,6 +24,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "@types/node": "^24.7.2",
+    "tsc-alias": "^1.8.16",
     "tsc-watch": "^7.2.0",
     "typescript": "^5.9.3"
   },

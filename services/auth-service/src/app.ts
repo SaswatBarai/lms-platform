@@ -1,8 +1,8 @@
 import express,{Application} from "express"
 import morgan from "morgan";
 import helmet from "helmet";
-import organizationRoutes from "./routes/organization.route.js"
-import errorHandler from "./middleware/errorHandler.js";
+import organizationRoutes from "@routes/organization.route.js";
+import errorHandler from "@middleware/errorHandler.js";
 
 const app:Application = express();
 

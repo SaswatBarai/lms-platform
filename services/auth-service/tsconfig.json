@@ -9,7 +9,7 @@
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
     "target": "esnext",
-  "types": ["node"],//chnages
+    "types": ["node"],
     // For nodejs:
     // "lib": ["esnext"],
     // "types": ["node"],
@@ -39,7 +39,21 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+
+    // Module Resolution
+    "baseUrl": "./src",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@controller/*": ["controller/*"],
+      "@lib/*": ["lib/*"],
+      "@middleware/*": ["middleware/*"],
+      "@routes/*": ["routes/*"],
+      "@services/*": ["services/*"],
+      "@types/*": ["types/*"],
+      "@utils/*": ["utils/*"],
+      "@zod/*": ["zod/*"]
+    }
   },
 
   // Include and exclude — point tsc at our source files
