@@ -8,6 +8,28 @@ type SchemaParts = {
   headers?: ZodObject<any>;
 };
 
+// Helper function to extract errors recursively
+const extractZodErrors = (
+  errors: any,
+  path = ""
+): Array<{ path: string; message: string }> => {
+  if (!errors) return [];
+  if (errors._errors && errors._errors.length > 0) {
+    return [
+      {
+        path: path || "root",
+        message: errors._errors.join(", "),
+      },
+    ];
+  }
+  return Object.entries(errors)
+    .filter(([key]) => key !== "_errors")
+    .flatMap(([key, value]) => {
+      const newPath = path ? `${path}.${key}` : key;
+      return extractZodErrors(value, newPath);
+    });
+};
+
 export const validate =
   (schema: SchemaParts): RequestHandler =>
   (req, res, next) => {
@@ -26,9 +48,24 @@ export const validate =
       if (schema.headers) {
         schema.headers.parse(req.headers);
       }
-      
+
       return next();
     } catch (err) {
-      return next(err);
+      if (err instanceof ZodError) {
+        const formattedErrors = extractZodErrors(err.format());
+        return res.status(400).json({
+          status: "fail",
+          message: "Invalid input data",
+          errors:
+            formattedErrors.length > 0
+              ? formattedErrors
+              : [{ message: "An unknown error occurred" }],
+        });
+      }
+      return res.status(400).json({
+        status: "fail",
+        message: "Invalid input data",
+        errors: [{ message: "An unknown error occurred" }],
+      });
     }
   };
