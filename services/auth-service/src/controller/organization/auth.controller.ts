@@ -6,9 +6,6 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 export const createOrganization = asyncHandler(
     async(req,res) => {
        const {name} = req.body;
-       console.log("Received request with body:", req.body);
-       return res.json({
-        message: `Organization ${name} created successfully`
-       })
+       
     }
 )

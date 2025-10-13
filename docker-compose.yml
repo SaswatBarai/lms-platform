@@ -83,7 +83,7 @@ services:
     container_name: auth_service
     environment:
       - PORT=4001
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DATABASE_URL=postgresql://lms_user:lms_pass@postgres:5432/lms_db
       - ACCESS_TOKEN_SECRET=your_super_secret_access_token_key_here_at_least_32_chars
       - REFRESH_TOKEN_SECRET=your_super_secret_refresh_token_key_here_at_least_32_chars
