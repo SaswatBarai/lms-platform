@@ -28,7 +28,7 @@ model Organization {
   totalStudents          Int       @default(0)
   totalTeachers          Int       @default(0)
   totalDeans             Int       @default(0)
-  totalNonTeachingStaff  Int
+  totalNonTeachingStaff  Int       @default(0)
 
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
