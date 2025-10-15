@@ -90,7 +90,7 @@ services:
         KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
         KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
         KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"
-        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
         KAFKA_MIN_INSYNC_REPLICAS: "1"
       networks:
         - internal_net
@@ -135,6 +135,23 @@ services:
     ports:
       - "5555:5555" # for the prisma studio
 
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification_service
+    environment:
+      - PORT=4002
+      - NODE_ENV=development
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_CLIENT_ID=notification-service
+      - KAFKA_GROUP_ID=notification-group
+    expose:
+      - "4002"
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - internal_net
+    
 
 volumes:
   pgdata:

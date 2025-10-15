@@ -8,3 +8,10 @@ services:
       - name: auth-route
         paths:
           - ~/auth
+
+  - name: notification-service
+    url: http://notification-service:4002
+    routes:
+      - name: notification-route
+        paths:
+          - ~/notification

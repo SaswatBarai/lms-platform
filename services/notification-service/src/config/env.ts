@@ -5,7 +5,7 @@ dotenv.config();
 
 
 const envSchema = z.object({
-    PORT:z.coerce.number().default(4003),
+    PORT:z.coerce.number().default(4002),
     NODE_ENV:z.enum(["development","production","test"]).default("development"),
     MAIL_USER:z.string().email(),
     MAIL_PASS:z.string().min(8),
