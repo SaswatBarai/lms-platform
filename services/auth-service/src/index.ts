@@ -1,4 +1,5 @@
 import app from "./app.js"
+import { initKafkaProducer } from "./messaging/kafka.js";
 import dotenv from "dotenv";
 import env from "./config/env.js";
 import { Server } from "http";
@@ -12,6 +13,12 @@ let server: Server | null = null;
 
 server = app.listen(PORT, ()=>{
     console.log(`🚀 Auth Service is running on port ${PORT} in ${env.NODE_ENV} mode`);
+});
+
+// Initialize Kafka producer on startup
+initKafkaProducer().catch((err) => {
+    console.error("[auth] Kafka producer failed to start", err);
+    process.exit(1);
 });
 
 // Handle unhandled promise rejections

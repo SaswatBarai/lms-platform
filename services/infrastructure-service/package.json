@@ -1,38 +1,24 @@
 {
-  "name": "notification-service",
+  "name": "infrastructure-service",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Bootstraps infrastructure like Kafka topics for the LMS platform.",
   "type": "module",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "tsc-watch --onSuccess \"tsc-alias && node ./dist/index.js\"",
-    "build": "tsc -p . && tsc-alias",
-    "start": "node ./dist/index.js"
+    "dev": "tsc-watch --onSuccess \"node ./dist/index.js\"",
+    "build": "tsc -p .",
+    "start": "node ./dist/index.js",
+    "kafka:init": "node ./dist/kafka/admin.js"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
-    "@types/morgan": "^1.9.10",
     "@types/node": "^24.7.2",
-    "tsc-alias": "^1.8.16",
     "tsc-watch": "^7.2.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "cluster": "^0.7.7",
-    "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
-    "crypto": "^1.0.1",
     "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "helmet": "^8.1.0",
-    "morgan": "^1.10.1",
-    "nodemailer": "^7.0.9",
-    "os": "^0.1.2",
-    "zod": "^4.1.12"
+    "kafkajs": "^2.2.4"
   }
 }

@@ -35,25 +35,14 @@
     // Recommended Options
     "strict": true,
     "jsx": "react-jsx",
-  "verbatimModuleSyntax": false,//chnages
+    "verbatimModuleSyntax": false,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
 
     // Module Resolution
-    "baseUrl": "./src",
-    "paths": {
-      "@config/*": ["config/*"],
-      "@controller/*": ["controller/*"],
-      "@lib/*": ["lib/*"],
-      "@middleware/*": ["middleware/*"],
-      "@routes/*": ["routes/*"],
-      "@services/*": ["services/*"],
-      "@schemas/*": ["schemas/*"],
-      "@types/*": ["types/*"],
-      "@utils/*": ["utils/*"]
-    }
+    "baseUrl": "./src"
   },
 
   // Include and exclude — point tsc at our source files

@@ -163,7 +163,7 @@ services:
       - internal_net
 
   infrastructure-service:
-    build: ./services/infratructure-service
+    build: ./services/infrastructure-service
     container_name: infrastructure_service
     environment:
       - PORT=4003

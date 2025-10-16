@@ -1,6 +1,7 @@
 import cluster from "cluster";
 import os from "os";
 import app from "./app.js";
+import { startNotificationConsumer } from "./messaging/kafka.js";
 import env from "@config/env.js";
 import dotenv from "dotenv";
 import { Server } from "http";
@@ -31,6 +32,12 @@ if(cluster.isPrimary && env.NODE_ENV === "production") {
     })
     server.on("error", (error:Error) => {
         console.error("Error occurred:", error);
+    });
+
+    // Start Kafka consumer alongside the HTTP server
+    startNotificationConsumer().catch((err) => {
+        console.error("[notification] Kafka consumer failed to start", err);
+        process.exit(1);
     });
 
     process.on("SIGTERM", () => {

@@ -23,6 +23,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "kafkajs": "^2.2.4",
     "@types/nodemailer": "^7.0.2",
     "argon2": "^0.44.0",
     "cluster": "^0.7.7",
