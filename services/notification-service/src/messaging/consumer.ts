@@ -21,9 +21,8 @@ export async function startNotificationConsumer(): Promise<void> {
                 const {action,data,type,subType} = payload;
                 switch(action) {
                     case "auth-otp":
-                        authOTP();
+                        authOTP({data,type,subType});
                 }
-
 
             } catch (error) {
                 console.error("[notification] Error processing message:", error);

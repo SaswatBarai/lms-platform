@@ -1,12 +1,20 @@
-
+interface data {
+    email: string;
+    otp?: string;
+}
 
 interface IParameter {
-    tyoe: string;
-    subType: string;
-    data: any;
+    type: string;
+    subType: string | undefined;
+    data: data;
 
 }
 
-export const authOTP = async() => {
-
+export const authOTP = async(
+    {type,subType,data}:IParameter
+) => {
+    switch(type) {
+        
+    }
+    
 }
