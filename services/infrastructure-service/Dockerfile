@@ -7,12 +7,16 @@ WORKDIR /app
 COPY package*.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
+
+
 # -----------------------------
 # 2️⃣ Build stage (for TypeScript)
 # -----------------------------
 FROM base AS build
 COPY . .
 RUN pnpm run build
+
+
 
 # -----------------------------
 # 3️⃣ Production runtime stage
@@ -23,6 +27,5 @@ RUN npm install -g pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
-COPY prisma ./prisma    
-EXPOSE 4002
+EXPOSE 4003
 CMD [ "pnpm", "start" ]

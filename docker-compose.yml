@@ -74,41 +74,51 @@ services:
       - public_net
       - internal_net
 
-    zookeeper:
-      image: zookeeper:latest
-      container_name: zookeeper_cont
-      ports:
-        - "2181:2181"
-      networks:
-        - internal_net
-    
-    kafka:
-      image: confluentinc/cp-kafka:latest
-      container_name: kafka_cont
-      environment:
-        KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
-        KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
-        KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"
-        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
-        KAFKA_MIN_INSYNC_REPLICAS: "1"
-      networks:
-        - internal_net
-      depends_on:
-        - zookeeper
-    
-    kafka-ui:
-      image: provectuslabs/kafka-ui:latest  
-      container_name: kafka_ui
-      ports:
-        - "8081:8080"
-      environment: 
-        DYNAMIC_CONFIG_ENABLED: true
-      depends_on:
-        - zookeeper
-        - kafka
-      networks:
-        - internal_net
+#================Kafka & Zookeeper================#
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper_cont
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - internal_net
+  
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_cont
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "9092:9092"
+    networks:
+      - internal_net
+    depends_on:
+      - zookeeper
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest  
+    container_name: kafka_ui
+    ports:
+      - "8081:8080"
+    environment: 
+      DYNAMIC_CONFIG_ENABLED: "true"
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:29092"
+    depends_on:
+      - kafka
+    networks:
+      - internal_net
 
 
 
@@ -148,6 +158,22 @@ services:
       - "4002"
     depends_on:
       - postgres
+      - kafka
+    networks:
+      - internal_net
+
+  infrastructure-service:
+    build: ./services/infratructure-service
+    container_name: infrastructure_service
+    environment:
+      - PORT=4003
+      - NODE_ENV=development
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_CLIENT_ID=infrastructure-service
+      - KAFKA_GROUP_ID=infrastructure-group
+    expose:
+      - "4003"
+    depends_on:
       - kafka
     networks:
       - internal_net
