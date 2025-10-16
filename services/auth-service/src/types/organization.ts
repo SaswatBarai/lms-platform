@@ -9,3 +9,10 @@ export interface ServiceResult<T> {
   message: string;
   errors?: string[];
 }
+
+export interface ProducerPayload {
+  action: "auth-otp";
+  type: "org-otp" ;
+  subType?:"create-account";
+  data: any;
+}

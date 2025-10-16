@@ -1,14 +1,11 @@
 import { kafka } from "./client.js";
+import {topics} from "./topics.js"
 
 export async function ensureKafkaTopics(): Promise<void> {
 	const admin = kafka.admin();
 	console.log("[infra] Connecting Kafka admin...");
 	await admin.connect();
 	console.log("[infra] Kafka admin connected");
-
-	const topics = [
-		{ topic: "rider-updates", numPartitions: 2 },
-	];
 
 	console.log("[infra] Ensuring topics:", topics.map(t => t.topic).join(", "));
 	await admin.createTopics({ topics, waitForLeaders: true });

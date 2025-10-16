@@ -52,7 +52,8 @@
       "@services/*": ["services/*"],
       "@schemas/*": ["schemas/*"],
       "@types/*": ["types/*"],
-      "@utils/*": ["utils/*"]
+      "@utils/*": ["utils/*"],
+      "@messaging/*": ["messaging/*"]
     }
   },
 

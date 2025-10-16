@@ -134,6 +134,7 @@ services:
       - DATABASE_URL=postgresql://lms_user:lms_pass@postgres:5432/lms_db
       - ACCESS_TOKEN_SECRET=your_super_secret_access_token_key_here_at_least_32_chars
       - REFRESH_TOKEN_SECRET=your_super_secret_refresh_token_key_here_at_least_32_chars
+      - REDIS_URL=redis://:redis_pass@redis:6379/0
     expose:
       - "4001"
     depends_on:

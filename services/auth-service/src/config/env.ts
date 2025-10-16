@@ -13,6 +13,7 @@ const envSchema = z.object({
     REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
     NODE_ENV: z.enum(["development","production","test"]).default("development"),
     OTP_SECRET: z.string().min(32),
+    REDIS_URL: z.string().url().startsWith("redis://")
 })
 
 
