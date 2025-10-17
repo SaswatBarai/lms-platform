@@ -16,7 +16,7 @@ server = app.listen(PORT, ()=>{
 });
 
 // Initialize Kafka producer on startup
-initKafkaProducer().catch((err) => {
+initKafkaProducer().catch((err: Error) => {
     console.error("[auth] Kafka producer failed to start", err);
     process.exit(1);
 });
