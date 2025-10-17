@@ -143,6 +143,7 @@ services:
       - postgres
       - redis
       - mongo
+      - kafka
     networks:
       - internal_net
     ports:
@@ -151,6 +152,9 @@ services:
   notification-service:
     build: ./services/notification-service
     container_name: notification_service
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - PORT=4002
       - NODE_ENV=development
@@ -158,7 +162,10 @@ services:
       - KAFKA_CLIENT_ID=notification-service
       - KAFKA_GROUP_ID=notification-group
       - MAIL_USER=saswatbarai611@gmail.com
-      - MAIL_PASS=sajzxwbjibqk 
+      - MAIL_PASS=ftzrhnhlohvhueyo 
+      - MAIL_HOST=smtp.gmail.com
+      - MAIL_PORT=587
+      - EMAIL_MODE=console 
     expose:
       - "4002"
     depends_on:

@@ -4,17 +4,64 @@ import env from "@config/env.js"
 
 export class OrganizationAction {
 
-    static async sendOrgCreateAccountOTP(email:string, otp:string) {
-        const result = await transporter.sendMail({
-            from: `LMS Platform <${env.MAIL_USER}>`, 
-            to: email,
-            subject: "Your OTP for Creating Organization Account",
-            html: htmlForOrg(otp)
-        })
-        if(result.rejected.length > 0) {
-            console.error(`[Notification] Failed to send OTP email to ${email}`);
-        } else {
-            console.log(`[Notification] OTP email sent to ${email}`);
+    static async sendOrgCreateAccountOTP(email: string, otp: string) {
+        // Check if we should use console mode
+        if (process.env.EMAIL_MODE === 'console') {
+            console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║                    🚀 DEVELOPMENT OTP ALERT                  ║
+╠══════════════════════════════════════════════════════════════╣
+║  📧 Email: ${email.padEnd(48)} ║
+║  🔐 OTP Code: ${otp.padEnd(44)} ║
+║  ⏰ Time: ${new Date().toLocaleString().padEnd(45)} ║
+║  💡 Mode: Console (Email disabled for development)          ║
+╚══════════════════════════════════════════════════════════════╝
+            `);
+            return true;
+        }
+
+        try {
+            console.log(`[Notification] Attempting to send OTP email to ${email}`);
+            
+            const result = await transporter.sendMail({
+                from: `LMS Platform <${env.MAIL_USER}>`, 
+                to: email,
+                subject: "Your OTP for Creating Organization Account",
+                html: htmlForOrg(otp)
+            });
+            
+            if (result.rejected.length > 0) {
+                console.error(`[Notification] Failed to send OTP email to ${email}:`, result.rejected);
+                return false;
+            } else {
+                console.log(`[Notification] OTP email sent successfully to ${email}`);
+                console.log(`[Notification] Message ID: ${result.messageId}`);
+                return true;
+            }
+        } catch (error: any) {
+            console.error(`[Notification] Error sending OTP email to ${email}:`, error.message);
+            
+            // Handle specific Gmail authentication errors
+            if (error.message.includes('BadCredentials') || error.message.includes('Username and Password not accepted')) {
+                console.error(`[Notification] Gmail authentication failed. Please check:
+1. 2-Factor Authentication is enabled on Gmail account
+2. App Password is generated and correctly configured
+3. MAIL_USER and MAIL_PASS environment variables are correct`);
+                
+                // Fallback: Log OTP to console for development
+                console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║                    🚀 FALLBACK OTP ALERT                     ║
+╠══════════════════════════════════════════════════════════════╣
+║  📧 Email: ${email.padEnd(48)} ║
+║  🔐 OTP Code: ${otp.padEnd(44)} ║
+║  ⏰ Time: ${new Date().toLocaleString().padEnd(45)} ║
+║  ❌ Email failed, showing OTP in console                    ║
+╚══════════════════════════════════════════════════════════════╝
+                `);
+            }
+            
+            return false;
         }
     }
 }

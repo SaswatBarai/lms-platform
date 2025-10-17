@@ -51,14 +51,25 @@ if(cluster.isPrimary && env.NODE_ENV === "production") {
 
  // Global handlers for unexpected errors
 process.on("unhandledRejection", (err: Error) => {
-    console.error("UNHANDLED REJECTION! 💥 Shutting down...");
-    console.error(err.name, err.message);
+    console.error("UNHANDLED REJECTION! 💥 Error details:");
+    console.error("Error:", err.message);
+    console.error("Stack:", err.stack);
+    
+    // Don't exit immediately, log the error and continue
+    // Only exit if it's a critical error
+    if (err.message.includes("BadCredentials") || err.message.includes("auth")) {
+        console.error("Authentication error detected, but continuing service...");
+        return;
+    }
+    
+    console.error("Shutting down...");
     process.exit(1);
 });
 
 process.on("uncaughtException", (err: Error) => {
     console.error("UNCAUGHT EXCEPTION! 💥 Shutting down...");
     console.error(err.name, err.message);
+    console.error("Stack:", err.stack);
     process.exit(1);
 });
 
