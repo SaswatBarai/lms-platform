@@ -6,9 +6,7 @@ import {kafka} from "./kafka.js";
 export async function startNotificationConsumer(): Promise<void> {
 	const consumer = kafka.consumer({ groupId: process.env.KAFKA_GROUP_ID || "notification-group" });
 	await consumer.connect();
-	await consumer.subscribe({ topic: "rider-updates", fromBeginning: false });
-	console.log("[notification] Kafka consumer connected and subscribed to rider-updates");
-
+	await consumer.subscribe({ topic: "otp-auth", fromBeginning: false });
 	await consumer.run({
 		eachMessage: async ({ topic, partition, message }) => {
             try {
