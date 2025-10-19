@@ -22,6 +22,7 @@ export const authOTP = async(
             case "org-otp":
                 if(subType === "create-account") {
                     const {email,otp} = data;
+                    console.log("mark 1",otp,email);
                     if (!email || !otp) {
                         console.error("[notification] Missing email or OTP in data");
                         return;

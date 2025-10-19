@@ -165,7 +165,7 @@ services:
       - MAIL_PASS=ftzrhnhlohvhueyo 
       - MAIL_HOST=smtp.gmail.com
       - MAIL_PORT=587
-      - EMAIL_MODE=console 
+      - EMAIL_MODE=email 
     expose:
       - "4002"
     depends_on:
