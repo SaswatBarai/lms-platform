@@ -9,11 +9,23 @@ import redisClient from "@config/redis.js"
 import { hashPassword } from "@utils/security.js"
 import crypto from "crypto"
 import { AppError } from "@utils/AppError.js"
+import {prisma} from "@lib/prisma.js"
 
 
 
 export const createOrganizationController = asyncHandler(async (req: Request, res: Response) => {
     const { name, email, password, phone, recoveryEmail, address }: CreateOrganizationInput = req.body;
+    const existingOrg = await prisma.organization.findFirst({
+        where: {
+            OR: [
+                { email },
+                { phone }
+            ]
+        }
+    });
+    if (existingOrg) {
+        throw new AppError("Organization with this email or phone already exists", 409);
+    }
     const otp = generateOtp();
     const kafkaProducer = new KafkaProducer();
     const message: ProducerPayload = {
@@ -175,4 +187,17 @@ export const resendOrganizationOtpController = asyncHandler(async (req:Request,r
             message: "Failed to resend OTP"
         })
     }
+})
+
+
+export const loginOrahnizationController = asyncHandler(async (req:Request,res:Response) =>{
+    const {email,password} = req.body;
+    //find organization by email
+    const organization = await prisma.organization.findUnique({
+        where: {email}
+    })
+    if(!organization){
+        throw new AppError("Organization not found",404);
+    }
+
 })
