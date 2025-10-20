@@ -22,3 +22,15 @@ export interface ProducerPayload {
   subType?:"create-account";
   data: any;
 }
+
+
+//role enum
+export enum OrganizationRole {
+  ADMIN = "admin",
+}
+
+
+export interface TokenPlayload{
+    accessToken: string;
+    refreshToken?:string;
+}

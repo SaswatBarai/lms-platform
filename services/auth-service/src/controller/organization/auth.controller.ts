@@ -6,7 +6,7 @@ import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizati
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
-import { hashPassword } from "@utils/security.js"
+import { hashPassword, validateEmail } from "@utils/security.js"
 import crypto from "crypto"
 import { AppError } from "@utils/AppError.js"
 import {prisma} from "@lib/prisma.js"
@@ -132,13 +132,7 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
 })
 
 
-const validateEmail = (email:string) => {
-  return String(email)
-    .toLowerCase()
-    .match(
-      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
-    );
-};
+
 
 
 export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {

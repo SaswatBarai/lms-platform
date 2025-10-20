@@ -3,6 +3,8 @@ import { initKafkaProducer } from "./messaging/kafka.js";
 import dotenv from "dotenv";
 import env from "./config/env.js";
 import { Server } from "http";
+import {V4} from "paseto"
+import fs from "fs/promises";
 
 
 dotenv.config();
@@ -10,6 +12,20 @@ dotenv.config();
 const PORT = env.PORT || 4000;
 
 let server: Server | null = null;
+
+(async () => {
+  const privateKey = await V4.generateKey('public');
+  
+  const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const publicKeyBytes = await V4.keyObjectToBytes(privateKey);
+  const publicKeyOnly = publicKeyBytes.slice(-32);
+  const publicKeyB64 = Buffer.from(publicKeyOnly).toString('base64');
+  
+  await fs.writeFile('private.key', privateKeyPem);
+  await fs.writeFile('public.key', publicKeyB64);
+  
+  console.log(publicKeyB64);
+})();
 
 server = app.listen(PORT, ()=>{
     console.log(`🚀 Auth Service is running on port ${PORT} in ${env.NODE_ENV} mode`);
