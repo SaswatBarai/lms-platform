@@ -49,3 +49,11 @@ export const verifyOrganizationOtpSchema = z.object({
         .min(1, { message: "Session token is required" })
         .trim(),
 })
+
+export const resendOrganizationOtpSchema = z.object({
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+})
