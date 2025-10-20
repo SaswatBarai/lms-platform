@@ -26,10 +26,10 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
         }
     }
     const hashedPassword = await hashPassword(password);
-    const sessionToken = crypto.randomBytes(32).toString("hex"); 4
+    const sessionToken = crypto.randomBytes(32).toString("hex");
     //check the details already exist or not 
     if (await redisClient.exists(`org-auth-${email}`)) {
-        return new AppError("Already details are present", 400);
+        throw new AppError("Already details are present", 400);
     }
 
     const redisResult = await redisClient.hset(`org-auth-${email}`, {
@@ -42,7 +42,7 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
         sessionToken
     })
     if (redisResult === 0) {
-        return new AppError("Failed to save organization details", 500);
+        throw new AppError("Failed to save organization details", 500);
     }
     //expire in 24 hours
     await redisClient.expire(`org-auth-${email}`, 24 * 60 * 60);
@@ -51,7 +51,7 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
     await redisClient.setex(coolDownKey, 60, "1");
 
     //save otp in redis with 10 minutes expiry
-    const hashedOTP = await hashOtp(otp);
+    const hashedOTP = await hashOtp(otp, sessionToken);
     await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
 
     const isPublished = await kafkaProducer.publishOTP(message);
@@ -76,18 +76,18 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
     const { email, otp, sessionToken }: verifyOrganizationOtpInput = req.body;
     const storedHash = await redisClient.get(`org-auth-otp-${email}`);
     if (!storedHash) {
-        return new AppError("OTP has expired or is invalid", 400);
+        throw new AppError("OTP has expired or is invalid", 400);
     }
     const isValid = await verifyOtp(otp, sessionToken, storedHash);
     if (!isValid) {
-        return new AppError("Invalid OTP", 400);
+        throw new AppError("Invalid OTP", 400);
     }
     //delete the hashed otp from redis
     await redisClient.del(`org-auth-otp-${email}`);
     //create organization account'
     const orgData = await redisClient.hgetall(`org-auth-${email}`);
     if (!orgData || Object.keys(orgData).length === 0) {
-        return new AppError("Organization data not found. Please register again.", 400);
+        throw new AppError("Organization data not found. Please register again.", 400);
     }
 
     // Validate all required fields exist
@@ -107,7 +107,7 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
         address: orgData.address || '' // address is optional
     })
     if (!createOrgResult.success) {
-        return new AppError(createOrgResult.message, 500);
+        throw new AppError(createOrgResult.message, 500);
     }
     //delete the org data from redis
     await redisClient.del(`org-auth-${email}`);
@@ -132,12 +132,19 @@ const validateEmail = (email:string) => {
 export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {
     const { email }: { email: string } = req.body;
     if (!validateEmail(email)) {
-        return new AppError("Invalid email format", 400);
+        throw new AppError("Invalid email format", 400);
     }
+    
+    // Check if organization data exists in Redis to get session token
+    const orgData = await redisClient.hgetall(`org-auth-${email}`);
+    if (!orgData || !orgData.sessionToken) {
+        throw new AppError("Session not found. Please restart the registration process.", 400);
+    }
+    
     const coolDownKey = `org-auth-otp-cooldown-${email}`;
     const isInCoolDown = await redisClient.exists(coolDownKey);
     if (isInCoolDown) {
-        return new AppError("Please wait before requesting a new OTP", 429);
+        throw new AppError("Please wait before requesting a new OTP", 429);
     }
     const otp = generateOtp();
     const kafkaProducer = new KafkaProducer();
@@ -151,7 +158,7 @@ export const resendOrganizationOtpController = asyncHandler(async (req:Request,r
         }
     }
     //save otp in redis with 10 minutes expiry
-    const hashedOTP = await hashOtp(otp);
+    const hashedOTP = await hashOtp(otp, orgData.sessionToken);
     await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
     //set cool down for 1 minute
     await redisClient.setex(coolDownKey, 60, "1");

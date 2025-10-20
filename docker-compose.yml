@@ -29,6 +29,16 @@ services:
     networks:
     - internal_net
 
+  redis-ui:
+    image: redis/redisinsight:latest
+    container_name: redis_ui
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
+    networks:
+      - internal_net
+
   mongo:
     image: mongo:7
     container_name: mongo_cont

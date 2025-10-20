@@ -16,7 +16,7 @@ export const generateOtp = (): string => {
  * a fixed-size (256-bit) hash value from input data of any size. It is widely used for data integrity'
  * verification and digital signatures.    
  */
-export const hashOtp = async (otp: string, sessionToken?: string): Promise<string> => {
+export const hashOtp = async (otp: string, sessionToken: string): Promise<string> => {
     const data = crypto.createHmac("sha256", OTP_SECRET).update(`${sessionToken}:${otp}`).digest("hex"); 
     const hashedOtp = await argon.hash(data);
     return hashedOtp;
