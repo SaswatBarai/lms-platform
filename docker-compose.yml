@@ -55,6 +55,7 @@ services:
       - ./gateway/kong.yaml:/etc/kong/kong.yml
     networks:
       - internal_net
+    restart: always
 
 #================Ngnix================#
 
@@ -103,6 +104,7 @@ services:
       - internal_net
     depends_on:
       - zookeeper
+    restart: always
   
   kafka-ui:
     image: provectuslabs/kafka-ui:latest  
@@ -148,6 +150,7 @@ services:
       - internal_net
     ports:
       - "5555:5555" # for the prisma studio
+    restart: always
 
   notification-service:
     build: ./services/notification-service
@@ -173,6 +176,7 @@ services:
       - kafka
     networks:
       - internal_net
+    restart: always
 
   infrastructure-service:
     build: ./services/infrastructure-service
@@ -189,6 +193,7 @@ services:
       - kafka
     networks:
       - internal_net
+    restart: always
     
 
 volumes:

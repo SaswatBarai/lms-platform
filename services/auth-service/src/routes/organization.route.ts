@@ -5,10 +5,11 @@ import {createOrganizationSchema,verifyOrganizationOtpSchema, resendOrganization
 
 const router: Router = Router();
 
+
+// Organization Routes
 router.post("/create-organization",validate({body: createOrganizationSchema}),createOrganizationController)
 router.post("/verify-organization-otp",validate({body: verifyOrganizationOtpSchema}),verifyOrganizationOtpController)
 router.post("/resend-organization-otp",validate({body: resendOrganizationOtpSchema}),resendOrganizationOtpController);
-
 
 
 export default router;
