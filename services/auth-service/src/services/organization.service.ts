@@ -49,7 +49,6 @@ const handleValidationError = (error: z.ZodError): never => {
 // ===============================
 
 
-
 export const createOrganizationService = async (
     InputData: CreateOrganizationInput
 ):Promise<ServiceResult<OrganizationResponse>> => {

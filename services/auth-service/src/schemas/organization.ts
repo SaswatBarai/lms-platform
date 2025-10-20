@@ -4,7 +4,7 @@ export const createOrganizationSchema = z.object({
     name: z.string({ message: "Name is required" })
         .min(3, { message: "Name must be at least 3 characters" })
         .max(255, { message: "Name must be at most 255 characters" })
-        .trim(),
+        .trim().nonempty({ message: "Name is required" }),
     email: z.string({ message: "Invalid email address" })
         .email({ message: "Invalid email address" })
         .max(255, { message: "Email must be at most 255 characters" })
@@ -34,3 +34,18 @@ export const createOrganizationSchema = z.object({
         .max(20, { message: "Phone number must be at most 20 characters" })
         .trim(),
 });
+
+export const verifyOrganizationOtpSchema = z.object({
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    otp: z.string({ message: "OTP is required" })
+        .min(1, { message: "OTP is required" })
+        .length(6, { message: "OTP must be 6 characters" })
+        .trim(),
+    sessionToken: z.string({ message: "Session token is required" })
+        .min(1, { message: "Session token is required" })
+        .trim(),
+})

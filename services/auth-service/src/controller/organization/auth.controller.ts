@@ -1,84 +1,120 @@
 
 import { Request, Response } from "express";
-import {createOrganizationService} from "@services/organization.service.js"
+import { createOrganizationService } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
-import { ProducerPayload, type CreateOrganizationInput } from "../../types/organization.js";
-import {generateOtp,hashOtp} from "@utils/otp.js"
-import {KafkaProducer} from "@messaging/producer.js"
+import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizationInput } from "../../types/organization.js";
+import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
+import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
-import {hashPassword} from "@utils/security.js"
+import { hashPassword } from "@utils/security.js"
 import crypto from "crypto"
+import { AppError } from "@utils/AppError.js"
 
 
 
-
-export const createOrganizationController = asyncHandler(async(req:Request,res:Response)=>{
-    const {name,email,password,phone,recoveryEmail,address}:CreateOrganizationInput = req.body;
-    // const result = await createOrganizationService({name,email,password,phone,recoveryEmail,address});
-    // if(result.success){
-    //     return res.status(201).json({
-    //         success:true,
-    //         message:result.message,
-    //         data:result.data
-    //     })
-    // }else{
-    //     return res.status(400).json({
-    //         success:false,
-    //         message:result.message,
-    //         errors:result.errors
-    //     })
-    // }
-
+export const createOrganizationController = asyncHandler(async (req: Request, res: Response) => {
+    const { name, email, password, phone, recoveryEmail, address }: CreateOrganizationInput = req.body;
     const otp = generateOtp();
     const kafkaProducer = new KafkaProducer();
-    const message:ProducerPayload = {
-        action:"auth-otp",
-        type:"org-otp",
-        subType:"create-account",
-        data:{
+    const message: ProducerPayload = {
+        action: "auth-otp",
+        type: "org-otp",
+        subType: "create-account",
+        data: {
             email,
             otp
         }
     }
     const hashedPassword = await hashPassword(password);
-    const sessionToken = crypto.randomBytes(32).toString("hex");
+    const sessionToken = crypto.randomBytes(32).toString("hex"); 4
+    //check the details already exist or not 
+    if (await redisClient.exists(`org-auth-${email}`)) {
+        return new AppError("Already details are present", 400);
+    }
 
-
-    const redisResult = await redisClient.hset(`org-auth-${email}`,{
+    const redisResult = await redisClient.hset(`org-auth-${email}`, {
         name,
         email,
-        password:hashedPassword,
+        password: hashedPassword,
         phone,
         recoveryEmail,
-        address:JSON.stringify(address),
-        sessionToken 
+        address: address,
+        sessionToken
     })
-
+    if (redisResult === 0) {
+        return new AppError("Failed to save organization details", 500);
+    }
     //expire in 24 hours
-    await redisClient.expire(`org-auth-${email}`,24*60*60);
+    await redisClient.expire(`org-auth-${email}`, 24 * 60 * 60);
     //cool down for 1 minute
     const coolDownKey = `org-auth-otp-cooldown-${email}`;
-    await redisClient.setex(coolDownKey,60,"1");
-
+    await redisClient.setex(coolDownKey, 60, "1");
 
     //save otp in redis with 10 minutes expiry
     const hashedOTP = await hashOtp(otp);
-    await redisClient.setex(`org-auth-otp-${email}`,10*60,hashedOTP);
+    await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
 
     const isPublished = await kafkaProducer.publishOTP(message);
-    if(isPublished){
+    if (isPublished) {
         return res.status(200).json({
-            success:true,
-            message:"OTP sent successfully",
-            data:{
+            success: true,
+            message: "OTP sent successfully",
+            data: {
                 email,
                 sessionToken
             }
         })
-    }else{
+    } else {
         return res.status(500).json({
-            success:false,
-            message:"Failed to send OTP"
+            success: false,
+            message: "Failed to send OTP"
         })
     }
+})
+
+export const verifyOrganizationOtpController = asyncHandler(async (req: Request, res: Response) => {
+    const { email, otp, sessionToken }: verifyOrganizationOtpInput = req.body;
+    const storedHash = await redisClient.get(`org-auth-otp-${email}`);
+    if (!storedHash) {
+        return new AppError("OTP has expired or is invalid", 400);
+    }
+    const isValid = await verifyOtp(otp, sessionToken, storedHash);
+    if (!isValid) {
+        return new AppError("Invalid OTP", 400);
+    }
+    //delete the hashed otp from redis
+    await redisClient.del(`org-auth-otp-${email}`);
+    //create organization account'
+    const orgData = await redisClient.hgetall(`org-auth-${email}`);
+    if (!orgData || Object.keys(orgData).length === 0) {
+        return new AppError("Organization data not found. Please register again.", 400);
+    }
+
+    // Validate all required fields exist
+    const requiredFields = ['name', 'email', 'password', 'phone', 'recoveryEmail'];
+    for (const field of requiredFields) {
+        if (!orgData[field]) {
+            throw new AppError(`Missing required field: ${field}`, 400);
+        }
+    }
+
+    const createOrgResult = await createOrganizationService({
+        name: orgData.name!,
+        email: orgData.email!,
+        password: orgData.password!,
+        phone: orgData.phone!,
+        recoveryEmail: orgData.recoveryEmail!,
+        address: orgData.address || '' // address is optional
+    })
+    if (!createOrgResult.success) {
+        return new AppError(createOrgResult.message, 500);
+    }
+    //delete the org data from redis
+    await redisClient.del(`org-auth-${email}`);
+
+    return res.status(200).json({
+        success: true,
+        message: createOrgResult?.message,
+        data: createOrgResult.data
+    })
 })

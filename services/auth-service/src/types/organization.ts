@@ -1,7 +1,13 @@
 import {z} from "zod"
-import { createOrganizationSchema } from "@schemas/organization.js"
+import { createOrganizationSchema, verifyOrganizationOtpSchema } from "@schemas/organization.js"
+
+
+
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
+export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSchema>
+
+
 
 export interface ServiceResult<T> {
   success: boolean;
