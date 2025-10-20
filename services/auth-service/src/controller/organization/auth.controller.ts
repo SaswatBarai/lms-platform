@@ -118,3 +118,54 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
         data: createOrgResult.data
     })
 })
+
+
+const validateEmail = (email:string) => {
+  return String(email)
+    .toLowerCase()
+    .match(
+      /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|.(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+    );
+};
+
+
+export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {
+    const { email }: { email: string } = req.body;
+    if (!validateEmail(email)) {
+        return new AppError("Invalid email format", 400);
+    }
+    const coolDownKey = `org-auth-otp-cooldown-${email}`;
+    const isInCoolDown = await redisClient.exists(coolDownKey);
+    if (isInCoolDown) {
+        return new AppError("Please wait before requesting a new OTP", 429);
+    }
+    const otp = generateOtp();
+    const kafkaProducer = new KafkaProducer();
+    const message: ProducerPayload = {
+        action: "auth-otp",
+        type: "org-otp",
+        subType: "create-account",
+        data: {
+            email,
+            otp
+        }
+    }
+    //save otp in redis with 10 minutes expiry
+    const hashedOTP = await hashOtp(otp);
+    await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
+    //set cool down for 1 minute
+    await redisClient.setex(coolDownKey, 60, "1");
+
+    const isPublished = await kafkaProducer.publishOTP(message);
+    if (isPublished) {
+        return res.status(200).json({
+            success: true,
+            message: "OTP resent successfully",
+        })
+    } else {
+        return res.status(500).json({
+            success: false,
+            message: "Failed to resend OTP"
+        })
+    }
+})
