@@ -13,7 +13,7 @@ RUN pnpm install --frozen-lockfile
 # -----------------------------
 FROM base AS build
 COPY . .
-RUN pnpm db:generate
+# Skip database generation during build - we'll do it at runtime
 RUN pnpm run build
 
 
@@ -23,9 +23,10 @@ RUN pnpm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN apk add --no-cache curl
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY prisma ./prisma
 EXPOSE 4001
-CMD [ "pnpm", "start" ]
+CMD [ "sh", "-c", "pnpm db:generate && pnpm start" ]

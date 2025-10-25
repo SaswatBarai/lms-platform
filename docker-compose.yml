@@ -1,4 +1,7 @@
 networks:
+  lms-network:
+    driver: bridge
+    name: lms-network
   internal_net:
     driver: bridge
   public_net:
@@ -19,6 +22,7 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - internal_net
+      - lms-network
   
   redis:
     image: redis:7-alpine
@@ -28,6 +32,7 @@ services:
     - redisdata:/data
     networks:
     - internal_net
+    - lms-network
 
   redis-ui:
     image: redis/redisinsight:latest
@@ -38,6 +43,35 @@ services:
       - redis
     networks:
       - internal_net
+      - lms-network
+
+  # HashiCorp Vault for secrets management
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: lms-vault
+    environment:
+      VAULT_ADDR: 'http://0.0.0.0:8200'
+      VAULT_API_ADDR: 'http://0.0.0.0:8200'
+      VAULT_DEV_ROOT_TOKEN_ID: 'dev-root-token'
+      VAULT_DEV_LISTEN_ADDRESS: '0.0.0.0:8200'
+    command: vault server -dev -dev-listen-address=0.0.0.0:8200 -dev-root-token-id=dev-root-token
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - ./vault/policies:/vault/policies:ro
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - lms-network
+      - internal_net
+    healthcheck:
+      test: ["CMD", "sh", "-c", "VAULT_ADDR=http://localhost:8200 vault status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   mongo:
     image: mongo:7
@@ -48,24 +82,70 @@ services:
     networks:
       - internal_net
 
-#================kong Gateway================#
+#================Kong Gateway================#
 
   kong:
-    image: kong:3.7
-    container_name: kong_gateway
+    build:
+      context: ./gateway/kong
+      dockerfile: Dockerfile
+    container_name: lms-kong-gateway
     environment:
-      - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/etc/kong/kong.yml
-      - KONG_PROXY_LISTEN=0.0.0.0:8000
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      # Basic Kong configuration
+      KONG_DATABASE: 'off'
+      KONG_DECLARATIVE_CONFIG: '/etc/kong/kong.yaml'
+      KONG_PROXY_ACCESS_LOG: '/dev/stdout'
+      KONG_ADMIN_ACCESS_LOG: '/dev/stdout'
+      KONG_PROXY_ERROR_LOG: '/dev/stderr'
+      KONG_ADMIN_ERROR_LOG: '/dev/stderr'
+      KONG_ADMIN_LISTEN: '0.0.0.0:8001'
+      KONG_PROXY_LISTEN: '0.0.0.0:8000'
+      
+      # SSL/TLS configuration (for production)
+      KONG_SSL_CERT: '/etc/kong/ssl/cert.pem'
+      KONG_SSL_CERT_KEY: '/etc/kong/ssl/key.pem'
+      
+      # Plugin configuration
+      KONG_PLUGINS: 'bundled'
+      
+      # Vault integration
+      KONG_VAULT_ENV_PREFIX: 'KONG_VAULT_'
+      KONG_VAULT_KONG_PLUGIN_TOKEN: 'kong-plugin-vault-token'
+      
+      # Performance tuning
+      KONG_WORKER_PROCESSES: '2'
+      KONG_WORKER_CONNECTIONS: '1024'
+      
+      # Logging
+      KONG_LOG_LEVEL: 'info'
+      KONG_ACCESS_LOG: '/var/log/kong/access.log'
+      KONG_ERROR_LOG: '/var/log/kong/error.log'
+      
+      # Security
+      KONG_HEADERS: 'off'
+      KONG_TRUSTED_IPS: '0.0.0.0/0,::/0'
+      
     ports:
-      - "8000:8000"
-      - "8001:8001"
+      - "8000:8000"  # Proxy HTTP
+      - "8443:8443"  # Proxy HTTPS  
+      - "8001:8001"  # Admin API HTTP
+      - "8444:8444"  # Admin API HTTPS
     volumes:
-      - ./gateway/kong.yaml:/etc/kong/kong.yml
+      - ./gateway/kong/kong.yaml:/etc/kong/kong.yaml:ro
+      - ./gateway/kong/ssl:/etc/kong/ssl:ro  # SSL certificates
+      - kong_logs:/var/log/kong
     networks:
+      - lms-network
       - internal_net
-    restart: always
+    depends_on:
+      vault:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 #================Ngnix================#
 
@@ -74,7 +154,7 @@ services:
     container_name: nginx_lb
     ports:
       - "8080:80"
-      - "8443:443"
+      - "8445:443"
     volumes:
       - ./gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -82,6 +162,7 @@ services:
     networks:
       - public_net
       - internal_net
+      - lms-network
 
 #================Kafka & Zookeeper================#
 
@@ -112,6 +193,7 @@ services:
       - "9092:9092"
     networks:
       - internal_net
+      - lms-network
     depends_on:
       - zookeeper
     restart: always
@@ -149,6 +231,18 @@ services:
       - KAFKA_BROKERS=kafka:29092
       - KAFKA_CLIENT_ID=auth-service
       - KAFKA_GROUP_ID=auth-group
+      # Vault configuration
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=dev-root-token
+      - VAULT_NAMESPACE=
+      - VAULT_KEY_PATH=lms/paseto/keys
+      - VAULT_TIMEOUT=10000
+      - VAULT_RETRY_ATTEMPTS=3
+      # PASETO configuration
+      - PASETO_ACCESS_TOKEN_EXPIRES_IN=15m
+      - PASETO_REFRESH_TOKEN_EXPIRES_IN=7d
+      - PASETO_ISSUER=lms-auth-service
+      - PASETO_AUDIENCE=lms-platform
     expose:
       - "4001"
     depends_on:
@@ -156,10 +250,18 @@ services:
       - redis
       - mongo
       - kafka
+      - vault
     networks:
       - internal_net
+      - lms-network
     ports:
       - "5555:5555" # for the prisma studio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     restart: always
 
   notification-service:
@@ -186,6 +288,13 @@ services:
       - kafka
     networks:
       - internal_net
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: always
 
   infrastructure-service:
@@ -203,6 +312,13 @@ services:
       - kafka
     networks:
       - internal_net
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: always
     
 
@@ -210,6 +326,9 @@ volumes:
   pgdata:
   redisdata:
   mongodata:
+  vault_data:
+  vault_logs:
+  kong_logs:
 
 
 

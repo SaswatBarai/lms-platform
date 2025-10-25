@@ -20,6 +20,7 @@ RUN pnpm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 RUN npm install -g pnpm
+RUN apk add --no-cache curl
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./

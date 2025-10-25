@@ -1,11 +1,12 @@
 import {z} from "zod"
-import { createOrganizationSchema, verifyOrganizationOtpSchema } from "@schemas/organization.js"
+import { createOrganizationSchema, verifyOrganizationOtpSchema, loginOrganizationSchema } from "@schemas/organization.js"
 
 
 
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
 export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSchema>
+export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
 
 
 

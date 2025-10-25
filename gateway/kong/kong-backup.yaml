@@ -1,0 +1,387 @@
+# gateway/kong/kong.yaml
+_format_version: "3.0"
+_transform: true
+
+# Upstream services configuration
+services:
+  # Auth Service - handles authentication endpoints
+  - name: auth-service
+    url: http://auth-service:4001
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["auth", "microservice"]
+    routes:
+      # Public login endpoint (no authentication required)
+      - name: auth-login
+        paths: ["/api/auth/login"]
+        methods: ["POST"]
+        strip_path: true
+        tags: ["auth", "public"]
+        plugins:
+          - name: cors
+            config:
+              origins: ["*"]
+              methods: ["POST", "OPTIONS"]
+              headers: ["Content-Type", "Authorization"]
+              credentials: true
+          - name: rate-limiting
+            config:
+              minute: 10
+              hour: 50
+              policy: local
+              fault_tolerant: true
+
+      # Public refresh token endpoint
+      - name: auth-refresh  
+        paths: ["/api/auth/refresh"]
+        methods: ["POST"]
+        strip_path: true
+        tags: ["auth", "public"]
+        plugins:
+          - name: cors
+            config:
+              origins: ["*"]
+              methods: ["POST", "OPTIONS"]
+              headers: ["Content-Type", "Authorization"]
+              credentials: true
+          - name: rate-limiting
+            config:
+              minute: 5
+              hour: 30
+              policy: local
+
+      # Public registration endpoint (if enabled)
+      - name: auth-register
+        paths: ["/api/auth/register"]
+        methods: ["POST"]
+        strip_path: true
+        tags: ["auth", "public"]
+        plugins:
+          - name: cors
+            config:
+              origins: ["*"]
+              methods: ["POST", "OPTIONS"]
+              headers: ["Content-Type", "Authorization"]
+              credentials: true
+          - name: rate-limiting
+            config:
+              minute: 3
+              hour: 20
+              policy: local
+
+      # Protected logout endpoint
+      - name: auth-logout
+        paths: ["/api/auth/logout"]
+        methods: ["POST"]
+        strip_path: true
+        tags: ["auth", "protected"]
+
+      # User profile endpoints
+      - name: auth-profile
+        paths: ["/api/auth/profile"]
+        methods: ["GET", "PUT", "PATCH"]
+        strip_path: true
+        tags: ["auth", "protected"]
+        plugins:
+            config:
+
+  # Organization Service - handles organization management
+  - name: organization-service
+    url: http://auth-service:4001  # Same service, different endpoints
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["organization", "microservice"]
+    routes:
+      # General organization endpoints (authenticated users)
+      - name: org-general
+        paths: ["/api/organizations"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["organization", "protected"]
+        plugins:
+            config:
+
+      # Organization creation/modification (admin/dean only)
+      - name: org-management
+        paths: ["/api/organizations"]
+        methods: ["POST", "PUT", "PATCH", "DELETE"]
+        strip_path: false
+        tags: ["organization", "admin"]
+        plugins:
+            config:
+
+      # Organization members management
+      - name: org-members
+        paths: ["/api/organizations/*/members"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["organization", "members"]
+        plugins:
+            config:
+
+      # Admin-only organization routes
+      - name: org-admin-only
+        paths: ["/api/organizations/admin", "/api/organizations/*/admin"]
+        methods: ["GET", "POST", "PUT", "DELETE"] 
+        strip_path: false
+        tags: ["organization", "admin-only"]
+        plugins:
+            config:
+
+  # Notification Service - handles notifications and messaging
+  - name: notification-service
+    url: http://notification-service:4002
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["notification", "microservice"]
+    routes:
+      # User notifications
+      - name: user-notifications
+        paths: ["/api/notifications"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["notification", "protected"]
+        plugins:
+            config:
+
+      # Notification templates (admin/teacher only)
+      - name: notification-templates
+        paths: ["/api/notifications/templates"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["notification", "templates"]
+        plugins:
+            config:
+
+      # Bulk notifications (admin only)
+      - name: notification-bulk
+        paths: ["/api/notifications/bulk"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["notification", "bulk"]
+        plugins:
+            config:
+
+  # Infrastructure Service - handles system management
+  - name: infrastructure-service  
+    url: http://infrastructure-service:4003
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["infrastructure", "microservice"]
+    routes:
+      # System health and metrics (admin only)
+      - name: infrastructure-health
+        paths: ["/api/infrastructure/health"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["infrastructure", "health"]
+        plugins:
+            config:
+
+      # Kafka management (admin only)
+      - name: infrastructure-kafka
+        paths: ["/api/infrastructure/kafka"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["infrastructure", "kafka"]
+        plugins:
+            config:
+
+      # Database operations (admin only)
+      - name: infrastructure-database
+        paths: ["/api/infrastructure/database"]
+        methods: ["GET", "POST"]
+        strip_path: false
+        tags: ["infrastructure", "database"]
+        plugins:
+            config:
+
+  # Student Portal Service (future expansion)
+  - name: student-portal-service
+    url: http://student-portal:3004
+    connect_timeout: 60000
+    write_timeout: 60000  
+    read_timeout: 60000
+    retries: 3
+    tags: ["student", "microservice"]
+    routes:
+      # Student dashboard
+      - name: student-dashboard
+        paths: ["/api/student/dashboard"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["student", "dashboard"]
+        plugins:
+            config:
+
+      # Student courses
+      - name: student-courses
+        paths: ["/api/student/courses"]
+        methods: ["GET", "POST"]
+        strip_path: false
+        tags: ["student", "courses"]
+        plugins:
+            config:
+
+  # Teacher Portal Service (future expansion)
+  - name: teacher-portal-service
+    url: http://teacher-portal:3005
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["teacher", "microservice"]
+    routes:
+      # Teacher dashboard
+      - name: teacher-dashboard
+        paths: ["/api/teacher/dashboard"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["teacher", "dashboard"]
+        plugins:
+            config:
+
+      # Course management
+      - name: teacher-courses
+        paths: ["/api/teacher/courses"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["teacher", "courses"]
+        plugins:
+            config:
+
+# Global plugins applied to all routes
+plugins:
+  # CORS plugin for all requests
+  - name: cors
+    config:
+      origins: 
+        - "http://localhost:3000"
+        - "http://localhost:3001" 
+        - "https://*.lms-platform.com"
+        - "https://lms-platform.com"
+      methods: 
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "PATCH"
+        - "DELETE"
+        - "OPTIONS"
+        - "HEAD"
+      headers:
+        - "Accept"
+        - "Accept-Version"
+        - "Content-Length"
+        - "Content-MD5"
+        - "Content-Type"
+        - "Date"
+        - "Authorization"
+        - "X-Auth-Token"
+        - "X-User-Id"
+        - "X-User-Role"
+        - "X-Organization-Id"
+      exposed_headers:
+        - "X-Auth-Token"
+        - "X-RateLimit-Limit"
+        - "X-RateLimit-Remaining"
+        - "X-RateLimit-Reset"
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+
+  # Request/Response logging
+  - name: file-log
+    config:
+      path: "/var/log/kong/access.log"
+      reopen: true
+
+  # Global rate limiting
+  - name: rate-limiting
+    config:
+      minute: 1000
+      hour: 10000
+      day: 100000
+      policy: local
+      fault_tolerant: true
+      hide_client_headers: false
+
+  # Request size limiting
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 10 # 10MB
+
+  # Response compression
+  - name: response-ratelimiting
+    config:
+      limits:
+        video: 
+          minute: 10
+        image:
+          minute: 100
+
+  # Security headers
+  - name: response-transformer
+    config:
+      add:
+        headers:
+          - "X-Frame-Options: DENY"
+          - "X-Content-Type-Options: nosniff"
+          - "X-XSS-Protection: 1; mode=block"
+          - "Referrer-Policy: strict-origin-when-cross-origin"
+          - "Permissions-Policy: camera=(), microphone=(), geolocation=()"
+
+# Upstreams for load balancing (if you have multiple instances)
+upstreams:
+  - name: auth-service-upstream
+    algorithm: round-robin
+    healthchecks:
+      active:
+        type: http
+        http_path: "/health"
+        healthy:
+          interval: 30
+          successes: 2
+        unhealthy:
+          interval: 30
+          http_failures: 3
+          timeouts: 3
+      passive:
+        healthy:
+          successes: 2
+        unhealthy:
+          http_failures: 3
+          timeouts: 3
+    targets:
+      - target: auth-service:4001
+        weight: 100
+
+  - name: notification-service-upstream
+    algorithm: round-robin
+    healthchecks:
+      active:
+        type: http
+        http_path: "/health"
+        healthy:
+          interval: 30
+          successes: 2
+        unhealthy:
+          interval: 30
+          http_failures: 3
+          timeouts: 3
+      passive:
+        healthy:
+          successes: 2
+        unhealthy:
+          http_failures: 3
+          timeouts: 3
+    targets:
+      - target: notification-service:4002
+        weight: 100

@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { createOrganizationService } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
-import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizationInput } from "../../types/organization.js";
+import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput } from "../../types/organization.js";
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
@@ -184,14 +184,69 @@ export const resendOrganizationOtpController = asyncHandler(async (req:Request,r
 })
 
 
-export const loginOrahnizationController = asyncHandler(async (req:Request,res:Response) =>{
-    const {email,password} = req.body;
-    //find organization by email
+export const loginOrganizationController = asyncHandler(async (req: Request, res: Response) => {
+    const { email, password }: LoginOrganizationInput = req.body;
+    
+    // Find organization by email
     const organization = await prisma.organization.findUnique({
-        where: {email}
-    })
-    if(!organization){
-        throw new AppError("Organization not found",404);
+        where: { email }
+    });
+    
+    if (!organization) {
+        throw new AppError("Invalid email or password", 401);
     }
-
+    
+    // Verify password
+    const { verifyPassword } = await import("@utils/security.js");
+    const isPasswordValid = await verifyPassword(organization.password, password);
+    
+    if (!isPasswordValid) {
+        throw new AppError("Invalid email or password", 401);
+    }
+    
+    // Generate PASETO tokens
+    const { PasetoV4SecurityManager } = await import("@utils/security.js");
+    const securityManager = PasetoV4SecurityManager.getInstance();
+    
+    // Create payload for tokens
+    const tokenPayload = {
+        id: organization.id,
+        email: organization.email,
+        name: organization.name,
+        role: "admin", // Organizations are admin by default
+        type: "organization"
+    };
+    
+    // Generate access and refresh tokens
+    const accessToken = await securityManager.generateAccessToken(tokenPayload);
+    const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID
+    const refreshToken = await securityManager.generateRefreshToken(organization.id, sessionId);
+    
+    // Store refresh token in database (optional - you might want to add a refreshToken field to Organization model)
+    // For now, we'll just return both tokens
+    
+    res.status(200).json({
+        success: true,
+        message: "Login successful",
+        data: {
+            organization: {
+                id: organization.id,
+                name: organization.name,
+                email: organization.email,
+                phone: organization.phone,
+                address: organization.address,
+                recoveryEmail: organization.recoveryEmail,
+                totalStudents: organization.totalStudents,
+                totalTeachers: organization.totalTeachers,
+                totalDeans: organization.totalDeans,
+                totalNonTeachingStaff: organization.totalNonTeachingStaff,
+                createdAt: organization.createdAt,
+                updatedAt: organization.updatedAt
+            },
+            tokens: {
+                accessToken,
+                refreshToken
+            }
+        }
+    });
 })

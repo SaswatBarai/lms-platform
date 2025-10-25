@@ -1,0 +1,88 @@
+# gateway/kong/kong.yaml - Simplified version
+_format_version: "3.0"
+_transform: true
+
+# Upstream services configuration
+services:
+  # Auth Service - handles authentication endpoints
+  - name: auth-service
+    url: http://auth-service:4001
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["auth", "microservice"]
+    routes:
+      # Organization registration endpoint
+      - name: create-organization
+        paths: ["/api/create-organization"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["auth", "organization", "public"]
+
+      # Organization OTP verification endpoint
+      - name: verify-organization-otp
+        paths: ["/api/verify-organization-otp"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["auth", "organization", "public"]
+
+      # Resend organization OTP endpoint
+      - name: resend-organization-otp
+        paths: ["/api/resend-organization-otp"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["auth", "organization", "public"]
+
+      # Organization login endpoint
+      - name: login-organization
+        paths: ["/api/login-organization"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["auth", "organization", "public"]
+
+      # Test organization creation endpoint (bypass OTP)
+      - name: test-create-organization
+        paths: ["/api/test-create-organization"]
+        methods: ["POST"]
+        strip_path: false
+        tags: ["auth", "organization", "test"]
+
+      # Health check endpoint
+      - name: auth-health
+        paths: ["/api/health", "/health"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["auth", "health"]
+
+  # Notification Service - handles notifications and messaging
+  - name: notification-service
+    url: http://notification-service:4002
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["notification", "microservice"]
+    routes:
+      # User notifications
+      - name: user-notifications
+        paths: ["/api/notifications"]
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        strip_path: false
+        tags: ["notification", "protected"]
+
+  # Infrastructure Service - handles system management
+  - name: infrastructure-service  
+    url: http://infrastructure-service:4003
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["infrastructure", "microservice"]
+    routes:
+      # System health and metrics (admin only)
+      - name: infrastructure-health
+        paths: ["/api/infrastructure/health"]
+        methods: ["GET"]
+        strip_path: false
+        tags: ["infrastructure", "health"]
