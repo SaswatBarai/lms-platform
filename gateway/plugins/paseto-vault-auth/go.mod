@@ -1,7 +1,7 @@
 // gateway/kong/plugins/paseto-vault-auth/go.mod
 module kong-plugin-paseto-vault-auth
 
-go 1.21
+go 1.18
 
 require (
 	github.com/Kong/go-pdk v0.10.0

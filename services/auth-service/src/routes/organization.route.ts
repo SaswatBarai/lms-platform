@@ -12,39 +12,38 @@ router.post("/verify-organization-otp",validate({body: verifyOrganizationOtpSche
 router.post("/resend-organization-otp",validate({body: resendOrganizationOtpSchema}),resendOrganizationOtpController)
 router.post("/login-organization",validate({body: loginOrganizationSchema}),loginOrganizationController)
 
-// TEST ONLY - Direct organization creation without OTP
-router.post("/test-create-organization", async (req, res) => {
-    const { hashPassword } = await import("@utils/security.js");
-    const { prisma } = await import("@lib/prisma.js");
-    
+// Protected test route to verify authentication plugin
+router.get("/test-protected", async (req, res) => {
     try {
-        const { name, email, password, phone, recoveryEmail, address } = req.body;
-        const hashedPassword = await hashPassword(password);
+        // This route should be protected by Kong's PASETO-Vault plugin
+        // If the request reaches here, it means authentication was successful
         
-        const organization = await prisma.organization.create({
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-                phone,
-                recoveryEmail,
-                address: address || "Test Address"
-            }
-        });
+        // Extract user info from headers set by Kong plugin
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const userType = req.headers['x-user-type'] as string;
         
-        res.status(201).json({
+        res.status(200).json({
             success: true,
-            message: "Test organization created successfully",
+            message: "Authentication successful - You have access to this protected resource",
             data: {
-                id: organization.id,
-                name: organization.name,
-                email: organization.email
+                message: "This is a protected endpoint that requires valid PASETO authentication",
+                user: {
+                    id: userId || "Not provided",
+                    email: userEmail || "Not provided", 
+                    role: userRole || "Not provided",
+                    type: userType || "Not provided"
+                },
+                timestamp: new Date().toISOString(),
+                endpoint: "/api/test-protected"
             }
         });
     } catch (error) {
-        res.status(400).json({
+        res.status(500).json({
             success: false,
-            message: error instanceof Error ? error.message : "Unknown error"
+            message: "Internal server error",
+            error: error instanceof Error ? error.message : "Unknown error"
         });
     }
 })

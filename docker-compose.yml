@@ -86,8 +86,8 @@ services:
 
   kong:
     build:
-      context: ./gateway/kong
-      dockerfile: Dockerfile
+      context: ./gateway
+      dockerfile: kong/Dockerfile
     container_name: lms-kong-gateway
     environment:
       # Basic Kong configuration
@@ -105,7 +105,7 @@ services:
       KONG_SSL_CERT_KEY: '/etc/kong/ssl/key.pem'
       
       # Plugin configuration
-      KONG_PLUGINS: 'bundled'
+      KONG_PLUGINS: 'bundled,paseto-vault-auth-lua'
       
       # Vault integration
       KONG_VAULT_ENV_PREFIX: 'KONG_VAULT_'

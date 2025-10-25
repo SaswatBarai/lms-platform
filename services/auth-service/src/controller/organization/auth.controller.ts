@@ -37,7 +37,6 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
             otp
         }
     }
-    const hashedPassword = await hashPassword(password);
     const sessionToken = crypto.randomBytes(32).toString("hex");
     //check the details already exist or not 
     if (await redisClient.exists(`org-auth-${email}`)) {
@@ -47,7 +46,7 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
     const redisResult = await redisClient.hset(`org-auth-${email}`, {
         name,
         email,
-        password: hashedPassword,
+        password: password, // Store plain password, will be hashed in service
         phone,
         recoveryEmail,
         address: address,
