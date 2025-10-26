@@ -12,6 +12,10 @@ app.use(morgan("dev"));
 app.use(helmet());
 app.use(cors());
 
+app.get("/health",(req,res)=>{
+    res.status(200).json({message:"Notification service is running"});
+});
+
 
 
 

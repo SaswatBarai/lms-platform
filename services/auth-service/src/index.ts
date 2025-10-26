@@ -48,8 +48,8 @@ let server: Server | null = null;
 
 // Initialize Kafka producer on startup
 initKafkaProducer().catch((err: Error) => {
-    console.error("[auth] Kafka producer failed to start", err);
-    process.exit(1);
+    console.error("[auth] Kafka producer failed to start (continuing without Kafka)", err);
+    // Do not exit the process; allow HTTP API to remain available
 });
 
 // Handle unhandled promise rejections

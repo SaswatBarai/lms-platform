@@ -1,54 +1,25 @@
-# gateway/kong/kong.yaml - Optimized for Auth/Unauth Separation
 _format_version: "3.0"
 _transform: true
 
 #---------------------------------------------------
 # Services and Routes
 #---------------------------------------------------
+
 services:
-  # --- Authentication Service (Health Check) ---
-  - name: auth-service-health
-    url: http://auth-service:4001/health
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
-    tags: ["auth", "health"]
-    routes:
-      - name: auth-health-check
-        paths: ["/auth/health"]
-        methods: ["GET"]
-        strip_path: true
-        tags: ["auth", "health", "public"]
-
-  # --- Authentication Service (API) ---
   - name: auth-service
-    url: http://auth-service:4001/api
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
-    tags: ["auth", "microservice"]
+    url: http://auth-service:4001
     routes:
-      # ============================================
-      # PUBLIC ROUTES (No Authentication Required)
-      # ============================================
-      # All POST requests to /auth/api/* are public (registration, login, etc.)
-      - name: auth-public-routes
-        paths: ["/auth/api"]
-        strip_path: true
-        methods: ["POST"]
-        tags: ["auth", "public"]
+      - name: auth-service-routes
+        paths:
+          - "/auth/api/create-organization"
+          - "/auth/api/verify-organization-otp"
+          - "/auth/api/resend-organization-otp"
+          - "/auth/api/login-organization"
+        strip_path: false
 
-      # ============================================
-      # PROTECTED ROUTES (Authentication Required)
-      # ============================================
-      # All GET/PUT/DELETE requests to /auth/api/* require authentication
-      - name: auth-protected-routes
-        paths: ["/auth/api"]
-        strip_path: true
-        methods: ["GET", "PUT", "DELETE", "PATCH"]
-        tags: ["auth", "protected"]
+      - name: auth-service-routes-protected
+        paths:
+          - "/auth/api/test-protected"
         plugins:
           - name: paseto-vault-auth-lua
             config:
@@ -58,101 +29,3 @@ services:
               cache_timeout: 3600
               required_roles: []
 
-      # Add more protected routes here as needed
-      # Example:
-      # - name: auth-get-organization-profile
-      #   paths: ["/auth/api/organization/profile"]
-      #   strip_path: true
-      #   methods: ["GET"]
-      #   tags: ["auth", "protected"]
-      #   plugins:
-      #     - name: paseto-vault-auth-lua
-      #       config:
-      #         vault_address: "http://vault:8200"
-      #         vault_token: "dev-root-token"
-      #         header_prefix: "X-User-"
-      #         cache_timeout: 3600
-      #         required_roles: []
-      #
-      # - name: auth-update-organization
-      #   paths: ["/auth/api/organization/update"]
-      #   strip_path: true
-      #   methods: ["PUT", "PATCH"]
-      #   tags: ["auth", "protected"]
-      #   plugins:
-      #     - name: paseto-vault-auth-lua
-      #       config:
-      #         vault_address: "http://vault:8200"
-      #         vault_token: "dev-root-token"
-      #         header_prefix: "X-User-"
-      #         cache_timeout: 3600
-      #         required_roles: ["admin"]
-
-
-  # --- Notification Service ---
-  - name: notification-service
-    url: http://notification-service:4002
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
-    tags: ["notification", "microservice"]
-    routes:
-      # == Unauthenticated Notification Routes (Example: Health Check) ==
-      - name: notification-health
-        paths: ["/notification/health"] # Assuming this path exists and is public
-        methods: ["GET"]
-        strip_path: true # Forward as /health
-        tags: ["notification", "health", "public"]
-        # No auth plugin
-
-      # == Authenticated Notification Routes ==
-      - name: notification-protected
-        paths: ["/notification"] # Matches /notification/*
-        methods: ["GET", "POST", "PUT", "DELETE"] # Adjust as needed
-        strip_path: true # Remove /notification prefix
-        tags: ["notification", "protected"]
-        plugins:
-          - name: paseto-vault-auth-lua
-            config:
-              vault_address: "http://vault:8200"
-              
-              vault_token: "dev-root-token"
-              header_prefix: "X-User-"
-              cache_timeout: 3600
-              required_roles: []
-
-  # --- Infrastructure Service ---
-  - name: infrastructure-service
-    url: http://infrastructure-service:4003
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
-    tags: ["infrastructure", "microservice"]
-    routes:
-      # == Unauthenticated Infrastructure Routes (Example: Public Status) ==
-      # - name: infra-public-status
-      #   paths: ["/api/infrastructure/status"]
-      #   methods: ["GET"]
-      #   strip_path: false
-      #   tags: ["infrastructure", "public"]
-      #   # No auth plugin
-
-      # == Authenticated Infrastructure Routes ==
-      - name: infra-admin # Assuming most infra routes need auth
-        paths: ["/api/infrastructure"] # Matches /api/infrastructure/*
-        methods: ["GET", "POST", "PUT", "DELETE"] # Adjust as needed
-        strip_path: false # Keep full path for upstream
-        tags: ["infrastructure", "protected", "admin"] # Tag as admin if applicable
-        plugins:
-          - name: paseto-vault-auth-lua
-            config:
-              vault_address: "http://vault:8200"
-              vault_token: "dev-root-token"
-              header_prefix: "X-User-"
-              cache_timeout: 3600
-              required_roles: []
-            # Example: Override config to require specific roles
-            # config:
-            #   required_roles: ["system-admin"] # Only allow system admins

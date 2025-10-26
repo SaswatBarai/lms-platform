@@ -21,7 +21,7 @@ app.get("/",(req,res)=>{
 
 //All routes
 
-app.use("/api",organizationRoutes)
+app.use("/auth/api",organizationRoutes)
 
 //health check
 app.get("/health",(req,res)=>{
