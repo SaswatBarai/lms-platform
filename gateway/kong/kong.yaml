@@ -3,120 +3,99 @@ _format_version: "3.0"
 _transform: true
 
 #---------------------------------------------------
-# Common Definitions (Anchors)
-#---------------------------------------------------
-x-common-plugins:
-  # Base PASETO Vault Auth Plugin Configuration
-  &paseto-vault-auth:
-    name: paseto-vault-auth-lua
-    config: &paseto-vault-auth-config
-      vault_address: "http://vault:8200"
-      vault_token: "dev-root-token" # Consider using env vars or Vault secrets
-      header_prefix: "X-User-"
-      cache_timeout: 3600
-      required_roles: []
-      # No skip_path_prefixes here; apply selectively or with specific skips per route/service
-
-  # Request Transformer for Auth Path Mapping (/auth/* -> /api/*)
-  &transformer-auth-to-api:
-    name: request-transformer
-    config:
-      replace:
-        uri_captures: ["/auth/(.*)"]
-        uri: "/api/$(uri_captures[1])"
-
-  # Request Transformer for Health Path Mapping (/*/health -> /health)
-  &transformer-to-health:
-    name: request-transformer
-    config:
-      replace:
-        uri: "/health"
-
-x-common-service-settings: &common-service-settings
-  connect_timeout: 60000
-  write_timeout: 60000
-  read_timeout: 60000
-  retries: 3
-
-#---------------------------------------------------
 # Services and Routes
 #---------------------------------------------------
 services:
-  # --- Authentication Service ---
+  # --- Authentication Service (Health Check) ---
+  - name: auth-service-health
+    url: http://auth-service:4001/health
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    tags: ["auth", "health"]
+    routes:
+      - name: auth-health-check
+        paths: ["/auth/health"]
+        methods: ["GET"]
+        strip_path: true
+        tags: ["auth", "health", "public"]
+
+  # --- Authentication Service (API) ---
   - name: auth-service
-    url: http://auth-service:4001
-    <<: *common-service-settings
+    url: http://auth-service:4001/api
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
     tags: ["auth", "microservice"]
     routes:
-      # == Unauthenticated Auth Routes ==
-      - name: auth-public
-        paths:
-          - /auth/create-organization
-          - /auth/verify-organization-otp
-          - /auth/resend-organization-otp
-          - /auth/login-organization
-          - /auth/test-create-organization # Keep if needed for testing
+      # ============================================
+      # PUBLIC ROUTES (No Authentication Required)
+      # ============================================
+      # All POST requests to /auth/api/* are public (registration, login, etc.)
+      - name: auth-public-routes
+        paths: ["/auth/api"]
+        strip_path: true
         methods: ["POST"]
-        strip_path: false
         tags: ["auth", "public"]
-        plugins:
-          - <<: *transformer-auth-to-api # Map /auth/* to /api/*
 
-      - name: auth-health
-        paths: ["/auth/health", "/health"] # Specific and generic health paths
-        methods: ["GET"]
-        strip_path: false
-        tags: ["auth", "health", "public"]
-        plugins:
-          - <<: *transformer-to-health # Map to /health upstream
-
-      # == Authenticated Auth Routes ==
-      - name: auth-protected
-        paths:
-          - /auth/test-protected
-          # Add any other protected /auth/* routes here
-        methods: ["GET"] # Add other methods (PUT, DELETE etc. if needed)
-        strip_path: false
+      # ============================================
+      # PROTECTED ROUTES (Authentication Required)
+      # ============================================
+      # All GET/PUT/DELETE requests to /auth/api/* require authentication
+      - name: auth-protected-routes
+        paths: ["/auth/api"]
+        strip_path: true
+        methods: ["GET", "PUT", "DELETE", "PATCH"]
         tags: ["auth", "protected"]
         plugins:
-          - <<: *transformer-auth-to-api # Map /auth/* to /api/*
-          - <<: *paseto-vault-auth # Apply Authentication
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
 
-      # == Legacy Unauthenticated Routes (Consider Removal) ==
-      - name: legacy-auth-public
-        paths:
-          - /api/create-organization
-          - /api/verify-organization-otp
-          - /api/resend-organization-otp
-          - /api/login-organization
-          - /api/test-create-organization
-        methods: ["POST"]
-        strip_path: false # Path is already /api/*
-        tags: ["auth", "public", "legacy"]
-        # No auth plugin
+      # Add more protected routes here as needed
+      # Example:
+      # - name: auth-get-organization-profile
+      #   paths: ["/auth/api/organization/profile"]
+      #   strip_path: true
+      #   methods: ["GET"]
+      #   tags: ["auth", "protected"]
+      #   plugins:
+      #     - name: paseto-vault-auth-lua
+      #       config:
+      #         vault_address: "http://vault:8200"
+      #         vault_token: "dev-root-token"
+      #         header_prefix: "X-User-"
+      #         cache_timeout: 3600
+      #         required_roles: []
+      #
+      # - name: auth-update-organization
+      #   paths: ["/auth/api/organization/update"]
+      #   strip_path: true
+      #   methods: ["PUT", "PATCH"]
+      #   tags: ["auth", "protected"]
+      #   plugins:
+      #     - name: paseto-vault-auth-lua
+      #       config:
+      #         vault_address: "http://vault:8200"
+      #         vault_token: "dev-root-token"
+      #         header_prefix: "X-User-"
+      #         cache_timeout: 3600
+      #         required_roles: ["admin"]
 
-      - name: legacy-auth-health
-        paths: ["/api/health"] # '/health' covered by primary health route
-        methods: ["GET"]
-        strip_path: false # Path is already /api/*
-        tags: ["auth", "health", "legacy", "public"]
-        # No auth plugin
-
-      # == Legacy Authenticated Routes (Consider Removal) ==
-      - name: legacy-auth-protected
-        paths:
-          - /api/test-protected
-          # Add any other legacy protected /api/* auth routes
-        methods: ["GET"] # Add others if needed
-        strip_path: false # Path is already /api/*
-        tags: ["auth", "protected", "legacy"]
-        plugins:
-          - <<: *paseto-vault-auth # Apply Authentication
 
   # --- Notification Service ---
   - name: notification-service
     url: http://notification-service:4002
-    <<: *common-service-settings
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
     tags: ["notification", "microservice"]
     routes:
       # == Unauthenticated Notification Routes (Example: Health Check) ==
@@ -134,12 +113,22 @@ services:
         strip_path: true # Remove /notification prefix
         tags: ["notification", "protected"]
         plugins:
-          - <<: *paseto-vault-auth # Apply Authentication
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
 
   # --- Infrastructure Service ---
   - name: infrastructure-service
     url: http://infrastructure-service:4003
-    <<: *common-service-settings
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
     tags: ["infrastructure", "microservice"]
     routes:
       # == Unauthenticated Infrastructure Routes (Example: Public Status) ==
@@ -157,8 +146,13 @@ services:
         strip_path: false # Keep full path for upstream
         tags: ["infrastructure", "protected", "admin"] # Tag as admin if applicable
         plugins:
-          - <<: *paseto-vault-auth # Apply Authentication
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
             # Example: Override config to require specific roles
             # config:
-            #   <<: *paseto-vault-auth-config # Inherit base config
             #   required_roles: ["system-admin"] # Only allow system admins

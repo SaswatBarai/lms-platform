@@ -25,7 +25,7 @@ const envSchema = z.object({
     VAULT_RETRY_ATTEMPTS: z.coerce.number().default(3),
     
     // Additional useful configs
-    KAFKA_BROKERS: z.string().default("localhost:9092"),
+    KAFKA_BROKERS: z.string().default("localhost:9093"),
     REDIS_PASSWORD: z.string().optional(),
     
     // PASETO specific
