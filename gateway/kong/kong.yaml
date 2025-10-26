@@ -1,197 +1,164 @@
-# gateway/kong/kong.yaml - Updated with /auth and /notification routing
+# gateway/kong/kong.yaml - Optimized for Auth/Unauth Separation
 _format_version: "3.0"
 _transform: true
 
-# Upstream services configuration
+#---------------------------------------------------
+# Common Definitions (Anchors)
+#---------------------------------------------------
+x-common-plugins:
+  # Base PASETO Vault Auth Plugin Configuration
+  &paseto-vault-auth:
+    name: paseto-vault-auth-lua
+    config: &paseto-vault-auth-config
+      vault_address: "http://vault:8200"
+      vault_token: "dev-root-token" # Consider using env vars or Vault secrets
+      header_prefix: "X-User-"
+      cache_timeout: 3600
+      required_roles: []
+      # No skip_path_prefixes here; apply selectively or with specific skips per route/service
+
+  # Request Transformer for Auth Path Mapping (/auth/* -> /api/*)
+  &transformer-auth-to-api:
+    name: request-transformer
+    config:
+      replace:
+        uri_captures: ["/auth/(.*)"]
+        uri: "/api/$(uri_captures[1])"
+
+  # Request Transformer for Health Path Mapping (/*/health -> /health)
+  &transformer-to-health:
+    name: request-transformer
+    config:
+      replace:
+        uri: "/health"
+
+x-common-service-settings: &common-service-settings
+  connect_timeout: 60000
+  write_timeout: 60000
+  read_timeout: 60000
+  retries: 3
+
+#---------------------------------------------------
+# Services and Routes
+#---------------------------------------------------
 services:
-  # Auth Service - handles all /auth/* endpoints  
+  # --- Authentication Service ---
   - name: auth-service
     url: http://auth-service:4001
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
+    <<: *common-service-settings
     tags: ["auth", "microservice"]
     routes:
-      # Auth API routes - maps /auth/* to /api/* in auth service
-      - name: auth-create-organization
-        paths: ["/auth/create-organization"]
+      # == Unauthenticated Auth Routes ==
+      - name: auth-public
+        paths:
+          - /auth/create-organization
+          - /auth/verify-organization-otp
+          - /auth/resend-organization-otp
+          - /auth/login-organization
+          - /auth/test-create-organization # Keep if needed for testing
         methods: ["POST"]
         strip_path: false
-        tags: ["auth", "organization", "public"]
+        tags: ["auth", "public"]
         plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/create-organization"
+          - <<: *transformer-auth-to-api # Map /auth/* to /api/*
 
-      - name: auth-verify-organization-otp
-        paths: ["/auth/verify-organization-otp"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public"]
-        plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/verify-organization-otp"
-
-      - name: auth-resend-organization-otp
-        paths: ["/auth/resend-organization-otp"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public"]
-        plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/resend-organization-otp"
-
-      - name: auth-login-organization
-        paths: ["/auth/login-organization"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public"]
-        plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/login-organization"
-
-      - name: auth-test-create-organization
-        paths: ["/auth/test-create-organization"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "test"]
-        plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/test-create-organization"
-
-      # Protected auth routes
-      - name: auth-test-protected
-        paths: ["/auth/test-protected"]
-        methods: ["GET"]
-        strip_path: false
-        tags: ["auth", "protected", "test"]
-        plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/api/test-protected"
-          - name: paseto-vault-auth-lua
-            config:
-              vault_address: "http://vault:8200"
-              vault_token: "dev-root-token"
-              header_prefix: "X-User-"
-              cache_timeout: 3600
-              skip_path_prefixes: ["/health", "/metrics", "/auth/create-organization", "/auth/verify-organization-otp", "/auth/resend-organization-otp", "/auth/login-organization", "/auth/test-create-organization"]
-              required_roles: []
-
-      # Auth health endpoint - maps /auth/health to /health
       - name: auth-health
-        paths: ["/auth/health"]
+        paths: ["/auth/health", "/health"] # Specific and generic health paths
         methods: ["GET"]
         strip_path: false
         tags: ["auth", "health", "public"]
         plugins:
-          - name: request-transformer
-            config:
-              replace:
-                uri: "/health"
+          - <<: *transformer-to-health # Map to /health upstream
 
-      # Legacy API routes for backward compatibility
-      - name: legacy-create-organization
-        paths: ["/api/create-organization"]
-        methods: ["POST"]
+      # == Authenticated Auth Routes ==
+      - name: auth-protected
+        paths:
+          - /auth/test-protected
+          # Add any other protected /auth/* routes here
+        methods: ["GET"] # Add other methods (PUT, DELETE etc. if needed)
         strip_path: false
-        tags: ["auth", "organization", "public", "legacy"]
-
-      - name: legacy-verify-organization-otp
-        paths: ["/api/verify-organization-otp"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public", "legacy"]
-
-      - name: legacy-resend-organization-otp
-        paths: ["/api/resend-organization-otp"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public", "legacy"]
-
-      - name: legacy-login-organization
-        paths: ["/api/login-organization"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "public", "legacy"]
-
-      - name: legacy-test-create-organization
-        paths: ["/api/test-create-organization"]
-        methods: ["POST"]
-        strip_path: false
-        tags: ["auth", "organization", "test", "legacy"]
-
-      # Protected test endpoint (requires authentication)
-      - name: legacy-test-protected
-        paths: ["/api/test-protected"]
-        methods: ["GET"]
-        strip_path: false
-        tags: ["auth", "protected", "test", "legacy"]
+        tags: ["auth", "protected"]
         plugins:
-          - name: paseto-vault-auth-lua
-            config:
-              vault_address: "http://vault:8200"
-              vault_token: "dev-root-token"
-              header_prefix: "X-User-"
-              cache_timeout: 3600
-              skip_path_prefixes: ["/health", "/metrics", "/auth", "/api/create-organization", "/api/verify-organization-otp", "/api/resend-organization-otp", "/api/login-organization", "/api/test-create-organization"]
-              required_roles: []
+          - <<: *transformer-auth-to-api # Map /auth/* to /api/*
+          - <<: *paseto-vault-auth # Apply Authentication
 
-      # Legacy health check endpoint
+      # == Legacy Unauthenticated Routes (Consider Removal) ==
+      - name: legacy-auth-public
+        paths:
+          - /api/create-organization
+          - /api/verify-organization-otp
+          - /api/resend-organization-otp
+          - /api/login-organization
+          - /api/test-create-organization
+        methods: ["POST"]
+        strip_path: false # Path is already /api/*
+        tags: ["auth", "public", "legacy"]
+        # No auth plugin
+
       - name: legacy-auth-health
-        paths: ["/api/health", "/health"]
+        paths: ["/api/health"] # '/health' covered by primary health route
         methods: ["GET"]
-        strip_path: false
-        tags: ["auth", "health", "legacy"]
+        strip_path: false # Path is already /api/*
+        tags: ["auth", "health", "legacy", "public"]
+        # No auth plugin
 
-  # Notification Service - handles all /notification/* endpoints
+      # == Legacy Authenticated Routes (Consider Removal) ==
+      - name: legacy-auth-protected
+        paths:
+          - /api/test-protected
+          # Add any other legacy protected /api/* auth routes
+        methods: ["GET"] # Add others if needed
+        strip_path: false # Path is already /api/*
+        tags: ["auth", "protected", "legacy"]
+        plugins:
+          - <<: *paseto-vault-auth # Apply Authentication
+
+  # --- Notification Service ---
   - name: notification-service
     url: http://notification-service:4002
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
+    <<: *common-service-settings
     tags: ["notification", "microservice"]
     routes:
-      # All notification routes
-      - name: notification-routes
-        paths: ["/notification"]
-        methods: ["GET", "POST", "PUT", "DELETE"]
-        strip_path: true
+      # == Unauthenticated Notification Routes (Example: Health Check) ==
+      - name: notification-health
+        paths: ["/notification/health"] # Assuming this path exists and is public
+        methods: ["GET"]
+        strip_path: true # Forward as /health
+        tags: ["notification", "health", "public"]
+        # No auth plugin
+
+      # == Authenticated Notification Routes ==
+      - name: notification-protected
+        paths: ["/notification"] # Matches /notification/*
+        methods: ["GET", "POST", "PUT", "DELETE"] # Adjust as needed
+        strip_path: true # Remove /notification prefix
         tags: ["notification", "protected"]
         plugins:
-          - name: paseto-vault-auth-lua
-            config:
-              vault_address: "http://vault:8200"
-              vault_token: "dev-root-token"
-              header_prefix: "X-User-"
-              cache_timeout: 3600
-              skip_path_prefixes: ["/health", "/metrics"]
-              required_roles: []
+          - <<: *paseto-vault-auth # Apply Authentication
 
-  # Infrastructure Service - handles system management
-  - name: infrastructure-service  
+  # --- Infrastructure Service ---
+  - name: infrastructure-service
     url: http://infrastructure-service:4003
-    connect_timeout: 60000
-    write_timeout: 60000
-    read_timeout: 60000
-    retries: 3
+    <<: *common-service-settings
     tags: ["infrastructure", "microservice"]
     routes:
-      # System health and metrics (admin only)
-      - name: infrastructure-health
-        paths: ["/api/infrastructure/health"]
-        methods: ["GET"]
-        strip_path: false
-        tags: ["infrastructure", "health"]
+      # == Unauthenticated Infrastructure Routes (Example: Public Status) ==
+      # - name: infra-public-status
+      #   paths: ["/api/infrastructure/status"]
+      #   methods: ["GET"]
+      #   strip_path: false
+      #   tags: ["infrastructure", "public"]
+      #   # No auth plugin
+
+      # == Authenticated Infrastructure Routes ==
+      - name: infra-admin # Assuming most infra routes need auth
+        paths: ["/api/infrastructure"] # Matches /api/infrastructure/*
+        methods: ["GET", "POST", "PUT", "DELETE"] # Adjust as needed
+        strip_path: false # Keep full path for upstream
+        tags: ["infrastructure", "protected", "admin"] # Tag as admin if applicable
+        plugins:
+          - <<: *paseto-vault-auth # Apply Authentication
+            # Example: Override config to require specific roles
+            # config:
+            #   <<: *paseto-vault-auth-config # Inherit base config
+            #   required_roles: ["system-admin"] # Only allow system admins
