@@ -1,6 +1,7 @@
 import express,{Application} from "express"
 import morgan from "morgan";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import organizationRoutes from "@routes/organization.route.js";
 import errorHandler from "@middleware/errorHandler.js";
 
@@ -9,6 +10,7 @@ const app:Application = express();
 //middlewares
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
+app.use(cookieParser()); // Parse cookies for refresh token handling
 app.use(morgan("dev"));
 
 // Set security HTTP headers

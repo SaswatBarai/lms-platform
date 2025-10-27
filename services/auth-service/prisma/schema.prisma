@@ -115,3 +115,32 @@ model Department {
   college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   hod         Hod?    @relation(fields: [hodId], references: [id])
 }
+
+model RefreshToken {
+  id            String   @id @default(cuid())
+  token         String   @unique @db.Text  // Store hashed version
+  userId        String   
+  userType      String   // "organization", "college", "dean", "hod", "staff", "student"
+  sessionId     String   @unique
+  tokenFamily   String   // For token rotation detection
+  
+  // Security metadata
+  deviceInfo    String?  @db.Text  // User-Agent
+  ipAddress     String?  @db.VarChar(45)
+  lastUsedAt    DateTime @default(now())
+  
+  // Expiration
+  expiresAt     DateTime
+  
+  // Status
+  isRevoked     Boolean  @default(false)
+  revokedAt     DateTime?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId, userType])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@index([isRevoked])
+}

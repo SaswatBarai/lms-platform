@@ -20,6 +20,7 @@
   "packageManager": "pnpm@10.17.1",
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.3",
     "@types/ioredis": "^5.0.0",
     "@types/jsonwebtoken": "^9.0.10",

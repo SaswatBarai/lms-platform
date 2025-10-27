@@ -30,4 +30,10 @@ export const createCollegeController = asyncHandler(
     }
 )
 
+export const loginCollege = asyncHandler(
+    async(req:Request, res:Response) => {
+        
+    }
+)
+
 

@@ -1,6 +1,7 @@
 -- gateway/plugins/paseto-vault-auth-lua/handler.lua
 
 local cjson = require "cjson.safe"
+local redis = require "resty.redis"
 
 local PasetoVaultAuthHandler = {
   PRIORITY = 1000,
@@ -178,6 +179,24 @@ function PasetoVaultAuthHandler:access(conf)
     })
   end
 
+  -- Extract session and organization info for validation
+  local user_type = claims.type
+  local organization_id = claims.id -- For organizations, id is the organization id
+  local session_id = claims.sessionId or claims.sid or claims.session_id
+  
+  -- Validate session in Redis (single device login check)
+  if user_type == "organization" then
+    local session_ok, session_err = self:validate_session_in_redis(conf, organization_id, session_id, user_type)
+    if not session_ok then
+      kong.log.warn("Session validation failed: " .. (session_err or "unknown error"))
+      return kong.response.exit(401, {
+        error = "Session invalid",
+        message = "Your session has been invalidated. Please login again.",
+        reason = session_err
+      })
+    end
+  end
+
   -- Prepare header prefix
   local prefix = (conf and conf.header_prefix) or "X-User-"
 
@@ -229,6 +248,114 @@ function PasetoVaultAuthHandler:validate_with_vault(conf, token)
   -- This avoids complex HTTP requests during plugin loading
   kong.log.info("Vault validation - accepting token for testing")
   return true
+end
+
+function PasetoVaultAuthHandler:connect_to_redis(conf)
+  local red = redis:new()
+  red:set_timeout(conf.redis_timeout or 2000)
+  
+  local ok, err = red:connect(conf.redis_host or "redis", conf.redis_port or 6379)
+  if not ok then
+    kong.log.err("Failed to connect to Redis: " .. (err or "unknown error"))
+    return nil, err
+  end
+  
+  -- Authenticate if password is provided
+  if conf.redis_password then
+    local res, err = red:auth(conf.redis_password)
+    if not res then
+      kong.log.err("Failed to authenticate with Redis: " .. (err or "unknown error"))
+      return nil, err
+    end
+  end
+  
+  -- Select database
+  if conf.redis_database and conf.redis_database ~= 0 then
+    local res, err = red:select(conf.redis_database)
+    if not res then
+      kong.log.err("Failed to select Redis database: " .. (err or "unknown error"))
+      return nil, err
+    end
+  end
+  
+  return red, nil
+end
+
+function PasetoVaultAuthHandler:validate_session_in_redis(conf, organization_id, session_id, user_type)
+  -- Skip validation if disabled in config
+  if conf.validate_session == false then
+    kong.log.info("Session validation disabled in config")
+    return true, nil
+  end
+  
+  -- Only validate for organization type
+  if user_type ~= "organization" then
+    kong.log.info("Session validation skipped - not an organization user")
+    return true, nil
+  end
+  
+  if not organization_id or not session_id then
+    kong.log.warn("Missing organization_id or session_id for validation")
+    return false, "Missing session information"
+  end
+  
+  -- Connect to Redis
+  local red, err = self:connect_to_redis(conf)
+  if not red then
+    kong.log.err("Redis connection failed: " .. (err or "unknown"))
+    -- In case of Redis failure, we can choose to fail open or closed
+    -- For now, fail closed (reject request)
+    return false, "Session validation unavailable"
+  end
+  
+  -- Get the active session from Redis
+  local key = "activeSession:org:" .. organization_id
+  
+  -- Get both active status and stored sessionId
+  local active_value, err1 = red:hget(key, "active")
+  local stored_session_id, err2 = red:hget(key, "sessionId")
+  
+  -- Put connection back into pool
+  local ok, err_pool = red:set_keepalive(10000, 100)
+  if not ok then
+    kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
+  end
+  
+  if err1 or err2 then
+    kong.log.err("Redis error: " .. (err1 or err2 or "unknown"))
+    return false, "Session validation failed"
+  end
+  
+  -- Check if session exists
+  if active_value == ngx.null or active_value == nil then
+    kong.log.warn("No active session found in Redis for organization: " .. organization_id)
+    return false, "No active session found"
+  end
+  
+  -- Check if session is active
+  if active_value ~= 'true' then
+    kong.log.warn("Session is not active for organization: " .. organization_id)
+    return false, "Session is not active"
+  end
+  
+  -- Check if stored sessionId exists
+  if stored_session_id == ngx.null or stored_session_id == nil then
+    kong.log.warn("No sessionId found in Redis for organization: " .. organization_id)
+    return false, "Invalid session"
+  end
+  
+  -- CRITICAL: Verify that the sessionId in the token matches the one in Redis
+  -- This ensures single device login - if user logs in from another device,
+  -- the old sessionId will no longer match and the old device will be logged out
+  if stored_session_id ~= session_id then
+    kong.log.warn("SessionId mismatch for organization: " .. organization_id .. 
+                  ". Token session: " .. session_id .. 
+                  ", Redis session: " .. stored_session_id)
+    return false, "Session has been invalidated by another login"
+  end
+  
+  kong.log.info("Session validation successful for organization: " .. organization_id .. ", session: " .. session_id)
+  return true, nil
 end
 
 return PasetoVaultAuthHandler

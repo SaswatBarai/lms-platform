@@ -25,6 +25,12 @@ local schema = {
               default = {}
             }
           },
+          { redis_host = { type = "string", default = "redis" } },
+          { redis_port = { type = "number", default = 6379 } },
+          { redis_password = { type = "string" } },
+          { redis_database = { type = "number", default = 0 } },
+          { redis_timeout = { type = "number", default = 2000 } },
+          { validate_session = { type = "boolean", default = true } },
         },
       },
     },

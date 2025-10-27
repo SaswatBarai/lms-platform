@@ -133,8 +133,6 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
 
 
 
-
-
 export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {
     const { email }: { email: string } = req.body;
     if (!validateEmail(email)) {
@@ -207,16 +205,43 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
     // Generate PASETO tokens
     const { PasetoV4SecurityManager } = await import("@utils/security.js");
     const securityManager = PasetoV4SecurityManager.getInstance();
+
     
+    let accesssSessionId;
+
+    // Single device login: Always create a new session ID
+    // This invalidates any previous session for this organization
+    const key = `activeSession:org:${organization.id}`;
+    
+    // Check if there's an existing session
+    const existingSessionId = await redisClient.hget(key, 'sessionId');
+    if (existingSessionId) {
+        console.log(`Invalidating existing session for org ${organization.id}: ${existingSessionId}`);
+    }
+    
+    // Create new session ID (this will replace any existing session)
+    accesssSessionId = crypto.randomBytes(16).toString('hex');
+
     // Create payload for tokens
     const tokenPayload = {
         id: organization.id,
         email: organization.email,
         name: organization.name,
         role: "admin", // Organizations are admin by default
-        type: "organization"
+        type: "organization",
+        sessionId: accesssSessionId
     };
-    
+
+    // Store the new session in Redis
+    // This will overwrite any existing session, effectively logging out other devices
+    await redisClient.hset(key, {
+        sessionId: accesssSessionId,
+        organizationId: organization.id,
+        active: 'true',
+    });
+
+    await redisClient.expire(`activeSession:org:${organization.id}`, 1 * 24 * 60 * 60); // 1 day
+
     // Generate access and refresh tokens
     const accessToken = await securityManager.generateAccessToken(tokenPayload);
     const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID

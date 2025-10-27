@@ -5,10 +5,10 @@ import { OrganizationContext} from "../types/express.js"
 
 
 
-class AuthenticatedUser {
+export class AuthenticatedUser {
 
     //meethod to check Oranganiza
-    public async checkOrganization(req:Request,res:Response,next:NextFunction) {
+    public static async checkOrganization(req:Request,res:Response,next:NextFunction) {
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;

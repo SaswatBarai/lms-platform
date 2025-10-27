@@ -194,7 +194,7 @@ export class PasetoV4SecurityManager {
     const tokenPayload = {
       ...payload,
       iat: now,
-      exp: now + (15 * 60), // 15 minutes
+      exp: now + (1* 24 * 60 * 60), // 1day
       iss: 'lms-auth-service',
       aud: 'lms-platform'
     } as PasetoTokenPayload;
