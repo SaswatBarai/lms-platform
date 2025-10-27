@@ -23,6 +23,8 @@ router.get("/test-protected", async (req, res) => {
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;
         const userType = req.headers['x-user-type'] as string;
+
+        console.log("Authenticated user:", { userId, userEmail, userRole, userType });
         
         res.status(200).json({
             success: true,

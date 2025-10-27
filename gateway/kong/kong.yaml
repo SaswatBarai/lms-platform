@@ -20,6 +20,7 @@ services:
       - name: auth-service-routes-protected
         paths:
           - "/auth/api/test-protected"
+        strip_path: false
         plugins:
           - name: paseto-vault-auth-lua
             config:

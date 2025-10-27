@@ -15,6 +15,7 @@ import {prisma} from "@lib/prisma.js"
 
 export const createOrganizationController = asyncHandler(async (req: Request, res: Response) => {
     const { name, email, password, phone, recoveryEmail, address }: CreateOrganizationInput = req.body;
+    
     const existingOrg = await prisma.organization.findFirst({
         where: {
             OR: [
@@ -249,3 +250,5 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         }
     });
 })
+
+

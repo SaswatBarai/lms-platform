@@ -1,5 +1,5 @@
 # See what’s listening on 8200
-sudo lsof -nP -iTCP:9093 -sTCP:LISTEN
+sudo lsof -nP -iTCP:5556 -sTCP:LISTEN
 
 # Kill common Vault dev processes binding 8200
 sudo pkill -f 'vault server -dev' || true
@@ -9,8 +9,8 @@ sudo pkill -f 'dumb-init .*vault server' || true
 sudo systemctl stop vault || true
 
 # As a fallback, kill anything using the port
-sudo fuser -k 9093/tcp || true
+sudo fuser -k 5556/tcp || true
 
 # Verify the port is free
-ss -ltnp | grep -E ':9093(\s|$)' || echo 'Port 5556 is now free'
+ss -ltnp | grep -E ':5556(\s|$)' || echo 'Port 5556 is now free'
 
