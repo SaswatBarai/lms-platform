@@ -2,7 +2,7 @@ import pkg from "@prisma/client";
 import { z, ZodError } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/AppError.js";
-import { CreateOrganizationInput, ServiceResult } from "../types/organization.js";
+import { CreateCollegeInput, CreateOrganizationInput, ServiceResult } from "../types/organization.js";
 import {hashPassword} from "../utils/security.js"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
@@ -19,7 +19,15 @@ export interface OrganizationResponse {
   createdAt: Date;
   updatedAt: Date;
 }
-
+export interface CollegeResponse{
+    id: string;
+    name: string;
+    email: string;
+    recoveryEmail: string | null;
+    organizationId: string;
+    createdAt: Date;
+    updatedAt: Date;
+}
 
 
 const handlePrismaError = (error: unknown): never => {
@@ -119,3 +127,71 @@ export const createOrganizationService = async (
     }
 }
 
+
+
+export const createCollegeService = async(
+    InputData:CreateCollegeInput
+):Promise<ServiceResult<CollegeResponse>> => {
+    try {
+        const {name,email,password,organizationId,recoveryEmail,phone} = InputData;
+        if(!name || !email || !password || !organizationId || !recoveryEmail){
+            throw new AppError("Missing required fields",400);
+        }
+        //check the email or 
+        const existingMail = await prisma.college.findUnique({
+            where:{email}
+        })
+
+        const existingPhone = await prisma.college.findUnique({
+            where:{phone}
+        });
+
+        if(existingMail || existingPhone){
+            throw new AppError("College with this email or phone already exists",409);
+        }
+        //hash the password 
+        const hashedPassword = await hashPassword(password);
+
+        //craete the college
+        const newCollege = await prisma.college.create({
+            data:{
+                name,
+                email,
+                password: hashedPassword,
+                organizationId,
+                recoveryEmail,
+                phone,
+            },
+            select:{
+                id: true,
+                name: true,
+                email: true,
+                recoveryEmail: true,
+                organizationId: true,
+                createdAt: true,
+                updatedAt: true,
+            }
+        })
+        if(!newCollege){
+            throw new AppError("Failed to create college",500);
+        }
+        return {
+            success: true,
+            data: newCollege,
+            message: "College created successfully"
+        }
+    } catch (error) {
+        if(error instanceof ZodError){
+            handleValidationError(error);
+        }
+        if(error instanceof PrismaClientKnownRequestError){
+            handlePrismaError(error);
+        }
+        if(error instanceof AppError){
+            throw error;
+        }
+
+        throw new AppError("Failed to create college", 500);
+        
+    }
+}

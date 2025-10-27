@@ -26,4 +26,26 @@ export class KafkaProducer {
 		}
 		return false;
 	}
+
+
+	public async publishEmailNotification(message:ProducerPayload):Promise<boolean>{
+		if(!this.producer){
+			await this.producer!.connect();
+		}
+
+		const result = await this.producer!.send({
+			topic:"email-notification",
+			messages:[{
+				value: JSON.stringify(message)
+			}],
+		})
+
+		if(result && result.length > 0){
+			return true;
+		}
+		return false;
+
+	}
+
+	
 }

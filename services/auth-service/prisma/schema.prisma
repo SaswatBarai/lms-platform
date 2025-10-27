@@ -23,7 +23,7 @@ model Organization {
   password               String    @db.VarChar(255)
   recoveryEmail          String?   @db.VarChar(255) 
   address                String    @db.Text
-  phone                  String    @db.VarChar(20)@unique
+  phone                  String    @unique @db.VarChar(20)
 
   totalStudents          Int       @default(0)
   totalTeachers          Int       @default(0)
@@ -42,8 +42,10 @@ model College {
   name       String  @db.VarChar(255)
   organizationId String
   email      String  @unique @db.VarChar(255)
+  recoveryEmail String? @db.VarChar(255)
   deanId     String?
   password   String  @db.VarChar(255)
+  phone      String  @unique @db.VarChar(20)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

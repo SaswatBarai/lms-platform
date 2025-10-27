@@ -1,6 +1,6 @@
 export interface IProducerPayload {
-  action: "auth-otp";
-  type: "org-otp" ;
-  subType?:"create-account";
+  action: "auth-otp" | "email-notification";
+  type: "org-otp" |"welcome-email";
+  subType?: "create-account";
   data: any;
 }

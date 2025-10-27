@@ -1,5 +1,11 @@
-import {z} from "zod"
-import { createOrganizationSchema, verifyOrganizationOtpSchema, loginOrganizationSchema } from "@schemas/organization.js"
+import { z } from "zod"
+import {
+  createOrganizationSchema,
+  verifyOrganizationOtpSchema,
+  loginOrganizationSchema,
+  createCollegeSchema
+} from "@schemas/organization.js"
+
 
 
 
@@ -7,6 +13,7 @@ import { createOrganizationSchema, verifyOrganizationOtpSchema, loginOrganizatio
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
 export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSchema>
 export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
+export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
 
 
 
@@ -18,9 +25,9 @@ export interface ServiceResult<T> {
 }
 
 export interface ProducerPayload {
-  action: "auth-otp";
-  type: "org-otp" ;
-  subType?:"create-account";
+  action: "auth-otp" | "email-notification";
+  type: "org-otp" |"welcome-email";
+  subType?: "create-account";
   data: any;
 }
 
@@ -31,7 +38,7 @@ export enum OrganizationRole {
 }
 
 
-export interface TokenPlayload{
-    accessToken: string;
-    refreshToken?:string;
+export interface TokenPlayload {
+  accessToken: string;
+  refreshToken?: string;
 }

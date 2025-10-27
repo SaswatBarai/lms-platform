@@ -43,3 +43,42 @@ export const authOTP = async(
         console.error(`[notification] Error in authOTP:`, error.message);
     }
 }
+
+
+export const emailNotification = async(
+    {type,subType,data}:IParameter
+) => {
+    try {
+
+        switch(type) {
+            case "welcome-email":
+                // Implement welcome email logic here
+                if(subType === "create-account") {
+                    const {email} = data;
+                    if (!email) {
+                        console.error("[notification] Missing email in data for welcome email");
+                        return;
+                    }
+                    // Call the appropriate action to send welcome email
+                    console.log(`[notification] Sending welcome email to ${email}`);
+                    // Example: await OrganizationAction.sendWelcomeEmail(email);
+                    const sucess = await OrganizationAction.sendCollegeAccountCreatedEmail("Student","College",email,"https://lms-platform.com/login");
+                    if(!sucess){
+                        console.log("Successfully college create ")
+                    }
+                    else {
+                        console.log("Error in craetion of college")
+                    }
+                }
+                break;
+            default:
+                console.log(`[notification] Unknown email notification type: ${type}`);
+        }
+        
+    } catch (error) {
+        
+    }
+}
+
+
+

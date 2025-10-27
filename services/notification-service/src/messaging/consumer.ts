@@ -1,4 +1,4 @@
-import { authOTP } from "@services/auth.service.js";
+import { authOTP, emailNotification } from "@services/auth.service.js";
 import { IProducerPayload } from "../types/index.js";
 import {kafka} from "./kafka.js";
 
@@ -32,6 +32,10 @@ export async function startNotificationConsumer(): Promise<void> {
 					switch(action) {
 						case "auth-otp":
 							await authOTP({data,type,subType});
+							break;
+						case "email-notification":
+							// Implement email notification handling here
+							await emailNotification({type,subType,data})
 							break;
 						default:
 							console.log(`[notification] Unknown action: ${action}`);
