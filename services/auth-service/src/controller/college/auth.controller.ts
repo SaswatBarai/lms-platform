@@ -6,6 +6,7 @@ import { createCollegeService } from "@services/organization.service.js";
 import { prisma } from "@lib/prisma.js";
 import redisClient from "@config/redis.js";
 import crypto from "crypto";
+import { PasetoV4SecurityManager } from "@utils/security.js";
 
 
 
@@ -147,4 +148,66 @@ export const loginCollegeController = asyncHandler(
     }
 )
 
+export const logoutCollege = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {id} =  req.college;
+        if(!id){
+            return res.status(400).json({
+                success:false,
+                message:"Bad Request"
+            })
+        }
+        
+        await redisClient.hdel(`activeSession:college:${id}`, 'sessionId');
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+        res.status(200).json({
+            success: true,
+            message: "Logout successful"
+        });
+    }
+)
+
+
+//regenrate the accessToken
+export const regenerateAccessTokenCollege = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {id} = req.college;
+        if(!id){
+            throw new AppError("College not found", 404);
+        }
+        const key = `activeSession:college:${id}`;
+        const sessionId = await redisClient.hget(key, 'sessionId');
+        if(!sessionId){
+            throw new AppError("Session not found", 404);
+        }
+        const college = await prisma.college.findUnique({
+            where:{
+                id
+            }
+        })
+        if(!college){
+            throw new AppError("College not found", 404);
+        }
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const accessToken = await securityManager.generateAccessToken({
+            id: college.id,
+            email: college.email,
+            name: college.name,
+            organizationId: college.organizationId,
+            role: "college-admin",
+            type: "college",
+            sessionId
+        });
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+        res.status(200).json({
+            success: true,
+            message: "Access token regenrated successfully"
+        });
+    }
+)
 

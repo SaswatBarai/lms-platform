@@ -6,7 +6,7 @@ import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizati
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
-import { hashPassword, validateEmail } from "@utils/security.js"
+import { hashPassword, PasetoV4SecurityManager, validateEmail } from "@utils/security.js"
 import crypto from "crypto"
 import { AppError } from "@utils/AppError.js"
 import {prisma} from "@lib/prisma.js"
@@ -227,7 +227,7 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         id: organization.id,
         email: organization.email,
         name: organization.name,
-        role: "admin", // Organizations are admin by default
+        role: "org-admin", // Organizations are org-admin by default
         type: "organization",
         sessionId: accesssSessionId
     };
@@ -287,3 +287,58 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
 })
 
 
+export const logoutOrganization = asyncHandler(async (req: Request, res: Response) => {
+    const {id} = req.organization
+    if(!id){
+        throw new AppError("Organization not found", 404);
+    }
+    const key = `activeSession:org:${id}`;
+    await redisClient.hdel(key, 'sessionId');
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
+    return res.status(200).json({
+        success: true,
+        message: "Logout successful",
+    });
+})
+
+
+export const regenerateAccessTokenOrganization = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {id} = req.organization;
+        if(!id){
+            throw new AppError("Organization not found", 404);
+        }
+        const key = `activeSession:org:${id}`;
+        const sessionId = await redisClient.hget(key, 'sessionId');
+        if(!sessionId){
+            throw new AppError("Session not found", 404);
+        }
+        const organization = await prisma.organization.findUnique({
+            where:{
+                id
+            }
+        })
+        if(!organization){
+            throw new AppError("Organization not found", 404);
+        }
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const accessToken = await securityManager.generateAccessToken({
+            id: organization.id,
+            email: organization.email,
+            name: organization.name,
+            role: "org-admin",
+            type: "organization",
+            sessionId
+        });
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+        res.status(200).json({
+            success: true,
+            message: "Access token regenrated successfully",
+        });
+    }
+)

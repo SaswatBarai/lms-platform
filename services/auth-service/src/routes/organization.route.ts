@@ -3,11 +3,15 @@ import {
     createOrganizationController,
     verifyOrganizationOtpController,
     resendOrganizationOtpController,
-    loginOrganizationController
+    loginOrganizationController,
+    logoutOrganization,
+    regenerateAccessTokenOrganization
 } from "@controller/organization/auth.controller.js"
 import {
     createCollegeController,
-    loginCollegeController
+    loginCollegeController,
+    logoutCollege,
+    regenerateAccessTokenCollege
 } from "../controller/college/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
@@ -15,7 +19,8 @@ import {
     verifyOrganizationOtpSchema,
     resendOrganizationOtpSchema,
     loginOrganizationSchema,
-    loginCollegeSchema
+    loginCollegeSchema,
+
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
 
@@ -27,11 +32,15 @@ router.post("/create-organization", validate({ body: createOrganizationSchema })
 router.post("/verify-organization-otp", validate({ body: verifyOrganizationOtpSchema }), verifyOrganizationOtpController)
 router.post("/resend-organization-otp", validate({ body: resendOrganizationOtpSchema }), resendOrganizationOtpController)
 router.post("/login-organization", validate({ body: loginOrganizationSchema }), loginOrganizationController)
+router.post("/logout-organization", AuthenticatedUser.checkOrganization, logoutOrganization);
+router.post("/regenerate-access-token-organization", AuthenticatedUser.refreshTokenOrganization, regenerateAccessTokenOrganization);
 
 
 // College Routes 
 router.post("/create-college", AuthenticatedUser.checkOrganization, createCollegeController);
 router.post("/login-college", validate({ body: loginCollegeSchema }), loginCollegeController);
+router.post("/logout-college", AuthenticatedUser.checkCollege, logoutCollege);
+router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCollege, regenerateAccessTokenCollege);
 
 // Protected test route to verify authentication plugin
 router.get("/test-protected", async (req, res) => {

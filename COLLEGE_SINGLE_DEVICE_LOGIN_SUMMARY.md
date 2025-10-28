@@ -200,7 +200,7 @@ curl -X GET http://localhost:8000/auth/api/test-protected \
 | Login Endpoint | `/api/login-organization` | `/api/login-college` |
 | Redis Key | `activeSession:org:{id}` | `activeSession:college:{id}` |
 | Token Type | `"type": "organization"` | `"type": "college"` |
-| Token Role | `"role": "admin"` | `"role": "college-admin"` |
+| Token Role | `"role": "org-admin"` | `"role": "college-admin"` |
 | Session Fields | `organizationId`, `sessionId`, `active` | `collegeId`, `organizationId`, `sessionId`, `active` |
 | Kong Validation | ✅ Validates | ✅ Validates |
 

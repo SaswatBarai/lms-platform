@@ -36,7 +36,7 @@ export interface ProducerPayload {
 
 //role enum
 export enum OrganizationRole {
-  ADMIN = "admin",
+  ORG_ADMIN = "org-admin",
 }
 
 

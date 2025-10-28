@@ -27,7 +27,7 @@ This implementation ensures that **organizations** and **colleges** can only be 
      "id": "org-id",
      "email": "org@example.com",
      "name": "Organization Name",
-     "role": "admin",
+     "role": "org-admin",
      "type": "organization",
      "sessionId": "unique-session-id"
    }
