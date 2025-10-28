@@ -6,14 +6,16 @@ import {
     loginOrganizationController
 } from "@controller/organization/auth.controller.js"
 import {
-    createCollegeController
+    createCollegeController,
+    loginCollegeController
 } from "../controller/college/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
     verifyOrganizationOtpSchema,
     resendOrganizationOtpSchema,
-    loginOrganizationSchema
+    loginOrganizationSchema,
+    loginCollegeSchema
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
 
@@ -27,8 +29,9 @@ router.post("/resend-organization-otp", validate({ body: resendOrganizationOtpSc
 router.post("/login-organization", validate({ body: loginOrganizationSchema }), loginOrganizationController)
 
 
-//Colleger Routes 
-router.post("/create-college",AuthenticatedUser.checkOrganization, createCollegeController);
+// College Routes 
+router.post("/create-college", AuthenticatedUser.checkOrganization, createCollegeController);
+router.post("/login-college", validate({ body: loginCollegeSchema }), loginCollegeController);
 
 // Protected test route to verify authentication plugin
 router.get("/test-protected", async (req, res) => {

@@ -14,7 +14,7 @@ function PasetoVaultAuthHandler:access(conf)
   local path = kong.request.get_path()
   
   -- Skip authentication for certain paths
-  local skip_paths = (conf and conf.skip_path_prefixes) or {"/health", "/metrics", "/api/create-organization", "/api/verify-organization-otp", "/api/resend-organization-otp", "/api/login-organization", "/api/test-create-organization"}
+  local skip_paths = (conf and conf.skip_path_prefixes) or {"/health", "/metrics", "/api/create-organization", "/api/verify-organization-otp", "/api/resend-organization-otp", "/api/login-organization", "/api/login-college", "/api/test-create-organization"}
   
   for _, skip_path in ipairs(skip_paths) do
     if string.find(path, skip_path, 1, true) == 1 then
@@ -194,16 +194,16 @@ function PasetoVaultAuthHandler:access(conf)
     })
   end
 
-  -- Extract session and organization info for validation
+  -- Extract session and user info for validation
   local user_type = claims.type
-  local organization_id = claims.id -- For organizations, id is the organization id
+  local user_id = claims.id -- For organizations/colleges, id is the user id
   local session_id = claims.sessionId or claims.sid or claims.session_id
   
-  -- Validate session in Redis (single device login check)
-  if user_type == "organization" then
-    local session_ok, session_err = self:validate_session_in_redis(conf, organization_id, session_id, user_type)
+  -- Validate session in Redis (single device login check for organizations and colleges)
+  if user_type == "organization" or user_type == "college" then
+    local session_ok, session_err = self:validate_session_in_redis(conf, user_id, session_id, user_type)
     if not session_ok then
-      kong.log.warn("Session validation failed: " .. (session_err or "unknown error"))
+      kong.log.warn("Session validation failed for " .. user_type .. ": " .. (session_err or "unknown error"))
       return kong.response.exit(401, {
         error = "Session invalid",
         message = "Your session has been invalidated. Please login again.",
@@ -296,21 +296,21 @@ function PasetoVaultAuthHandler:connect_to_redis(conf)
   return red, nil
 end
 
-function PasetoVaultAuthHandler:validate_session_in_redis(conf, organization_id, session_id, user_type)
+function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session_id, user_type)
   -- Skip validation if disabled in config
   if conf.validate_session == false then
     kong.log.info("Session validation disabled in config")
     return true, nil
   end
   
-  -- Only validate for organization type
-  if user_type ~= "organization" then
-    kong.log.info("Session validation skipped - not an organization user")
+  -- Only validate for organization and college types
+  if user_type ~= "organization" and user_type ~= "college" then
+    kong.log.info("Session validation skipped - user type: " .. tostring(user_type))
     return true, nil
   end
   
-  if not organization_id or not session_id then
-    kong.log.warn("Missing organization_id or session_id for validation")
+  if not user_id or not session_id then
+    kong.log.warn("Missing user_id or session_id for validation")
     return false, "Missing session information"
   end
   
@@ -324,7 +324,16 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, organization_id,
   end
   
   -- Get the active session from Redis
-  local key = "activeSession:org:" .. organization_id
+  -- Use different Redis key patterns based on user type
+  local key
+  if user_type == "organization" then
+    key = "activeSession:org:" .. user_id
+  elseif user_type == "college" then
+    key = "activeSession:college:" .. user_id
+  else
+    kong.log.warn("Unsupported user type for session validation: " .. user_type)
+    return false, "Unsupported user type"
+  end
   
   -- Get both active status and stored sessionId
   local active_value, err1 = red:hget(key, "active")
@@ -343,19 +352,19 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, organization_id,
   
   -- Check if session exists
   if active_value == ngx.null or active_value == nil then
-    kong.log.warn("No active session found in Redis for organization: " .. organization_id)
+    kong.log.warn("No active session found in Redis for " .. user_type .. ": " .. user_id)
     return false, "No active session found"
   end
   
   -- Check if session is active
   if active_value ~= 'true' then
-    kong.log.warn("Session is not active for organization: " .. organization_id)
+    kong.log.warn("Session is not active for " .. user_type .. ": " .. user_id)
     return false, "Session is not active"
   end
   
   -- Check if stored sessionId exists
   if stored_session_id == ngx.null or stored_session_id == nil then
-    kong.log.warn("No sessionId found in Redis for organization: " .. organization_id)
+    kong.log.warn("No sessionId found in Redis for " .. user_type .. ": " .. user_id)
     return false, "Invalid session"
   end
   
@@ -363,13 +372,13 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, organization_id,
   -- This ensures single device login - if user logs in from another device,
   -- the old sessionId will no longer match and the old device will be logged out
   if stored_session_id ~= session_id then
-    kong.log.warn("SessionId mismatch for organization: " .. organization_id .. 
+    kong.log.warn("SessionId mismatch for " .. user_type .. ": " .. user_id .. 
                   ". Token session: " .. session_id .. 
                   ", Redis session: " .. stored_session_id)
     return false, "Session has been invalidated by another login"
   end
   
-  kong.log.info("Session validation successful for organization: " .. organization_id .. ", session: " .. session_id)
+  kong.log.info("Session validation successful for " .. user_type .. ": " .. user_id .. ", session: " .. session_id)
   return true, nil
 end
 

@@ -3,7 +3,8 @@ import {
   createOrganizationSchema,
   verifyOrganizationOtpSchema,
   loginOrganizationSchema,
-  createCollegeSchema
+  createCollegeSchema,
+  loginCollegeSchema
 } from "@schemas/organization.js"
 
 
@@ -14,6 +15,7 @@ export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
 export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSchema>
 export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
 export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
+export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
 
 
 

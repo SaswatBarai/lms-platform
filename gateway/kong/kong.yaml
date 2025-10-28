@@ -15,6 +15,7 @@ services:
           - "/auth/api/verify-organization-otp"
           - "/auth/api/resend-organization-otp"
           - "/auth/api/login-organization"
+          - "/auth/api/login-college"
         strip_path: false
 
       - name: auth-service-routes-protected

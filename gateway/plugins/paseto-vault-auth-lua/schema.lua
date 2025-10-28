@@ -16,7 +16,7 @@ local schema = {
           { skip_path_prefixes = { 
               type = "array", 
               elements = { type = "string" },
-              default = {"/health", "/metrics", "/api/create-organization", "/api/verify-organization-otp", "/api/resend-organization-otp", "/api/login-organization", "/api/test-create-organization"}
+              default = {"/health", "/metrics", "/api/create-organization", "/api/verify-organization-otp", "/api/resend-organization-otp", "/api/login-organization", "/api/login-college", "/api/test-create-organization"}
             }
           },
           { required_roles = { 

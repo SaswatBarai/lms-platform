@@ -106,3 +106,14 @@ export const createCollegeSchema = z.object({
         .trim(),
 })
 
+export const loginCollegeSchema = z.object({
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .trim(),
+})
+
