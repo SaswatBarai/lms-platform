@@ -137,7 +137,17 @@ export const createCollegeService = async(
         if(!name || !email || !password || !organizationId || !recoveryEmail){
             throw new AppError("Missing required fields",400);
         }
-        //check the email or 
+
+        // Validate that the organization exists
+        const organization = await prisma.organization.findUnique({
+            where: { id: organizationId }
+        });
+
+        if (!organization) {
+            throw new AppError("Organization not found. Please provide a valid organizationId.", 404);
+        }
+
+        //check the email or phone already exists
         const existingMail = await prisma.college.findUnique({
             where:{email}
         })
@@ -152,7 +162,7 @@ export const createCollegeService = async(
         //hash the password 
         const hashedPassword = await hashPassword(password);
 
-        //craete the college
+        //create the college
         const newCollege = await prisma.college.create({
             data:{
                 name,
@@ -185,11 +195,16 @@ export const createCollegeService = async(
             handleValidationError(error);
         }
         if(error instanceof PrismaClientKnownRequestError){
+            // Handle foreign key constraint error specifically
+            if(error.code === 'P2003'){
+                throw new AppError("Invalid organizationId. The specified organization does not exist.", 400);
+            }
             handlePrismaError(error);
         }
         if(error instanceof AppError){
             throw error;
         }
+        console.log(error);
 
         throw new AppError("Failed to create college", 500);
         

@@ -1,10 +1,10 @@
-import {transporter} from "@config/mail.config.js";
+import {transporter, getTransporterStatus} from "@config/mail.config.js";
 import env from "@config/env.js"
 
 
 export class OrganizationAction {
 
-    static async sendOrgCreateAccountOTP(email: string, otp: string) {
+    static async sendOrgCreateAccountOTP(email: string, otp: string, retries = 2) {
         // Check if we should use console mode
         if (process.env.EMAIL_MODE === 'console') {
             console.log(`
@@ -20,74 +20,151 @@ export class OrganizationAction {
             return true;
         }
 
-        try {
-            console.log(`[Notification] Attempting to send OTP email to ${email}`);
-            
-            const result = await transporter.sendMail({
-                from: `LMS Platform <${env.MAIL_USER}>`, 
-                to: email,
-                subject: "Your OTP for Creating Organization Account",
-                html: htmlForOrg(otp)
-            });
-            
-            if (result.rejected.length > 0) {
-                console.error(`[Notification] Failed to send OTP email to ${email}:`, result.rejected);
-                return false;
-            } else {
-                console.log(`[Notification] OTP email sent successfully to ${email}`);
-                console.log(`[Notification] Message ID: ${result.messageId}`);
-                return true;
-            }
-        } catch (error: any) {
-            console.error(`[Notification] Error sending OTP email to ${email}:`, error.message);
-            
-            // Handle specific Gmail authentication errors
-            if (error.message.includes('BadCredentials') || error.message.includes('Username and Password not accepted')) {
-                console.error(`[Notification] Gmail authentication failed. Please check:
-1. 2-Factor Authentication is enabled on Gmail account
-2. App Password is generated and correctly configured
-3. MAIL_USER and MAIL_PASS environment variables are correct`);
+        // Fallback to console if transporter is not verified
+        const isVerified = getTransporterStatus();
+        if (!isVerified && env.NODE_ENV === 'development') {
+            console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║               🚀 DEVELOPMENT OTP (FALLBACK MODE)             ║
+╠══════════════════════════════════════════════════════════════╣
+║  📧 Email: ${email.padEnd(48)} ║
+║  🔐 OTP Code: ${otp.padEnd(44)} ║
+║  ⏰ Time: ${new Date().toLocaleString().padEnd(45)} ║
+║  ⚠️  Gmail not connected, using console fallback            ║
+╚══════════════════════════════════════════════════════════════╝
+            `);
+            return true;
+        }
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                if (attempt > 0) {
+                    console.log(`[Notification] Retry attempt ${attempt}/${retries} for ${email}`);
+                    // Wait before retrying (exponential backoff)
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                }
+
+                console.log(`[Notification] 📤 Attempting to send OTP email to ${email}`);
                 
-                // Fallback: Log OTP to console for development
-                console.log(`
+                const result = await transporter.sendMail({
+                    from: `LMS Platform <${env.MAIL_USER}>`, 
+                    to: email,
+                    subject: "Your OTP for Creating Organization Account",
+                    html: htmlForOrg(otp)
+                });
+                
+                if (result.rejected.length > 0) {
+                    console.error(`[Notification] ❌ Email rejected by server for ${email}:`, result.rejected);
+                    if (attempt === retries) {
+                        // Last attempt failed, use console fallback
+                        this.logOTPToConsole(email, otp, 'Email rejected by server');
+                        return false;
+                    }
+                    continue; // Try again
+                } else {
+                    console.log(`[Notification] ✅ OTP email sent successfully to ${email}`);
+                    console.log(`[Notification] 📨 Message ID: ${result.messageId}`);
+                    return true;
+                }
+            } catch (error: any) {
+                console.error(`[Notification] ❌ Error sending OTP email to ${email}:`, error.message);
+                console.error(`[Notification] Error code:`, error.code);
+                
+                // Handle specific errors
+                if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
+                    console.error(`[Notification] 🌐 Network/Connection error detected`);
+                } else if (error.message.includes('BadCredentials') || error.message.includes('Username and Password not accepted')) {
+                    console.error(`[Notification] 🔒 Gmail authentication failed. Please check:`);
+                    console.error(`[Notification]    - Gmail 2FA is enabled`);
+                    console.error(`[Notification]    - App Password is correctly set`);
+                    console.error(`[Notification]    - Credentials match Gmail account`);
+                }
+                
+                // If this is the last attempt, fallback to console
+                if (attempt === retries) {
+                    this.logOTPToConsole(email, otp, error.message);
+                    return false;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    private static logOTPToConsole(email: string, otp: string, reason: string) {
+        console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                    🚀 FALLBACK OTP ALERT                     ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📧 Email: ${email.padEnd(48)} ║
 ║  🔐 OTP Code: ${otp.padEnd(44)} ║
 ║  ⏰ Time: ${new Date().toLocaleString().padEnd(45)} ║
-║  ❌ Email failed, showing OTP in console                    ║
+║  ❌ Reason: ${reason.substring(0, 47).padEnd(47)} ║
 ╚══════════════════════════════════════════════════════════════╝
-                `);
-            }
-            
-            return false;
-        }
+        `);
     }
 
-    static async sendCollegeAccountCreatedEmail(collegeName: string, email: string, loginUrl: string) {
-        try {
-            console.log(`[Notification] Attempting to send account created email to ${email}`);
-            
-            const result = await transporter.sendMail({
-                from: `LMS Platform <${env.MAIL_USER}>`, 
-                to: email,
-                subject: `Welcome to ${collegeName}! Your Account is Ready`,
-                html: htmlForCollegeAccountCreated(collegeName, loginUrl)
-            });
-            
-            if (result.rejected.length > 0) {
-                console.error(`[Notification] Failed to send account created email to ${email}:`, result.rejected);
-                return false;
-            } else {
-                console.log(`[Notification] Account created email sent successfully to ${email}`);
-                console.log(`[Notification] Message ID: ${result.messageId}`);
-                return true;
-            }
-        } catch (error: any) {
-            console.error(`[Notification] Error sending account created email to ${email}:`, error.message);
-            return false;
+    static async sendCollegeAccountCreatedEmail(collegeName: string, email: string, loginUrl: string, retries = 2) {
+        // Check if we should use console mode
+        if (process.env.EMAIL_MODE === 'console') {
+            console.log(`
+╔══════════════════════════════════════════════════════════════╗
+║              📧 COLLEGE ACCOUNT CREATED (CONSOLE)            ║
+╠══════════════════════════════════════════════════════════════╣
+║  College: ${collegeName.substring(0, 47).padEnd(47)} ║
+║  📧 Email: ${email.padEnd(48)} ║
+║  🔗 Login URL: ${loginUrl.substring(0, 43).padEnd(43)} ║
+║  💡 Mode: Console (Email disabled for development)          ║
+╚══════════════════════════════════════════════════════════════╝
+            `);
+            return true;
         }
+
+        // Fallback to console if transporter is not verified
+        const isVerified = getTransporterStatus();
+        if (!isVerified && env.NODE_ENV === 'development') {
+            console.log(`[Notification] ⚠️  Gmail not connected, skipping welcome email for ${email}`);
+            return true; // Don't fail the flow
+        }
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                if (attempt > 0) {
+                    console.log(`[Notification] Retry attempt ${attempt}/${retries} for welcome email to ${email}`);
+                    await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+                }
+
+                console.log(`[Notification] 📤 Attempting to send welcome email to ${email}`);
+                
+                const result = await transporter.sendMail({
+                    from: `LMS Platform <${env.MAIL_USER}>`, 
+                    to: email,
+                    subject: `Welcome to ${collegeName}! Your Account is Ready`,
+                    html: htmlForCollegeAccountCreated(collegeName, loginUrl)
+                });
+                
+                if (result.rejected.length > 0) {
+                    console.error(`[Notification] ❌ Welcome email rejected for ${email}:`, result.rejected);
+                    if (attempt === retries) {
+                        return false;
+                    }
+                    continue;
+                } else {
+                    console.log(`[Notification] ✅ Welcome email sent successfully to ${email}`);
+                    console.log(`[Notification] 📨 Message ID: ${result.messageId}`);
+                    return true;
+                }
+            } catch (error: any) {
+                console.error(`[Notification] ❌ Error sending welcome email to ${email}:`, error.message);
+                
+                if (attempt === retries) {
+                    console.error(`[Notification] ⚠️  Failed to send welcome email after ${retries + 1} attempts`);
+                    return false;
+                }
+            }
+        }
+        
+        return false;
     }
 }
 
