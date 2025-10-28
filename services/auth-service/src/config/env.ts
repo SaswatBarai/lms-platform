@@ -8,10 +8,8 @@ const envSchema = z.object({
     // Existing configuration
     PORT: z.coerce.number().default(4001), // Auth service port
     DATABASE_URL: z.string().url().startsWith("postgresql://"),
-    ACCESS_TOKEN_SECRET: z.string().min(32),
-    ACCESS_TOKEN_EXPIRES_IN: z.string().default("30d"),
-    REFRESH_TOKEN_SECRET: z.string().min(32),
-    REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
+    // ACCESS_TOKEN_EXPIRES_IN: z.string().default("30d"),
+    // REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     OTP_SECRET: z.string().min(32),
     REDIS_URL: z.string().url().startsWith("redis://"),
@@ -29,8 +27,8 @@ const envSchema = z.object({
     REDIS_PASSWORD: z.string().optional(),
     
     // PASETO specific
-    PASETO_ACCESS_TOKEN_EXPIRES_IN: z.string().default("15m"),
-    PASETO_REFRESH_TOKEN_EXPIRES_IN: z.string().default("7d"),
+    PASETO_ACCESS_TOKEN_EXPIRES_IN: z.string().default("1 day"),
+    PASETO_REFRESH_TOKEN_EXPIRES_IN: z.string().default("7 days"),
     PASETO_ISSUER: z.string().default("lms-auth-service"),
     PASETO_AUDIENCE: z.string().default("lms-platform"),
 });
@@ -67,14 +65,6 @@ const config = {
         refreshTokenExpiresIn: env.data.PASETO_REFRESH_TOKEN_EXPIRES_IN,
         issuer: env.data.PASETO_ISSUER,
         audience: env.data.PASETO_AUDIENCE,
-    },
-    
-    // Legacy tokens (for backward compatibility)
-    legacy: {
-        accessTokenSecret: env.data.ACCESS_TOKEN_SECRET,
-        accessTokenExpiresIn: env.data.ACCESS_TOKEN_EXPIRES_IN,
-        refreshTokenSecret: env.data.REFRESH_TOKEN_SECRET,
-        refreshTokenExpiresIn: env.data.REFRESH_TOKEN_EXPIRES_IN,
     },
     
     // Database

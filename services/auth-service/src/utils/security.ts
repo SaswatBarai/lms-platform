@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import { OrganizationRole, TokenPlayload } from "../types/organization.js";
 import path from 'path';
 import crypto from 'crypto';
+import ms from "ms"
 
 
 /**
@@ -191,10 +192,16 @@ export class PasetoV4SecurityManager {
     }
 
     const now = Math.floor(Date.now() / 1000);
+    const expiresInMs = ms(env.PASETO_ACCESS_TOKEN_EXPIRES_IN as any) as unknown as number;
+    if (!expiresInMs || typeof expiresInMs !== 'number') {
+      throw new Error(`Invalid PASETO_ACCESS_TOKEN_EXPIRES_IN format: ${env.PASETO_ACCESS_TOKEN_EXPIRES_IN}`);
+    }
+    const expiresInSeconds = Math.floor(expiresInMs / 1000);
+    
     const tokenPayload = {
       ...payload,
       iat: now,
-      exp: now + (1* 24 * 60 * 60), // 1day
+      exp: now + expiresInSeconds,
       iss: 'lms-auth-service',
       aud: 'lms-platform'
     } as PasetoTokenPayload;
@@ -218,12 +225,18 @@ export class PasetoV4SecurityManager {
     const now = Math.floor(Date.now() / 1000);
     const tokenFamily = crypto.randomUUID();
     
+    const expiresInMs = ms(env.PASETO_REFRESH_TOKEN_EXPIRES_IN as any) as unknown as number;
+    if (!expiresInMs || typeof expiresInMs !== 'number') {
+      throw new Error(`Invalid PASETO_REFRESH_TOKEN_EXPIRES_IN format: ${env.PASETO_REFRESH_TOKEN_EXPIRES_IN}`);
+    }
+    const expiresInSeconds = Math.floor(expiresInMs / 1000);
+    
     const refreshPayload: PasetoRefreshPayload = {
       userId,
       sessionId,
       tokenFamily,
       iat: now,
-      exp: now + (7 * 24 * 60 * 60), // 7 days
+      exp: now + expiresInSeconds,
       iss: 'lms-auth-service'
     };
 

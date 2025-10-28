@@ -109,6 +109,20 @@ export const loginCollegeController = asyncHandler(
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
         const refreshToken = await securityManager.generateRefreshToken(college.id, sessionId);
         
+
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        
+        
         res.status(200).json({
             success: true,
             message: "Login successful",
@@ -127,7 +141,6 @@ export const loginCollegeController = asyncHandler(
                 },
                 tokens: {
                     accessToken,
-                    refreshToken
                 }
             }
         });

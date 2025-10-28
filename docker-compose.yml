@@ -224,8 +224,6 @@ services:
       - PORT=4001
       - NODE_ENV=development
       - DATABASE_URL=postgresql://lms_user:lms_pass@postgres:5432/lms_db
-      - ACCESS_TOKEN_SECRET=your_super_secret_access_token_key_here_at_least_32_chars
-      - REFRESH_TOKEN_SECRET=your_super_secret_refresh_token_key_here_at_least_32_chars
       - REDIS_URL=redis://:redis_pass@redis:6379/0
       - OTP_SECRET=your_super_secret_otp_key_here_at_least_32_characters_long
       - KAFKA_BROKERS=kafka:29092
@@ -239,8 +237,8 @@ services:
       - VAULT_TIMEOUT=10000
       - VAULT_RETRY_ATTEMPTS=3
       # PASETO configuration
-      - PASETO_ACCESS_TOKEN_EXPIRES_IN=15m
-      - PASETO_REFRESH_TOKEN_EXPIRES_IN=7d
+      - PASETO_ACCESS_TOKEN_EXPIRES_IN=1 day
+      - PASETO_REFRESH_TOKEN_EXPIRES_IN=7 days
       - PASETO_ISSUER=lms-auth-service
       - PASETO_AUDIENCE=lms-platform
     expose:
