@@ -279,7 +279,7 @@ services:
       - MAIL_HOST=smtp.gmail.com
       - MAIL_PORT=587
       # Set to 'console' to disable email and use console logging for development
-      # Set to 'email' to enable actual email sending
+      # Set to 'email' to enable actual email sending (requires proper Gmail setup)
       - EMAIL_MODE=email
     expose:
       - "4002"

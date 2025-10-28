@@ -96,9 +96,8 @@ export const emailNotification = async(
 
 export const forgotPasswordOrganization =  async(email:string,sessionToken:string) => {
     try {
-
-        const resetLink = `/reset-password?token=${sessionToken}`;
-        const html = htmlForForgotPassword("LMS Platform",resetLink);
+        const resetLink = `http://localhost:8000/auth/api/reset-password-organization`;
+        const html = htmlForForgotPassword("LMS Platform",resetLink, sessionToken);
         const result = await transporter.sendMail({
             from: `LMS Platform <${env.MAIL_USER}>`,
             to: email,
@@ -109,9 +108,32 @@ export const forgotPasswordOrganization =  async(email:string,sessionToken:strin
             console.error(`[notification] Failed to send forgot password email to ${email}`);
             return false;
         }
+        console.log(`[notification] Forgot password email sent successfully to ${email}`);
         return true;
     } catch (error) {
         console.error(`[notification] Error in forgotPasswordOrganization:`, error instanceof Error ? error.message : String(error));
+        return false;
+    }
+}
+
+export const forgotPasswordCollege = async(email:string,sessionToken:string) => {
+    try {
+        const resetLink = `http://localhost:8000/auth/api/reset-password-college`;
+        const html = htmlForForgotPassword("LMS Platform",resetLink, sessionToken);
+        const result = await transporter.sendMail({
+            from: `LMS Platform <${env.MAIL_USER}>`,
+            to: email,
+            subject: "Reset Your Password",
+            html: html
+        })
+        if(result.rejected.length > 0){
+            console.error(`[notification] Failed to send forgot password email to ${email}`);
+            return false;
+        }
+        console.log(`[notification] Forgot password email sent successfully to ${email}`);
+        return true;
+    } catch (error) {
+        console.error(`[notification] Error in forgotPasswordCollege:`, error instanceof Error ? error.message : String(error));
         return false;
     }
 }

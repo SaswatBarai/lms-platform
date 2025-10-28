@@ -1,4 +1,4 @@
-export const htmlForForgotPassword = (organizationName: string, resetLink: string) => `
+export const htmlForForgotPassword = (organizationName: string, resetLink: string, sessionToken: string) => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -95,7 +95,7 @@ export const htmlForForgotPassword = (organizationName: string, resetLink: strin
       <p>Hello from ${organizationName},</p>
       <p>We received a request to reset your password. Click the button below to securely reset it. This link will expire in 30 minutes.</p>
 
-      <a href="${resetLink}" class="button">Reset Password</a>
+      <a href="${resetLink}?token=${sessionToken}" class="button">Reset Password</a>
 
       <p style="margin-top: 20px;">If you didn’t request this, you can safely ignore this email — your password will remain unchanged.</p>
 

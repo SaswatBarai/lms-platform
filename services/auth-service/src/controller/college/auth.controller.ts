@@ -282,6 +282,7 @@ export const forgotPasswordCollege = asyncHandler(
 export const resetPasswordCollege = asyncHandler(
     async(req:Request, res:Response) => {
         const {email, token, password}:{email:string, token:string, password:string} = req.body;
+        console.log(email, token, password);
         if(!email || !token){
             throw new AppError("Email and token are required", 400);
         }

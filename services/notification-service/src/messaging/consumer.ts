@@ -1,4 +1,4 @@
-import { authOTP, emailNotification, forgotPasswordOrganization } from "@services/auth.service.js";
+import { authOTP, emailNotification, forgotPasswordOrganization, forgotPasswordCollege } from "@services/auth.service.js";
 import { IProducerPayload } from "../types/index.js";
 import {kafka} from "./kafka.js";
 
@@ -14,8 +14,10 @@ export async function startNotificationConsumer(): Promise<void> {
 		await consumer.connect();
 		console.log("[notification] Kafka consumer connected successfully");
 		
+		// Subscribe to multiple topics
 		await consumer.subscribe({ topic: "otp-auth", fromBeginning: false });
-		console.log("[notification] Subscribed to otp-auth topic");
+		await consumer.subscribe({ topic: "forgot-password-messages", fromBeginning: false });
+		console.log("[notification] Subscribed to otp-auth and forgot-password-messages topics");
 		
 		await consumer.run({
 			eachMessage: async ({ topic, partition, message }) => {
@@ -38,15 +40,22 @@ export async function startNotificationConsumer(): Promise<void> {
 							console.log("mark 1",data,type,subType);
 							await emailNotification({type,subType,data})
 							break;
+						case "forgot-password":
+							console.log("forgot password message received",data);
+							if (type === "college-forgot-password") {
+								await forgotPasswordCollege(data.email, data.sessionToken);
+							} else if (type === "org-forgot-password") {
+								await forgotPasswordOrganization(data.email, data.sessionToken);
+							} else {
+								console.log(`[notification] Unknown forgot-password type: ${type}`);
+							}
+							break;
+
 						default:
 							console.log(`[notification] Unknown action: ${action}`);
 					}
 
-					switch(topic){
-						case "forgot-password-messages":
-							await forgotPasswordOrganization(data.email,data.sessionToken);
-							break;	
-					}
+					
 
 				} catch (error) {
 					console.error("[notification] Error processing message:", error);
