@@ -16,12 +16,16 @@ services:
           - "/auth/api/resend-organization-otp"
           - "/auth/api/login-organization"
           - "/auth/api/login-college"
+          - "/auth/api/regenerate-access-token-organization"
+          - "/auth/api/regenerate-access-token-college"
         strip_path: false
 
       - name: auth-service-routes-protected
         paths:
           - "/auth/api/test-protected"
           - "/auth/api/create-college"
+          - "/auth/api/logout-organization"
+          - "/auth/api/logout-college"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua
