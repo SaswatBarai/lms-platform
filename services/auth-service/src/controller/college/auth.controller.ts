@@ -6,7 +6,7 @@ import { createCollegeService } from "@services/organization.service.js";
 import { prisma } from "@lib/prisma.js";
 import redisClient from "@config/redis.js";
 import crypto from "crypto";
-import { PasetoV4SecurityManager, validateEmail } from "@utils/security.js";
+import { hashPassword, PasetoV4SecurityManager, validateEmail } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
 
 
@@ -276,5 +276,42 @@ export const forgotPasswordCollege = asyncHandler(
         else {
             throw new AppError("Failed to send forgot password email", 500);
         }
+    }
+)
+
+export const resetPasswordCollege = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email, token, password}:{email:string, token:string, password:string} = req.body;
+        if(!email || !token){
+            throw new AppError("Email and token are required", 400);
+        }
+        if(!validateEmail(email)){
+            throw new AppError("Invalid email", 400);
+        }
+        if(token.length !== 64){
+            throw new AppError("Invalid token", 400);
+        }
+
+        const sessionToken = await redisClient.get(`college-auth-${email}`);
+        if(!sessionToken){
+            throw new AppError("Invalid token", 400);
+        }
+        if(sessionToken !== token){
+            throw new AppError("Invalid token", 400);
+        }
+        await redisClient.del(`college-auth-${email}`);
+        const hashedPassword = await hashPassword(password);
+        await prisma.college.update({
+            where:{
+                email
+            },
+            data:{
+                password:hashedPassword
+            }
+        })
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully"
+        })
     }
 )

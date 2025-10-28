@@ -350,6 +350,46 @@ Initiates password recovery by sending a reset link to the recovery email.
 
 ---
 
+### 8. Reset Password Organization
+
+Completes password reset using the session token from forgot password email.
+
+**Endpoint:** `POST /auth/api/reset-password-organization`
+
+**Request Body:**
+```json
+{
+  "email": "admin@example.edu",
+  "sessionToken": "your_session_token_here",
+  "newPassword": "NewSecurePass123!",
+  "confirmPassword": "NewSecurePass123!"
+}
+```
+
+**Validation Rules:**
+- Passwords must match
+- Minimum 8 characters
+- At least one uppercase, lowercase, number, special character
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+**Error Responses:**
+
+| Status Code | Error | Description |
+|-------------|-------|-------------|
+| 400 | Invalid session | Session token invalid or expired |
+| 400 | Password mismatch | Passwords don't match |
+| 400 | Weak password | Password doesn't meet requirements |
+| 404 | Not found | Organization doesn't exist |
+
+---
+
 ## 🏫 College Endpoints
 
 ### 1. Create College (🔒 Protected - Organization Only)
@@ -558,6 +598,44 @@ Initiates password recovery for college account.
 | 400 | Invalid email | Email format invalid |
 | 404 | Not found | College doesn't exist |
 | 500 | Send failed | Failed to send recovery email |
+
+---
+
+### 6. Reset Password College
+
+**Endpoint:** `POST /auth/api/reset-password-college`
+
+**Request Body:**
+```json
+{
+  "email": "admin@college.example.edu",
+  "sessionToken": "your_session_token_here",
+  "newPassword": "NewSecurePass123!",
+  "confirmPassword": "NewSecurePass123!"
+}
+```
+
+**Validation Rules:**
+- Passwords must match
+- Minimum 8 characters
+- At least one uppercase, lowercase, number, special character
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+**Error Responses:**
+
+| Status Code | Error | Description |
+|-------------|-------|-------------|
+| 400 | Invalid session | Session token invalid or expired |
+| 400 | Password mismatch | Passwords don't match |
+| 400 | Weak password | Password doesn't meet requirements |
+| 404 | Not found | College doesn't exist |
 
 ---
 
@@ -809,6 +887,6 @@ For technical support or questions about the Auth Service API:
 
 ---
 
-**Last Updated:** October 28, 2025 (Forgot Password Endpoints Added)
+**Last Updated:** October 28, 2025 (Reset Password Endpoints Added)
 **API Version:** 1.0.0
 **Service:** LMS Auth Service

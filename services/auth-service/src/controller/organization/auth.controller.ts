@@ -381,3 +381,37 @@ export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:R
         throw new AppError("Failed to send forgot password email", 500);
     }
 })
+
+export const resetPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
+    const {email, token, password}:{email:string, token:string, password:string} = req.body;
+    if(!email || !token){
+        throw new AppError("Email and token are required", 400);
+    }
+    if(!validateEmail(email)){
+        throw new AppError("Invalid email", 400);
+    }
+    if(token.length !== 64){
+        throw new AppError("Invalid token", 400);
+    }
+    const sessionToken = await redisClient.get(`org-auth-${email}`);
+    if(!sessionToken){
+        throw new AppError("Invalid token", 400);
+    }
+    if(sessionToken !== token){
+        throw new AppError("Invalid token", 400);
+    }
+    await redisClient.del(`org-auth-${email}`);
+    const hashedPassword = await hashPassword(password);
+    await prisma.organization.update({
+        where:{
+            email
+        },
+        data:{
+            password:hashedPassword
+        }
+    })
+    return res.status(200).json({
+        success: true,
+        message: "Password reset successfully"
+    })
+})

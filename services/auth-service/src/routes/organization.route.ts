@@ -6,14 +6,16 @@ import {
     loginOrganizationController,
     logoutOrganization,
     regenerateAccessTokenOrganization,
-    forgotPasswordOrganization
+    forgotPasswordOrganization,
+    resetPasswordOrganization
 } from "@controller/organization/auth.controller.js"
 import {
     createCollegeController,
     forgotPasswordCollege,
     loginCollegeController,
     logoutCollege,
-    regenerateAccessTokenCollege
+    regenerateAccessTokenCollege,
+    resetPasswordCollege
 } from "../controller/college/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
@@ -37,6 +39,7 @@ router.post("/login-organization", validate({ body: loginOrganizationSchema }), 
 router.post("/logout-organization", AuthenticatedUser.checkOrganization, logoutOrganization);
 router.post("/regenerate-access-token-organization", AuthenticatedUser.refreshTokenOrganization, regenerateAccessTokenOrganization);
 router.post("/forgot-password-organization", forgotPasswordOrganization);
+router.post("/reset-password-organization", resetPasswordOrganization);
 
 
 // College Routes 
@@ -45,6 +48,7 @@ router.post("/login-college", validate({ body: loginCollegeSchema }), loginColle
 router.post("/logout-college", AuthenticatedUser.checkCollege, logoutCollege);
 router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCollege, regenerateAccessTokenCollege);
 router.post("/forgot-password-college", forgotPasswordCollege);
+router.post("/reset-password-college", resetPasswordCollege);
 // Protected test route to verify authentication plugin
 router.get("/test-protected", async (req, res) => {
     try {
