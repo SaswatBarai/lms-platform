@@ -319,6 +319,37 @@ Authorization: Bearer <refresh_token>
 
 ---
 
+### 7. Forgot Password Organization
+
+Initiates password recovery by sending a reset link to the recovery email.
+
+**Endpoint:** `POST /auth/api/forgot-password-organization`
+
+**Request Body:**
+```json
+{
+  "email": "admin@example.edu"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Forgot password email sent successfully"
+}
+```
+
+**Error Responses:**
+
+| Status Code | Error | Description |
+|-------------|-------|-------------|
+| 400 | Invalid email | Email format invalid |
+| 404 | Not found | Organization doesn't exist |
+| 500 | Send failed | Failed to send recovery email |
+
+---
+
 ## 🏫 College Endpoints
 
 ### 1. Create College (🔒 Protected - Organization Only)
@@ -377,7 +408,9 @@ After successful college creation, a welcome email is automatically sent contain
 |-------------|-------|-------------|
 | 401 | Unauthorized | Only organization admins can create colleges |
 | 400 | Missing fields | Required fields not provided |
+| 400 | Invalid organizationId | The specified organization does not exist |
 | 409 | Conflict | College email already exists |
+| 404 | Organization not found | Provided organizationId invalid |
 
 ---
 
@@ -494,6 +527,37 @@ Authorization: Bearer <college_refresh_token>
 | 401 | Unauthorized | Invalid or missing refresh token |
 | 404 | College not found | College doesn't exist |
 | 404 | Session not found | Session expired or invalid |
+
+---
+
+### 5. Forgot Password College
+
+Initiates password recovery for college account.
+
+**Endpoint:** `POST /auth/api/forgot-password-college`
+
+**Request Body:**
+```json
+{
+  "email": "admin@college.example.edu"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Forgot password email sent successfully"
+}
+```
+
+**Error Responses:**
+
+| Status Code | Error | Description |
+|-------------|-------|-------------|
+| 400 | Invalid email | Email format invalid |
+| 404 | Not found | College doesn't exist |
+| 500 | Send failed | Failed to send recovery email |
 
 ---
 
@@ -745,6 +809,6 @@ For technical support or questions about the Auth Service API:
 
 ---
 
-**Last Updated:** October 28, 2025 (Access Token Regeneration Added)
+**Last Updated:** October 28, 2025 (Forgot Password Endpoints Added)
 **API Version:** 1.0.0
 **Service:** LMS Auth Service

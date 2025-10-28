@@ -1,4 +1,4 @@
-import { authOTP, emailNotification } from "@services/auth.service.js";
+import { authOTP, emailNotification, forgotPasswordOrganization } from "@services/auth.service.js";
 import { IProducerPayload } from "../types/index.js";
 import {kafka} from "./kafka.js";
 
@@ -40,6 +40,12 @@ export async function startNotificationConsumer(): Promise<void> {
 							break;
 						default:
 							console.log(`[notification] Unknown action: ${action}`);
+					}
+
+					switch(topic){
+						case "forgot-password-messages":
+							await forgotPasswordOrganization(data.email,data.sessionToken);
+							break;	
 					}
 
 				} catch (error) {

@@ -5,10 +5,12 @@ import {
     resendOrganizationOtpController,
     loginOrganizationController,
     logoutOrganization,
-    regenerateAccessTokenOrganization
+    regenerateAccessTokenOrganization,
+    forgotPasswordOrganization
 } from "@controller/organization/auth.controller.js"
 import {
     createCollegeController,
+    forgotPasswordCollege,
     loginCollegeController,
     logoutCollege,
     regenerateAccessTokenCollege
@@ -34,6 +36,7 @@ router.post("/resend-organization-otp", validate({ body: resendOrganizationOtpSc
 router.post("/login-organization", validate({ body: loginOrganizationSchema }), loginOrganizationController)
 router.post("/logout-organization", AuthenticatedUser.checkOrganization, logoutOrganization);
 router.post("/regenerate-access-token-organization", AuthenticatedUser.refreshTokenOrganization, regenerateAccessTokenOrganization);
+router.post("/forgot-password-organization", forgotPasswordOrganization);
 
 
 // College Routes 
@@ -41,7 +44,7 @@ router.post("/create-college", AuthenticatedUser.checkOrganization, createColleg
 router.post("/login-college", validate({ body: loginCollegeSchema }), loginCollegeController);
 router.post("/logout-college", AuthenticatedUser.checkCollege, logoutCollege);
 router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCollege, regenerateAccessTokenCollege);
-
+router.post("/forgot-password-college", forgotPasswordCollege);
 // Protected test route to verify authentication plugin
 router.get("/test-protected", async (req, res) => {
     try {

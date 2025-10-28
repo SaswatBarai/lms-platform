@@ -6,7 +6,7 @@ import { createCollegeService } from "@services/organization.service.js";
 import { prisma } from "@lib/prisma.js";
 import redisClient from "@config/redis.js";
 import crypto from "crypto";
-import { PasetoV4SecurityManager } from "@utils/security.js";
+import { PasetoV4SecurityManager, validateEmail } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
 
 
@@ -236,3 +236,45 @@ export const regenerateAccessTokenCollege = asyncHandler(
     }
 )
 
+
+export const forgotPasswordCollege = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email} = req.body;
+        if(!email){
+            throw new AppError("Email is required", 400);
+        }
+        if(!validateEmail(email)){
+            throw new AppError("Invalid email", 400);
+        }
+        const college = await prisma.college.findUnique({
+            where:{
+                email
+            }
+        })
+        if(!college){
+            throw new AppError("College not found", 404);
+        }
+        const sessionToken = crypto.randomBytes(32).toString("hex");
+        await redisClient.setex(`college-auth-${email}`, 10 * 60, sessionToken);
+
+        const kafkaProducer = new KafkaProducer();
+        const message:ProducerPayload = {
+            action: "forgot-password",
+            type: "college-forgot-password",
+            data: {
+                email,
+                sessionToken
+            }
+        }
+        const isPublished = await kafkaProducer.publishForgotPassword(message);
+        if(isPublished){
+            return res.status(200).json({
+                success: true,
+                message: "Forgot password email sent successfully"
+            })
+        }
+        else {
+            throw new AppError("Failed to send forgot password email", 500);
+        }
+    }
+)

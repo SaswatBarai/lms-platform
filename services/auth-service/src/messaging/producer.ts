@@ -54,5 +54,19 @@ export class KafkaProducer {
 
 	}
 
+	public async publishForgotPassword(message:ProducerPayload):Promise<boolean> {
+		await this.ensureConnected();
+		const result = await this.producer!.send({
+			topic: "forgot-password-messages",
+			messages:[{
+				value: JSON.stringify(message)
+			}],
+		})
+		if(result && result.length > 0){
+			return true;
+		}
+		return false;
+	}
+
 	
 }

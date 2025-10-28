@@ -1,4 +1,7 @@
 import { OrganizationAction } from "actions/org.action.js";
+import { htmlForForgotPassword } from "html/index.js";
+import env from "@config/env.js";
+import { transporter } from "@config/mail.config.js";
 
 interface data {
     email: string;
@@ -89,6 +92,44 @@ export const emailNotification = async(
         
     }
 }
+
+
+export const forgotPasswordOrganization =  async(email:string,sessionToken:string) => {
+    try {
+
+        const resetLink = `/reset-password?token=${sessionToken}`;
+        const html = htmlForForgotPassword("LMS Platform",resetLink);
+        const result = await transporter.sendMail({
+            from: `LMS Platform <${env.MAIL_USER}>`,
+            to: email,
+            subject: "Reset Your Password",
+            html: html
+        })
+        if(result.rejected.length > 0){
+            console.error(`[notification] Failed to send forgot password email to ${email}`);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error(`[notification] Error in forgotPasswordOrganization:`, error instanceof Error ? error.message : String(error));
+        return false;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

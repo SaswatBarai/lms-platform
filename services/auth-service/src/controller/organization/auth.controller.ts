@@ -342,3 +342,42 @@ export const regenerateAccessTokenOrganization = asyncHandler(
         });
     }
 )
+
+export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
+    const {email} = req.body;
+    if(!email){
+        throw new AppError("Email is required", 400);
+    }
+    if(!validateEmail(email)){
+        throw new AppError("Invalid email", 400);
+    }
+    const organization = await prisma.organization.findUnique({
+        where:{
+            email
+        }
+    })
+    if(!organization){
+        throw new AppError("Organization not found", 404);
+    }
+    const sessionToken = crypto.randomBytes(32).toString("hex");
+    await redisClient.setex(`org-auth-${email}`, 10 * 60, sessionToken);
+    const kafkaProducer = new KafkaProducer();
+    const message:ProducerPayload = {
+        action: "forgot-password",
+        type: "org-forgot-password",
+        data: {
+            email,
+            sessionToken
+        }
+    }
+    const isPublished = await kafkaProducer.publishForgotPassword(message);
+    if(isPublished){
+        return res.status(200).json({
+            success: true,
+            message: "Forgot password email sent successfully"
+        })
+    }
+    else {
+        throw new AppError("Failed to send forgot password email", 500);
+    }
+})
