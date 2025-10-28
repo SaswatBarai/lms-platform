@@ -3,6 +3,8 @@ import { OrganizationAction } from "actions/org.action.js";
 interface data {
     email: string;
     otp?: string;
+    collegeName?: string;
+    loginUrl?: string;
 }
 
 interface IParameter {
@@ -54,20 +56,28 @@ export const emailNotification = async(
             case "welcome-email":
                 // Implement welcome email logic here
                 if(subType === "create-account") {
-                    const {email} = data;
+                    console.log("mark 2",data,type,subType);    
+                    const email = data.email;
+                    const collegeName = data.collegeName;
+                    const loginUrl = data.loginUrl;
                     if (!email) {
                         console.error("[notification] Missing email in data for welcome email");
                         return;
                     }
                     // Call the appropriate action to send welcome email
-                    console.log(`[notification] Sending welcome email to ${email}`);
-                    // Example: await OrganizationAction.sendWelcomeEmail(email);
-                    const sucess = await OrganizationAction.sendCollegeAccountCreatedEmail("Student","College",email,"https://lms-platform.com/login");
-                    if(!sucess){
-                        console.log("Successfully college create ")
+                    console.log(`[notification] Sending welcome email to ${email} for ${collegeName || 'College'}`);
+                    
+                    const success = await OrganizationAction.sendCollegeAccountCreatedEmail(
+                        collegeName || "College",
+                        email,
+                        loginUrl || "http://localhost:8000/auth/api/login-college"
+                    );
+                    
+                    if(success){
+                        console.log(`[notification] Successfully sent welcome email to ${email}`);
                     }
                     else {
-                        console.log("Error in craetion of college")
+                        console.error(`[notification] Error sending welcome email to ${email}`);
                     }
                 }
                 break;

@@ -1,4 +1,4 @@
-import { CreateCollegeInput, LoginCollegeInput } from "../../types/organization.js"
+import { CreateCollegeInput, LoginCollegeInput, ProducerPayload } from "../../types/organization.js"
 import { AppError } from "@utils/AppError.js";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { Request, Response } from "express";
@@ -7,6 +7,7 @@ import { prisma } from "@lib/prisma.js";
 import redisClient from "@config/redis.js";
 import crypto from "crypto";
 import { PasetoV4SecurityManager } from "@utils/security.js";
+import { KafkaProducer } from "@messaging/producer.js";
 
 
 
@@ -25,6 +26,30 @@ export const createCollegeController = asyncHandler(
             recoveryEmail,
             phone
         });
+
+        // Send welcome email notification via Kafka
+        if (result.success && result.data) {
+            try {
+                const kafkaProducer = new KafkaProducer();
+                const message: ProducerPayload = {
+                    action: "email-notification",
+                    type: "welcome-email",
+                    subType: "create-account",
+                    data: {
+                        email: result.data.email,
+                        collegeName: result.data.name,
+                        loginUrl: "http://localhost:8000/auth/api/login-college"
+                    }
+                };
+                
+                await kafkaProducer.publishEmailNotification(message);
+                console.log(`[auth] Welcome email queued for college: ${result.data.email}`);
+            } catch (emailError) {
+                // Log error but don't fail the college creation
+                console.error(`[auth] Failed to queue welcome email:`, emailError);
+            }
+        }
+
         res.status(201).json({
             success: result.success,
             data: result.data,

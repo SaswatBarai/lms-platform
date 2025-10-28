@@ -35,6 +35,7 @@ export async function startNotificationConsumer(): Promise<void> {
 							break;
 						case "email-notification":
 							// Implement email notification handling here
+							console.log("mark 1",data,type,subType);
 							await emailNotification({type,subType,data})
 							break;
 						default:

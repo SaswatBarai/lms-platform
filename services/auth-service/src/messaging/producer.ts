@@ -4,17 +4,24 @@ import { ProducerPayload } from "../types/organization.js";
 
 export class KafkaProducer {
 	private producer: Producer | null = null;
+	private connected: boolean = false;
 
 	constructor() {
-		if(this.producer) return;
-		this.producer = kafka.producer();
-		this.producer.connect();
+		// Don't connect in constructor, do it lazily in methods
+	}
+
+	private async ensureConnected(): Promise<void> {
+		if (!this.producer) {
+			this.producer = kafka.producer();
+		}
+		if (!this.connected) {
+			await this.producer.connect();
+			this.connected = true;
+		}
 	}
 
 	public async publishOTP(message: ProducerPayload): Promise<boolean> {
-		if(!this.producer) {
-			await this.producer!.connect();
-		}
+		await this.ensureConnected();
 		const result = await this.producer!.send({
 			topic: "otp-auth",
 			messages:[{
@@ -29,12 +36,12 @@ export class KafkaProducer {
 
 
 	public async publishEmailNotification(message:ProducerPayload):Promise<boolean>{
-		if(!this.producer){
-			await this.producer!.connect();
-		}
+		// Use the same topic as OTP messages since notification service subscribes to "otp-auth"
+		// The service differentiates based on the "action" field
+		await this.ensureConnected();
 
 		const result = await this.producer!.send({
-			topic:"email-notification",
+			topic:"otp-auth", // Use same topic as notification service subscribes to
 			messages:[{
 				value: JSON.stringify(message)
 			}],

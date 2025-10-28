@@ -65,7 +65,7 @@ export class OrganizationAction {
         }
     }
 
-    static async sendCollegeAccountCreatedEmail(studentName: string, collegeName: string, email: string, loginUrl: string) {
+    static async sendCollegeAccountCreatedEmail(collegeName: string, email: string, loginUrl: string) {
         try {
             console.log(`[Notification] Attempting to send account created email to ${email}`);
             
