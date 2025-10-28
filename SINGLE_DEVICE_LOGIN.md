@@ -1,12 +1,13 @@
 # Single Device Login Implementation
 
 ## Overview
-This implementation ensures that organizations can only be logged in from one device at a time. When an organization logs in from a new device, any existing sessions on other devices are automatically invalidated.
+This implementation ensures that **organizations** and **colleges** can only be logged in from one device at a time. When a user logs in from a new device, any existing sessions on other devices are automatically invalidated.
 
 ## How It Works
 
 ### 1. Login Flow (Auth Service)
-When an organization logs in (`/api/login-organization`):
+
+#### For Organizations (`/api/login-organization`):
 
 1. **Session Creation**: A new unique `sessionId` is generated using `crypto.randomBytes(16).toString('hex')`
 
@@ -28,6 +29,36 @@ When an organization logs in (`/api/login-organization`):
      "name": "Organization Name",
      "role": "admin",
      "type": "organization",
+     "sessionId": "unique-session-id"
+   }
+   ```
+
+4. **Previous Session Invalidation**: If an existing session is found in Redis, it's automatically overwritten with the new session, effectively logging out the previous device.
+
+#### For Colleges (`/api/login-college`):
+
+1. **Session Creation**: A new unique `sessionId` is generated using `crypto.randomBytes(16).toString('hex')`
+
+2. **Redis Storage**: The session is stored in Redis with the following structure:
+   ```
+   Key: activeSession:college:{collegeId}
+   Fields:
+     - sessionId: <unique-session-id>
+     - collegeId: <college-id>
+     - organizationId: <org-id>
+     - active: 'true'
+   Expiry: 1 day
+   ```
+
+3. **Token Generation**: The `sessionId` is embedded in the PASETO access token payload:
+   ```json
+   {
+     "id": "college-id",
+     "email": "college@example.com",
+     "name": "College Name",
+     "organizationId": "org-id",
+     "role": "college-admin",
+     "type": "college",
      "sessionId": "unique-session-id"
    }
    ```
@@ -120,24 +151,59 @@ When a session is invalidated, users receive:
 ## Benefits
 
 1. **Security**: Prevents unauthorized access from multiple devices
-2. **Session Control**: Organizations maintain control over active sessions
+2. **Session Control**: Organizations and colleges maintain control over active sessions
 3. **Automatic Invalidation**: No manual session management required
 4. **Transparent**: Users are immediately notified when logged out from another device
+5. **Isolated Sessions**: Organizations and colleges have separate session management (one doesn't affect the other)
 
 ## Testing
 
-To test single device login:
+### Testing Organization Login:
 
-1. Login from Device/Browser 1
+1. Login from Device/Browser 1 using `/api/login-organization`
 2. Make authenticated requests → Should succeed
 3. Login from Device/Browser 2 (same credentials)
 4. Make authenticated requests from Device 2 → Should succeed
 5. Try to make authenticated requests from Device 1 → Should fail with 401
 
+### Testing College Login:
+
+1. Login from Device/Browser 1 using `/api/login-college`
+2. Make authenticated requests → Should succeed
+3. Login from Device/Browser 2 (same credentials)
+4. Make authenticated requests from Device 2 → Should succeed
+5. Try to make authenticated requests from Device 1 → Should fail with 401
+
+## API Endpoints
+
+### Organization Login
+```bash
+POST /auth/api/login-organization
+Content-Type: application/json
+
+{
+  "email": "org@example.com",
+  "password": "YourPassword123!"
+}
+```
+
+### College Login
+```bash
+POST /auth/api/login-college
+Content-Type: application/json
+
+{
+  "email": "college@example.com",
+  "password": "YourPassword123!"
+}
+```
+
 ## Notes
 
-- Session validation only applies to `type: "organization"` users
+- Session validation applies to both `type: "organization"` and `type: "college"` users
 - Session validation can be disabled by setting `validate_session: false` in plugin config
 - Redis connection pooling is used for performance (keepalive)
 - Session TTL is 1 day (configurable in auth service)
+- Organizations and colleges have separate Redis keys, so sessions don't interfere with each other
+- Each user type maintains its own single device login policy
 
