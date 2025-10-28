@@ -20,6 +20,7 @@ services:
       - name: auth-service-routes-protected
         paths:
           - "/auth/api/test-protected"
+          - "/auth/api/create-college"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua
@@ -29,4 +30,10 @@ services:
               header_prefix: "X-User-"
               cache_timeout: 3600
               required_roles: []
+              redis_host: "redis"
+              redis_port: 6379
+              redis_password: "redis_pass"
+              redis_database: 0
+              redis_timeout: 2000
+              validate_session: true
 

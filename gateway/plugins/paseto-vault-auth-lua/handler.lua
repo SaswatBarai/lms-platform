@@ -78,8 +78,8 @@ function PasetoVaultAuthHandler:access(conf)
     for part in string.gmatch(v4_public_token, "[^%.]+") do
       table.insert(parts, part)
     end
-    -- Accept standard PASETO format: v4.public.<base64url(payload[+sig])>
-    -- Some implementations may include an extra trailing part; we only need the 3rd part
+    -- Accept standard PASETO format: v4.public.<base64url(payload+signature)>
+    -- PASETO v4 format: payload (JSON) + signature (64 bytes)
     if #parts < 3 then
       return nil, "Malformed PASETO token"
     end
@@ -92,24 +92,39 @@ function PasetoVaultAuthHandler:access(conf)
     if not payload_raw then
       return nil, "Payload base64 decode failed"
     end
-    -- Some PASETO libs embed signature bytes after the JSON in the 3rd segment.
-    -- Try to slice out the JSON object between the first '{' and the last '}'.
-    local start_pos = string.find(payload_raw, "{", 1, true)
-    local last_close = nil
-    local search_from = 1
-    while true do
-      local s, e = string.find(payload_raw, "}", search_from, true)
-      if not s then break end
-      last_close = e
-      search_from = e + 1
+    
+    -- PASETO v4.public format: The decoded data contains JSON payload + 64-byte Ed25519 signature
+    -- The signature is the LAST 64 bytes
+    -- We need to extract just the JSON part (everything except the last 64 bytes)
+    local payload_len = #payload_raw
+    if payload_len <= 64 then
+      return nil, "Payload too short to contain signature"
     end
-    local candidate_json = payload_raw
-    if start_pos and last_close and last_close > start_pos then
-      candidate_json = string.sub(payload_raw, start_pos, last_close)
-    end
-    local obj, err = cjson.decode(candidate_json)
+    
+    -- Extract JSON payload (remove last 64 bytes which is the signature)
+    local json_payload = string.sub(payload_raw, 1, payload_len - 64)
+    
+    -- Parse the JSON
+    local obj, err = cjson.decode(json_payload)
     if not obj then
-      return nil, "Payload JSON decode failed: " .. (err or "unknown")
+      -- If that didn't work, try the old method as fallback
+      local start_pos = string.find(payload_raw, "{", 1, true)
+      local last_close = nil
+      local search_from = 1
+      while true do
+        local s, e = string.find(payload_raw, "}", search_from, true)
+        if not s then break end
+        last_close = e
+        search_from = e + 1
+      end
+      if start_pos and last_close and last_close > start_pos then
+        local candidate_json = string.sub(payload_raw, start_pos, last_close)
+        obj, err = cjson.decode(candidate_json)
+      end
+      
+      if not obj then
+        return nil, "Payload JSON decode failed: " .. (err or "unknown")
+      end
     end
     return obj, nil
   end
