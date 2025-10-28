@@ -231,7 +231,7 @@ export const regenerateAccessTokenCollege = asyncHandler(
         });
         res.status(200).json({
             success: true,
-            message: "Access token regenrated successfully"
+            message: "Access token regenerated successfully"
         });
     }
 )

@@ -2,11 +2,17 @@
 
 ## 🚀 Overview
 
-The Auth Service is the central authentication and authorization service for the LMS Platform. It handles organization and college registration, login, and session management with **single-device login enforcement**.
+The Auth Service is the central authentication and authorization service for the LMS Platform. It handles organization and college registration, login, session management with **single-device login enforcement**, and automated email notifications.
 
 **Base URL (via Kong Gateway):** `http://localhost:8000`
 
 All API endpoints are accessible through Kong Gateway at the above base URL.
+
+### ✨ Key Features
+- **User Management:** Organization and college account creation and authentication
+- **Single Device Login:** Enforces one active session per user account
+- **Email Notifications:** Automated welcome emails for new college accounts
+- **Security:** PASETO v4 tokens, Argon2 password hashing, and comprehensive validation
 
 ---
 
@@ -279,7 +285,7 @@ Authorization: Bearer <access_token>
 
 ### 6. Regenerate Access Token (🔒 Protected)
 
-Generates new access token for organization.
+Generates new access token for organization using the refresh token.
 
 **Endpoint:** `POST /auth/api/regenerate-access-token-organization`
 
@@ -287,6 +293,10 @@ Generates new access token for organization.
 ```
 Authorization: Bearer <refresh_token>
 ```
+
+**Request Requirements:**
+- Valid refresh token must be present in cookies
+- User must have an active session
 
 **Success Response (200):**
 ```json
@@ -297,14 +307,15 @@ Authorization: Bearer <refresh_token>
 ```
 
 **Cookies Updated:**
-- `accessToken`: New token set
+- `accessToken`: New token set (HTTP-only, 1 day expiry)
 
 **Error Responses:**
 
 | Status Code | Error | Description |
 |-------------|-------|-------------|
-| 401 | Unauthorized | Invalid refresh token |
-| 404 | Session not found | Session expired |
+| 401 | Unauthorized | Invalid or missing refresh token |
+| 404 | Organization not found | Organization doesn't exist |
+| 404 | Session not found | Session expired or invalid |
 
 ---
 
@@ -312,7 +323,7 @@ Authorization: Bearer <refresh_token>
 
 ### 1. Create College (🔒 Protected - Organization Only)
 
-Creates a new college under an organization. Only organization admins can create colleges.
+Creates a new college under an organization. Only organization admins can create colleges. Upon successful creation, a welcome email is automatically sent to the college's email address.
 
 **Endpoint:** `POST /auth/api/create-college`
 
@@ -353,6 +364,12 @@ Authorization: Bearer <org_admin_token>
   }
 }
 ```
+
+**Email Notification:**
+After successful college creation, a welcome email is automatically sent containing:
+- **Subject:** `Welcome to [College Name]! Your Account is Ready`
+- **Content:** Welcome message with login instructions and dashboard access link
+- **Recipient:** The college's email address
 
 **Error Responses:**
 
@@ -446,7 +463,7 @@ Authorization: Bearer <college_access_token>
 
 ### 4. Regenerate College Access Token (🔒 Protected)
 
-Generates new access token for college.
+Generates new access token for college using the refresh token.
 
 **Endpoint:** `POST /auth/api/regenerate-access-token-college`
 
@@ -454,6 +471,10 @@ Generates new access token for college.
 ```
 Authorization: Bearer <college_refresh_token>
 ```
+
+**Request Requirements:**
+- Valid refresh token must be present in cookies
+- User must have an active session
 
 **Success Response (200):**
 ```json
@@ -463,12 +484,16 @@ Authorization: Bearer <college_refresh_token>
 }
 ```
 
+**Cookies Updated:**
+- `accessToken`: New token set (HTTP-only, 1 day expiry)
+
 **Error Responses:**
 
 | Status Code | Error | Description |
 |-------------|-------|-------------|
-| 401 | Unauthorized | Invalid refresh token |
-| 404 | Session not found | Session expired |
+| 401 | Unauthorized | Invalid or missing refresh token |
+| 404 | College not found | College doesn't exist |
+| 404 | Session not found | Session expired or invalid |
 
 ---
 
@@ -613,6 +638,12 @@ All validation errors follow this format:
 - SQL injection prevention
 - XSS protection
 
+### Notification System
+- **Email Notifications:** Automated welcome emails for new college accounts
+- **Kafka Integration:** Asynchronous message processing for reliable delivery
+- **SMTP Configuration:** Gmail-based email delivery with fallback handling
+- **Email Templates:** Professional HTML templates for account notifications
+
 ---
 
 ## 🌐 Testing Examples
@@ -661,6 +692,12 @@ curl -X GET http://localhost:8000/auth/api/test-protected \
   -b cookies.txt
 ```
 
+5. **Regenerate Organization Access Token**
+```bash
+curl -X POST http://localhost:8000/auth/api/regenerate-access-token-organization \
+  -b cookies.txt
+```
+
 ### Example: College Operations
 
 1. **Create College** (Requires organization login)
@@ -689,6 +726,12 @@ curl -X POST http://localhost:8000/auth/api/login-college \
   }'
 ```
 
+3. **Regenerate College Access Token**
+```bash
+curl -X POST http://localhost:8000/auth/api/regenerate-access-token-college \
+  -b college_cookies.txt
+```
+
 ---
 
 ## 📞 Support
@@ -702,6 +745,6 @@ For technical support or questions about the Auth Service API:
 
 ---
 
-**Last Updated:** October 28, 2024  
-**API Version:** 1.0.0  
+**Last Updated:** October 28, 2025 (Access Token Regeneration Added)
+**API Version:** 1.0.0
 **Service:** LMS Auth Service
