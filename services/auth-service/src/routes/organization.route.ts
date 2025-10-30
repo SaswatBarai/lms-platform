@@ -17,6 +17,9 @@ import {
     regenerateAccessTokenCollege,
     resetPasswordCollege
 } from "../controller/college/auth.controller.js"
+import {
+    createNonTeachingStaffBulkController,
+} from "../controller/college/staff.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
@@ -24,6 +27,7 @@ import {
     resendOrganizationOtpSchema,
     loginOrganizationSchema,
     loginCollegeSchema,
+    createNonTeachingStaffBulkSchema,
 
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
@@ -49,6 +53,15 @@ router.post("/logout-college", AuthenticatedUser.checkCollege, logoutCollege);
 router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCollege, regenerateAccessTokenCollege);
 router.post("/forgot-password-college", forgotPasswordCollege);
 router.post("/reset-password-college", resetPasswordCollege);
+
+// Non-Teaching Staff Routes
+router.post(
+    "/create-non-teaching-staff-bulk",
+    AuthenticatedUser.checkCollege, // Protects the route
+    validate({ body: createNonTeachingStaffBulkSchema }), // Validates the input array
+    createNonTeachingStaffBulkController
+);
+
 // Protected test route to verify authentication plugin
 
 

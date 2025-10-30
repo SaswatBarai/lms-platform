@@ -339,14 +339,21 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
   local active_value, err1 = red:hget(key, "active")
   local stored_session_id, err2 = red:hget(key, "sessionId")
   
-  -- Put connection back into pool
+  -- For college users, also get organizationId while connection is still active
+  local stored_org_id = nil
+  local err3 = nil
+  if user_type == "college" then
+    stored_org_id, err3 = red:hget(key, "organizationId")
+  end
+  
+  -- Put connection back into pool AFTER getting all needed data
   local ok, err_pool = red:set_keepalive(10000, 100)
   if not ok then
     kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
   end
   
-  if err1 or err2 then
-    kong.log.err("Redis error: " .. (err1 or err2 or "unknown"))
+  if err1 or err2 or err3 then
+    kong.log.err("Redis error: " .. (err1 or err2 or err3 or "unknown"))
     return false, "Session validation failed"
   end
   
@@ -381,13 +388,6 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
   -- For college users, validate that the organizationId in token matches Redis data
   if user_type == "college" and claims then
     local token_org_id = claims.organizationId or claims.orgId or claims.organization_id
-    local stored_org_id = red:hget(key, "organizationId")
-
-    -- Put connection back into pool early for college validation
-    local ok, err_pool = red:set_keepalive(10000, 100)
-    if not ok then
-      kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
-    end
 
     if stored_org_id == ngx.null or stored_org_id == nil then
       kong.log.warn("No organizationId found in Redis for college: " .. user_id)
@@ -402,13 +402,6 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
     end
 
     kong.log.info("College organization validation successful for college: " .. user_id)
-    return true, nil
-  end
-
-  -- Put connection back into pool for organization users
-  local ok, err_pool = red:set_keepalive(10000, 100)
-  if not ok then
-    kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
   end
 
   kong.log.info("Session validation successful for " .. user_type .. ": " .. user_id .. ", session: " .. session_id)

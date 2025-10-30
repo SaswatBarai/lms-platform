@@ -8,6 +8,8 @@ interface data {
     otp?: string;
     collegeName?: string;
     loginUrl?: string;
+    name?: string;
+    tempPassword?: string;
 }
 
 interface IParameter {
@@ -84,6 +86,31 @@ export const emailNotification = async(
                     }
                 }
                 break;
+
+            case "staff-welcome-email":
+                if (subType === "create-account") {
+                    const { email, name, tempPassword, loginUrl } = data;
+                    if (!email || !name || !tempPassword) {
+                        console.error("[notification] Missing data for staff welcome email");
+                        return;
+                    }
+                    console.log(`[notification] Sending staff welcome email to ${email}`);
+                    
+                    const success = await OrganizationAction.sendStaffWelcomeEmail(
+                        name,
+                        email,
+                        tempPassword,
+                        loginUrl || "http://localhost:8000/auth/api/login-staff"
+                    );
+
+                    if (success) {
+                        console.log(`[notification] Successfully sent staff welcome email to ${email}`);
+                    } else {
+                        console.error(`[notification] Error sending staff welcome email to ${email}`);
+                    }
+                }
+                break;
+
             default:
                 console.log(`[notification] Unknown email notification type: ${type}`);
         }

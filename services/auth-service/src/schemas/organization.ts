@@ -151,3 +151,18 @@ export const createNonTeachingStaffSchema = z.object({
         .default("studentsection"),
 })
 
+// Schema for a single staff member in the bulk creation input array
+const createNonTeachingStaffObjectSchema = z.object({
+    name: z.string().min(3, { message: "Name must be at least 3 characters" }),
+    email: z.string().email({ message: "Invalid email address" }),
+    phone: z.string().regex(/^\+?[\d\s\-\(\)]{10,20}$/, { message: "Invalid phone number format" }),
+    role: z.enum(["studentsection", "regestral", "adminstractor"], { 
+        message: "Role must be one of: studentsection, regestral, adminstractor" 
+    }).default("studentsection"),
+});
+
+// Schema for the bulk array
+export const createNonTeachingStaffBulkSchema = z.array(createNonTeachingStaffObjectSchema).min(1, {
+    message: "Must provide at least one staff member."
+});
+

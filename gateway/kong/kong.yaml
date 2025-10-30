@@ -30,6 +30,7 @@ services:
           - "/auth/api/create-college"
           - "/auth/api/logout-organization"
           - "/auth/api/logout-college"
+          - "/auth/api/create-non-teaching-staff-bulk"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua

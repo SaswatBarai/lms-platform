@@ -1,11 +1,11 @@
 import { RequestHandler } from "express";
-import { ZodObject, ZodError } from "zod";
+import { ZodObject, ZodError, ZodArray, ZodTypeAny, ZodSchema } from "zod";
 
 type SchemaParts = {
-  body?: ZodObject<any>;
-  params?: ZodObject<any>;
-  query?: ZodObject<any>;
-  headers?: ZodObject<any>;
+  body?: ZodSchema<any>;
+  params?: ZodSchema<any>;
+  query?: ZodSchema<any>;
+  headers?: ZodSchema<any>;
 };
 
 // Helper function to extract errors recursively
