@@ -201,7 +201,7 @@ function PasetoVaultAuthHandler:access(conf)
   
   -- Validate session in Redis (single device login check for organizations and colleges)
   if user_type == "organization" or user_type == "college" then
-    local session_ok, session_err = self:validate_session_in_redis(conf, user_id, session_id, user_type)
+    local session_ok, session_err = self:validate_session_in_redis(conf, user_id, session_id, user_type, claims)
     if not session_ok then
       kong.log.warn("Session validation failed for " .. user_type .. ": " .. (session_err or "unknown error"))
       return kong.response.exit(401, {
@@ -296,19 +296,19 @@ function PasetoVaultAuthHandler:connect_to_redis(conf)
   return red, nil
 end
 
-function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session_id, user_type)
+function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session_id, user_type, claims)
   -- Skip validation if disabled in config
   if conf.validate_session == false then
     kong.log.info("Session validation disabled in config")
     return true, nil
   end
-  
+
   -- Only validate for organization and college types
   if user_type ~= "organization" and user_type ~= "college" then
     kong.log.info("Session validation skipped - user type: " .. tostring(user_type))
     return true, nil
   end
-  
+
   if not user_id or not session_id then
     kong.log.warn("Missing user_id or session_id for validation")
     return false, "Missing session information"
@@ -372,12 +372,45 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
   -- This ensures single device login - if user logs in from another device,
   -- the old sessionId will no longer match and the old device will be logged out
   if stored_session_id ~= session_id then
-    kong.log.warn("SessionId mismatch for " .. user_type .. ": " .. user_id .. 
-                  ". Token session: " .. session_id .. 
+    kong.log.warn("SessionId mismatch for " .. user_type .. ": " .. user_id ..
+                  ". Token session: " .. session_id ..
                   ", Redis session: " .. stored_session_id)
     return false, "Session has been invalidated by another login"
   end
-  
+
+  -- For college users, validate that the organizationId in token matches Redis data
+  if user_type == "college" and claims then
+    local token_org_id = claims.organizationId or claims.orgId or claims.organization_id
+    local stored_org_id = red:hget(key, "organizationId")
+
+    -- Put connection back into pool early for college validation
+    local ok, err_pool = red:set_keepalive(10000, 100)
+    if not ok then
+      kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
+    end
+
+    if stored_org_id == ngx.null or stored_org_id == nil then
+      kong.log.warn("No organizationId found in Redis for college: " .. user_id)
+      return false, "College organization validation failed"
+    end
+
+    if token_org_id ~= stored_org_id then
+      kong.log.warn("OrganizationId mismatch for college: " .. user_id ..
+                    ". Token org: " .. tostring(token_org_id) ..
+                    ", Redis org: " .. stored_org_id)
+      return false, "College does not belong to specified organization"
+    end
+
+    kong.log.info("College organization validation successful for college: " .. user_id)
+    return true, nil
+  end
+
+  -- Put connection back into pool for organization users
+  local ok, err_pool = red:set_keepalive(10000, 100)
+  if not ok then
+    kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
+  end
+
   kong.log.info("Session validation successful for " .. user_type .. ": " .. user_id .. ", session: " .. session_id)
   return true, nil
 end

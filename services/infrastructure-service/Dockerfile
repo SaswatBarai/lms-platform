@@ -2,7 +2,7 @@
 # 1️⃣ Base image for dependencies
 # -----------------------------
 FROM node:20-alpine AS base
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm
 WORKDIR /app
 COPY package*.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
@@ -23,7 +23,7 @@ RUN pnpm run build
 # -----------------------------
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./

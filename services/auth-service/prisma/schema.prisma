@@ -91,6 +91,7 @@ model NonTeachingStaff {
   collegeId  String
   name       String   @db.VarChar(255)
   email      String   @unique @db.VarChar(255)
+  phone      String   @unique @db.VarChar(20)
   password   String   @db.VarChar(255)
   role       UserRole @default(studentsection)
 
@@ -114,7 +115,40 @@ model Department {
   // Relations
   college     College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   hod         Hod?    @relation(fields: [hodId], references: [id])
+  students    Student[]
+  teachers    Teacher[]
 }
+
+model Student {
+  id            String   @id @default(cuid())
+  departmentId  String
+  name          String   @db.VarChar(255)
+  email         String   @unique @db.VarChar(255)
+  password      String   @db.VarChar(255)
+  regNo  String   @unique @db.VarChar(100)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+}
+
+model Teacher {
+  id            String   @id @default(cuid())
+  departmentId  String
+  name          String   @db.VarChar(255)
+  email         String   @unique @db.VarChar(255)
+  password      String   @db.VarChar(255)
+  employeeNo    String   @unique @db.VarChar(100)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  department    Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+}
+
 
 model RefreshToken {
   id            String   @id @default(cuid())

@@ -4,7 +4,8 @@ import {
   verifyOrganizationOtpSchema,
   loginOrganizationSchema,
   createCollegeSchema,
-  loginCollegeSchema
+  loginCollegeSchema,
+  createNonTeachingStaffSchema
 } from "@schemas/organization.js"
 
 
@@ -16,6 +17,7 @@ export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSch
 export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
 export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
 export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
+export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
 
 
 
@@ -43,4 +45,10 @@ export enum OrganizationRole {
 export interface TokenPlayload {
   accessToken: string;
   refreshToken?: string;
+}
+
+export enum NonTeachingStaffRole {
+  "STUDENT_SECTION" = "studentsection",
+  "REGISTRAR" = "regestral",
+  "ADMINISTRATOR" = "adminstractor",
 }

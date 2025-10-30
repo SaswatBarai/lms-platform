@@ -4,6 +4,9 @@ networks:
     name: lms-network
   internal_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
   public_net:
     driver: bridge
 

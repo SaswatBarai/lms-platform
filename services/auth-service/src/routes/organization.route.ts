@@ -50,6 +50,8 @@ router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCo
 router.post("/forgot-password-college", forgotPasswordCollege);
 router.post("/reset-password-college", resetPasswordCollege);
 // Protected test route to verify authentication plugin
+
+
 router.get("/test-protected", async (req, res) => {
     try {
         // This route should be protected by Kong's PASETO-Vault plugin

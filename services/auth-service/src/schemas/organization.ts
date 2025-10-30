@@ -117,3 +117,37 @@ export const loginCollegeSchema = z.object({
         .trim(),
 })
 
+export const createNonTeachingStaffSchema = z.object({
+    name: z.string({ message: "Name is required" })
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    phone: z.string({ message: "Phone number is required" })
+        .min(1, { message: "Phone number is required" })
+        .regex(/^\+?[\d\s\-\(\)]{10,20}$/, { message: "Invalid phone number format" })
+        .max(20, { message: "Phone number must be at most 20 characters" })
+        .trim(),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .min(8, { message: "Password must be at least 8 characters" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
+    collegeId: z.string({ message: "College ID is required" })
+        .min(1, { message: "College ID is required" })
+        .trim()
+        .nonempty({ message: "College ID is required" }),
+    role: z.enum(["studentsection", "regestral", "adminstractor"], { 
+        message: "Role must be one of: studentsection, regestral, adminstractor" 
+    })
+        .optional()
+        .default("studentsection"),
+})
+
