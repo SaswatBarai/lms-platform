@@ -1,72 +1,149 @@
 import { Producer } from "kafkajs";
 import { kafka } from "./kafka.js";
-import { ProducerPayload } from "../types/organization.js";
+import { NotificationPayload, NotificationAction, NotificationType, NotificationSubType } from "../types/notification.types.js";
 
 export class KafkaProducer {
-	private producer: Producer | null = null;
-	private connected: boolean = false;
+  private producer: Producer | null = null;
+  private connected: boolean = false;
+  private static instance: KafkaProducer | null = null;
 
-	constructor() {
-		// Don't connect in constructor, do it lazily in methods
-	}
+  private constructor() {
+    // Private constructor for singleton pattern
+  }
 
-	private async ensureConnected(): Promise<void> {
-		if (!this.producer) {
-			this.producer = kafka.producer();
-		}
-		if (!this.connected) {
-			await this.producer.connect();
-			this.connected = true;
-		}
-	}
+  /**
+   * Get singleton instance
+   */
+  public static getInstance(): KafkaProducer {
+    if (!this.instance) {
+      this.instance = new KafkaProducer();
+    }
+    return this.instance;
+  }
 
-	public async publishOTP(message: ProducerPayload): Promise<boolean> {
-		await this.ensureConnected();
-		const result = await this.producer!.send({
-			topic: "otp-auth",
-			messages:[{
-				value: JSON.stringify(message)
-			}],
-		});
-		if(result && result.length > 0) {
-			return true;
-		}
-		return false;
-	}
+  /**
+   * Ensure Kafka producer is connected
+   */
+  private async ensureConnected(): Promise<void> {
+    if (!this.producer) {
+      this.producer = kafka.producer();
+    }
+    if (!this.connected) {
+      await this.producer.connect();
+      this.connected = true;
+      console.log("[KafkaProducer] ✅ Producer connected");
+    }
+  }
 
+  /**
+   * Generic method to send notification message
+   */
+  private async sendMessage(topic: string, payload: NotificationPayload): Promise<boolean> {
+    try {
+      await this.ensureConnected();
+      
+      const result = await this.producer!.send({
+        topic,
+        messages: [{
+          value: JSON.stringify(payload)
+        }],
+      });
 
-	public async publishEmailNotification(message:ProducerPayload):Promise<boolean>{
-		// Use the same topic as OTP messages since notification service subscribes to "otp-auth"
-		// The service differentiates based on the "action" field
-		await this.ensureConnected();
+      if (result && result.length > 0) {
+        console.log(`[KafkaProducer] ✅ Message sent to ${topic}: ${payload.action}-${payload.type}`);
+        return true;
+      }
 
-		const result = await this.producer!.send({
-			topic:"otp-auth", // Use same topic as notification service subscribes to
-			messages:[{
-				value: JSON.stringify(message)
-			}],
-		})
+      console.error(`[KafkaProducer] ❌ Failed to send message to ${topic}`);
+      return false;
 
-		if(result && result.length > 0){
-			return true;
-		}
-		return false;
+    } catch (error) {
+      console.error(`[KafkaProducer] ❌ Error sending message to ${topic}:`, error);
+      return false;
+    }
+  }
 
-	}
+  /**
+   * Send OTP email notification
+   */
+  public async sendOTP(email: string, otp: string): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.AUTH_OTP,
+      type: NotificationType.ORG_OTP,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, otp }
+    };
 
-	public async publishForgotPassword(message:ProducerPayload):Promise<boolean> {
-		await this.ensureConnected();
-		const result = await this.producer!.send({
-			topic: "forgot-password-messages",
-			messages:[{
-				value: JSON.stringify(message)
-			}],
-		})
-		if(result && result.length > 0){
-			return true;
-		}
-		return false;
-	}
+    return this.sendMessage("otp-auth", payload);
+  }
 
-	
+  /**
+   * Send college welcome email
+   */
+  public async sendCollegeWelcomeEmail(email: string, collegeName: string, loginUrl: string): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.EMAIL_NOTIFICATION,
+      type: NotificationType.WELCOME_EMAIL,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, collegeName, loginUrl }
+    };
+
+    return this.sendMessage("otp-auth", payload);
+  }
+
+  /**
+   * Send staff welcome email
+   */
+  public async sendStaffWelcomeEmail(
+    email: string,
+    name: string,
+    tempPassword: string,
+    loginUrl: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.EMAIL_NOTIFICATION,
+      type: NotificationType.STAFF_WELCOME_EMAIL,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, name, tempPassword, loginUrl }
+    };
+
+    return this.sendMessage("otp-auth", payload);
+  }
+
+  /**
+   * Send organization forgot password email
+   */
+  public async sendOrganizationForgotPassword(email: string, sessionToken: string): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.FORGOT_PASSWORD,
+      type: NotificationType.ORG_FORGOT_PASSWORD,
+      data: { email, sessionToken }
+    };
+
+    return this.sendMessage("forgot-password-messages", payload);
+  }
+
+  /**
+   * Send college forgot password email
+   */
+  public async sendCollegeForgotPassword(email: string, sessionToken: string): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.FORGOT_PASSWORD,
+      type: NotificationType.COLLEGE_FORGOT_PASSWORD,
+      data: { email, sessionToken }
+    };
+
+    return this.sendMessage("forgot-password-messages", payload);
+  }
+
+  /**
+   * Disconnect producer
+   */
+  public async disconnect(): Promise<void> {
+    if (this.producer && this.connected) {
+      await this.producer.disconnect();
+      this.connected = false;
+      console.log("[KafkaProducer] Producer disconnected");
+    }
+  }
 }

@@ -19,7 +19,8 @@ import {
 } from "../controller/college/auth.controller.js"
 import {
     createNonTeachingStaffBulkController,
-} from "../controller/college/staff.controller.js"
+    login as loginNonTeachingStaff
+} from "../controller/nonTeachingStaff/staff.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
@@ -28,6 +29,7 @@ import {
     loginOrganizationSchema,
     loginCollegeSchema,
     createNonTeachingStaffBulkSchema,
+    loginNonTeachingStaffSchema,
 
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
@@ -61,6 +63,7 @@ router.post(
     validate({ body: createNonTeachingStaffBulkSchema }), // Validates the input array
     createNonTeachingStaffBulkController
 );
+router.post("/login-non-teaching-staff", validate({ body: loginNonTeachingStaffSchema }), loginNonTeachingStaff);
 
 // Protected test route to verify authentication plugin
 
@@ -71,12 +74,13 @@ router.get("/test-protected", async (req, res) => {
         // If the request reaches here, it means authentication was successful
 
         // Extract user info from headers set by Kong plugin
-        const userId = req.headers['x-user-id'] as string;
-        const userEmail = req.headers['x-user-email'] as string;
-        const userRole = req.headers['x-user-role'] as string;
-        const userType = req.headers['x-user-type'] as string;
+        const userId = req.headers['x-id'] as string;
+        const userEmail = req.headers['x-email'] as string;
+        const userRole = req.headers['x-role'] as string;
+        const organizationId = req.headers['x-organization-id'] as string;
+        const collegeId = req.headers['x-college-id'] as string;
 
-        console.log("Authenticated user:", { userId, userEmail, userRole, userType });
+        console.log("Authenticated user:", { userId, userEmail, userRole, organizationId, collegeId });
 
         res.status(200).json({
             success: true,
@@ -87,7 +91,8 @@ router.get("/test-protected", async (req, res) => {
                     id: userId || "Not provided",
                     email: userEmail || "Not provided",
                     role: userRole || "Not provided",
-                    type: userType || "Not provided"
+                    organizationId: organizationId || "Not provided",
+                    collegeId: collegeId || "Not provided"
                 },
                 timestamp: new Date().toISOString(),
                 endpoint: "/api/test-protected"

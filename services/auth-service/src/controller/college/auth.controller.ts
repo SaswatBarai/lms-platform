@@ -1,4 +1,4 @@
-import { CreateCollegeInput, LoginCollegeInput, ProducerPayload } from "../../types/organization.js"
+import { CreateCollegeInput, LoginCollegeInput } from "../../types/organization.js"
 import { AppError } from "@utils/AppError.js";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { Request, Response } from "express";
@@ -30,19 +30,13 @@ export const createCollegeController = asyncHandler(
         // Send welcome email notification via Kafka
         if (result.success && result.data) {
             try {
-                const kafkaProducer = new KafkaProducer();
-                const message: ProducerPayload = {
-                    action: "email-notification",
-                    type: "welcome-email",
-                    subType: "create-account",
-                    data: {
-                        email: result.data.email,
-                        collegeName: result.data.name,
-                        loginUrl: "http://localhost:8000/auth/api/login-college"
-                    }
-                };
+                const kafkaProducer = KafkaProducer.getInstance();
                 
-                await kafkaProducer.publishEmailNotification(message);
+                await kafkaProducer.sendCollegeWelcomeEmail(
+                    result.data.email,
+                    result.data.name,
+                    "http://localhost:8000/auth/api/login-college"
+                );
                 console.log(`[auth] Welcome email queued for college: ${result.data.email}`);
             } catch (emailError) {
                 // Log error but don't fail the college creation
@@ -103,6 +97,8 @@ export const loginCollegeController = asyncHandler(
         const existingSessionId = await redisClient.hget(key, 'sessionId');
         if (existingSessionId) {
             console.log(`Invalidating existing session for college ${college.id}: ${existingSessionId}`);
+            await redisClient.hdel(key, 'sessionId');
+            
         }
         
         // Create new session ID (this will replace any existing session)
@@ -114,6 +110,7 @@ export const loginCollegeController = asyncHandler(
             email: college.email,
             name: college.name,
             organizationId: college.organizationId,
+            collegeId: college.id,
             role: "college-admin", // Colleges are college-admin by default
             type: "college",
             sessionId: accessSessionId
@@ -220,6 +217,7 @@ export const regenerateAccessTokenCollege = asyncHandler(
             email: college.email,
             name: college.name,
             organizationId: college.organizationId,
+            collegeId: college.id,
             role: "college-admin",
             type: "college",
             sessionId
@@ -257,16 +255,9 @@ export const forgotPasswordCollege = asyncHandler(
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`college-auth-${email}`, 10 * 60, sessionToken);
 
-        const kafkaProducer = new KafkaProducer();
-        const message:ProducerPayload = {
-            action: "forgot-password",
-            type: "college-forgot-password",
-            data: {
-                email,
-                sessionToken
-            }
-        }
-        const isPublished = await kafkaProducer.publishForgotPassword(message);
+        const kafkaProducer = KafkaProducer.getInstance();
+        
+        const isPublished = await kafkaProducer.sendCollegeForgotPassword(email, sessionToken);
         if(isPublished){
             return res.status(200).json({
                 success: true,

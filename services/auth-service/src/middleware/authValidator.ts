@@ -13,7 +13,7 @@ export class AuthenticatedUser {
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;
-        const userType = req.headers['x-user-type'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
 
         const user = await prisma.organization.findUnique({
             where:{
@@ -26,10 +26,9 @@ export class AuthenticatedUser {
 
         const organization:OrganizationContext = {
             id:user.id,
-            name:user.name,
             email:user.email,
             role:userRole,
-            type:userType,
+            organizationId: organizationId,
         }
         req.organization = organization;
 
@@ -42,22 +41,28 @@ export class AuthenticatedUser {
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;
-        const userType = req.headers['x-user-type'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
+
+        if (!collegeId) {
+            throw new AppError("College ID is required - Please login as college admin", 401);
+        }
 
         const college = await prisma.college.findUnique({
             where:{
-                id:userId
+                id:collegeId
             }
         })
+        console.log(college);
         if(!college){
             throw new AppError("College not found",404);
         }
         const collegeContext:CollegeContext = {
             id:college.id,
-            name:college.name,
             email:college.email,
             role:userRole,
-            type:userType,
+            organizationId: organizationId,
+            collegeId: collegeId,
         }
         req.college = collegeContext;
         return next();
@@ -83,10 +88,10 @@ export class AuthenticatedUser {
         }
         const collegeContext:CollegeContext = {
             id:college.id,
-            name:college.name,
             email:college.email,
             role:"college-admin" as const,
-            type:"college" as const,
+            collegeId: college.id,
+            organizationId: college.organizationId,
         }
         req.college = collegeContext;
         return next();
@@ -112,10 +117,9 @@ export class AuthenticatedUser {
         }
         const organizationContext:OrganizationContext = {
             id:organization.id,
-            name:organization.name,
             email:organization.email,
             role:"organization-admin" as const,
-            type:"organization" as const,
+            organizationId: organization.id,
         }
         req.organization = organizationContext;
         return next();

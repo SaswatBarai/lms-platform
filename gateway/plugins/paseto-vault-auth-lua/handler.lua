@@ -227,30 +227,15 @@ function PasetoVaultAuthHandler:access(conf)
   local name = claims.name
   local role = claims.role or (type(claims.roles) == "table" and claims.roles[1]) or nil
   local organization_id = claims.organizationId or claims.orgId or claims.organization_id
+  local college_id = claims.collegeId or claims.college_id
   local session_id = claims.sessionId or claims.sid or claims.session_id
-  local permissions = claims.permissions
-  local iss = claims.iss
-  local aud = claims.aud
-  local iat = claims.iat
-  local exp = claims.exp
-  local typ = claims.type
 
+  -- Set only the essential headers as requested
   set_if_exists("Id", user_id)
   set_if_exists("Email", email)
-  set_if_exists("Name", name)
   set_if_exists("Role", role)
   set_if_exists("Organization-Id", organization_id)
-  set_if_exists("Session-Id", session_id)
-  if type(permissions) == "table" then
-    set_if_exists("Permissions", table.concat(permissions, ","))
-  else
-    set_if_exists("Permissions", permissions)
-  end
-  set_if_exists("Iss", iss)
-  set_if_exists("Aud", aud)
-  set_if_exists("Iat", iat)
-  set_if_exists("Exp", exp)
-  set_if_exists("Auth-Time", iat or now)
+  set_if_exists("College-Id", college_id)
 
   -- Also set a generic authenticated header
   kong.service.request.set_header("X-Authenticated", "true")

@@ -11,18 +11,17 @@ declare global {
 
 export interface OrganizationContext {
     id: string;
-    name: string;
     email: string;
     role: string;
-    type: string;
+    organizationId?: string;
 }
 
 export interface CollegeContext {
     id: string;
-    name: string;
     email: string;
     role: string;
-    type: string;
+    organizationId?: string;
+    collegeId?: string;
 }
 
 export type AsyncHandler = (req:Request,res:Response,next:NextFunction) => Promise<any>;

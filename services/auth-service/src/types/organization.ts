@@ -5,9 +5,9 @@ import {
   loginOrganizationSchema,
   createCollegeSchema,
   loginCollegeSchema,
-  createNonTeachingStaffSchema
+  createNonTeachingStaffSchema,
+  loginNonTeachingStaffSchema
 } from "@schemas/organization.js"
-
 
 
 
@@ -18,7 +18,7 @@ export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
 export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
 export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
 export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
-
+export type LoginNonTeachingStaffInput = z.infer<typeof loginNonTeachingStaffSchema>
 
 
 export interface ServiceResult<T> {
@@ -28,23 +28,14 @@ export interface ServiceResult<T> {
   errors?: string[];
 }
 
-export interface ProducerPayload {
-  action: "auth-otp" | "email-notification" | "forgot-password";
-  type: "org-otp" |"welcome-email" | "college-forgot-password" | "org-forgot-password" | "staff-welcome-email";
-  subType?: "create-account";
-  data: any;
+export interface TokenPlayload {
+  accessToken: string;
+  refreshToken?: string;
 }
-
 
 //role enum
 export enum OrganizationRole {
   ORG_ADMIN = "org-admin",
-}
-
-
-export interface TokenPlayload {
-  accessToken: string;
-  refreshToken?: string;
 }
 
 export enum NonTeachingStaffRole {
@@ -52,3 +43,4 @@ export enum NonTeachingStaffRole {
   "REGISTRAR" = "regestral",
   "ADMINISTRATOR" = "adminstractor",
 }
+

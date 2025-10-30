@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { createOrganizationService } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
-import { ProducerPayload, type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput } from "../../types/organization.js";
+import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput } from "../../types/organization.js";
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
@@ -28,16 +28,7 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
         throw new AppError("Organization with this email or phone already exists", 409);
     }
     const otp = generateOtp();
-    const kafkaProducer = new KafkaProducer();
-    const message: ProducerPayload = {
-        action: "auth-otp",
-        type: "org-otp",
-        subType: "create-account",
-        data: {
-            email,
-            otp
-        }
-    }
+    const kafkaProducer = KafkaProducer.getInstance();
     const sessionToken = crypto.randomBytes(32).toString("hex");
     //check the details already exist or not 
     if (await redisClient.exists(`org-auth-${email}`)) {
@@ -66,7 +57,7 @@ export const createOrganizationController = asyncHandler(async (req: Request, re
     const hashedOTP = await hashOtp(otp, sessionToken);
     await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
 
-    const isPublished = await kafkaProducer.publishOTP(message);
+    const isPublished = await kafkaProducer.sendOTP(email, otp);
     if (isPublished) {
         return res.status(200).json({
             success: true,
@@ -151,23 +142,15 @@ export const resendOrganizationOtpController = asyncHandler(async (req:Request,r
         throw new AppError("Please wait before requesting a new OTP", 429);
     }
     const otp = generateOtp();
-    const kafkaProducer = new KafkaProducer();
-    const message: ProducerPayload = {
-        action: "auth-otp",
-        type: "org-otp",
-        subType: "create-account",
-        data: {
-            email,
-            otp
-        }
-    }
+    const kafkaProducer = KafkaProducer.getInstance();
+    
     //save otp in redis with 10 minutes expiry
     const hashedOTP = await hashOtp(otp, orgData.sessionToken);
     await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
     //set cool down for 1 minute
     await redisClient.setex(coolDownKey, 60, "1");
 
-    const isPublished = await kafkaProducer.publishOTP(message);
+    const isPublished = await kafkaProducer.sendOTP(email, otp);
     if (isPublished) {
         return res.status(200).json({
             success: true,
@@ -227,6 +210,7 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         id: organization.id,
         email: organization.email,
         name: organization.name,
+        organizationId: organization.id,
         role: "org-admin", // Organizations are org-admin by default
         type: "organization",
         sessionId: accesssSessionId
@@ -327,6 +311,7 @@ export const regenerateAccessTokenOrganization = asyncHandler(
             id: organization.id,
             email: organization.email,
             name: organization.name,
+            organizationId: organization.id,
             role: "org-admin",
             type: "organization",
             sessionId
@@ -361,16 +346,9 @@ export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:R
     }
     const sessionToken = crypto.randomBytes(32).toString("hex");
     await redisClient.setex(`org-auth-${email}`, 10 * 60, sessionToken);
-    const kafkaProducer = new KafkaProducer();
-    const message:ProducerPayload = {
-        action: "forgot-password",
-        type: "org-forgot-password",
-        data: {
-            email,
-            sessionToken
-        }
-    }
-    const isPublished = await kafkaProducer.publishForgotPassword(message);
+    const kafkaProducer = KafkaProducer.getInstance();
+    
+    const isPublished = await kafkaProducer.sendOrganizationForgotPassword(email, sessionToken);
     if(isPublished){
         return res.status(200).json({
             success: true,
