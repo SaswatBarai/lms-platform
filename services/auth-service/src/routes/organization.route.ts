@@ -73,12 +73,12 @@ router.get("/test-protected", async (req, res) => {
         // This route should be protected by Kong's PASETO-Vault plugin
         // If the request reaches here, it means authentication was successful
 
-        // Extract user info from headers set by Kong plugin
-        const userId = req.headers['x-id'] as string;
-        const userEmail = req.headers['x-email'] as string;
-        const userRole = req.headers['x-role'] as string;
-        const organizationId = req.headers['x-organization-id'] as string;
-        const collegeId = req.headers['x-college-id'] as string;
+        // Extract user info from headers set by Kong plugin (with X-User- prefix)
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
 
         console.log("Authenticated user:", { userId, userEmail, userRole, organizationId, collegeId });
 

@@ -176,7 +176,7 @@ export const login= asyncHandler(
             email: existingStaff.email,
             name: existingStaff.name,
             role: existingStaff.role,
-            type: existingStaff.role,
+            type: "non-teaching-staff",
             collegeId: existingStaff.collegeId,
             organizationId: existingStaff.college.organizationId,
             sessionId: accessSessionId
@@ -185,6 +185,7 @@ export const login= asyncHandler(
         await redisClient.hset(key, {
             sessionId: accessSessionId,
             nonTeachingStaffId: existingStaff.id,
+            organizationId: existingStaff.college.organizationId,
             active: 'true',
         });
 

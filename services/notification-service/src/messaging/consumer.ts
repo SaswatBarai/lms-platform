@@ -128,6 +128,8 @@ export class NotificationConsumer {
     }
   }
 
+  
+
   /**
    * Gracefully shutdown the consumer
    */
