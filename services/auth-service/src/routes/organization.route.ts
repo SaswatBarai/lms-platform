@@ -19,6 +19,7 @@ import {
     resetPasswordCollegeController
 } from "../controller/college/auth.controller.js"
 import {
+    addBranchNonTeachingStaffController,
     addDepartmentNonTeachingStaffController,
     createNonTeachingStaffBulkController,
     login as loginNonTeachingStaff,
@@ -35,6 +36,7 @@ import {
     loginNonTeachingStaffSchema,
     resetPasswordScehma,
     addDepartmentBulkSchema,
+    addBranchBulkSchema,
 
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
@@ -73,6 +75,7 @@ router.post(
 router.post("/login-non-teaching-staff", validate({ body: loginNonTeachingStaffSchema }), loginNonTeachingStaff);
 router.post("/reset-password-non-teaching-staff",AuthenticatedUser.checkNonTeachingStaff,validate({body:resetPasswordScehma}), resetPasswordNonTeachingStaffController);
 router.post("/add-department",AuthenticatedUser.checkNonTeachingStaff,validate({body:addDepartmentBulkSchema}), addDepartmentNonTeachingStaffController);
+router.post("/add-branch",AuthenticatedUser.checkNonTeachingStaff,validate({body:addBranchBulkSchema}), addBranchNonTeachingStaffController);   
 // Protected test route to verify authentication plugin
 
 

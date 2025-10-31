@@ -204,7 +204,7 @@ export const addDepartmentSchema = z.object({
         .trim()
         .nonempty({ message: "Name is required" }),
     shortName: z.string({ message: "Short name is required" })
-        .min(3, { message: "Short name must be at least 3 characters" })
+        .min(2, { message: "Short name must be at least 3 characters" })
         .max(50, { message: "Short name must be at most 50 characters" })
         .trim()
         .nonempty({ message: "Short name is required" }),
@@ -213,12 +213,26 @@ export const addDepartmentSchema = z.object({
         .trim()
         .nonempty({ message: "HOD ID is required" })
         .optional(),
-    collegeId: z.string({ message: "College ID is required" })
-        .min(1, { message: "College ID is required" })
-        .trim()
-        .nonempty({ message: "College ID is required" }),
 })
 
 export const addDepartmentBulkSchema = z.array(addDepartmentSchema).min(1, {
     message: "Must provide at least one department."
+});
+
+
+export const addBranchSchema = z.object({
+    name:z.string({ message: "Name is required" })
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    shortName:z.string({ message: "Short name is required" })
+        .min(2, { message: "Short name must be at least 2 characters" })
+        .max(50, { message: "Short name must be at most 50 characters" })
+        .trim()
+        .nonempty({ message: "Short name is required" }),
+})
+
+export const addBranchBulkSchema = z.array(addBranchSchema).min(1, {
+    message: "Must provide at least one branch."
 });

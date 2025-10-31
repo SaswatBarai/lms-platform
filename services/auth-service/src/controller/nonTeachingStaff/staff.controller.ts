@@ -3,7 +3,7 @@ import { asyncHandler } from "@utils/asyncHandler.js";
 import { prisma } from "@lib/prisma.js";
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
-import { AddDepartmentInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
+import { AddBranchInput, AddDepartmentInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
 import crypto from "crypto";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
@@ -137,8 +137,6 @@ export const createNonTeachingStaffBulkController = asyncHandler(async (req: Req
     });
 });
 
-
-
 export const login= asyncHandler(
     async(req:Request, res:Response) => {
         const {email,password}:LoginNonTeachingStaffInput = req.body;
@@ -217,7 +215,6 @@ export const login= asyncHandler(
     }
 )
 
-
 export const resetPasswordNonTeachingStaffController = asyncHandler(
     async(req:Request, res:Response) => {
         const {email,oldPassword,newPassword}:ResetPasswordInput = req.body;
@@ -233,6 +230,112 @@ export const resetPasswordNonTeachingStaffController = asyncHandler(
     }
 )
 
+export const addBranchNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const branchArrray:AddBranchInput[] = req.body;
+        const collegeId = req.nonTeachingStaff.collegeId;
+        const role = req.nonTeachingStaff.role;
+        const userId = req.nonTeachingStaff.id;
+
+        //let us check first is this staff is part of the college or not 
+        const staff = await prisma.nonTeachingStaff.findUnique({
+            where:{
+                id:userId
+            },
+            include:{
+                college:{
+                    select:{
+                        id:true
+                    }
+                }
+            }
+        })
+        if(!staff){
+            throw new AppError("Staff not found", 404);
+        }
+        if(staff.collegeId != collegeId){
+            throw new AppError("Staff is not part of the college", 403);
+        }
+
+        if(role != NonTeachingStaffRole.REGISTRAR){
+            throw new AppError("You are not authorized to add branches as you are not a registrar", 403);
+        }
+
+        //now we will check is the branches already exist or not 
+        const branchname = branchArrray.map(branch => branch.name);
+        const branchshortName = branchArrray.map(branch => branch.shortName);
+        const existingBranches = await prisma.branch.findMany({
+            where:{
+                OR:[
+                    {name: {in:branchname}},
+                    {shortName: {in:branchshortName}},
+                ]
+            }
+        })
+        const existingBranchName = new Set(existingBranches.map(branch => branch.name));
+        const existingBranchShortName = new Set(existingBranches.map(branch => branch.shortName));
+        const validBranches: typeof branchArrray = [];
+        const errors:{
+            index:number;
+            field:string;
+            value:string;
+            message:string;
+        }[] = [];
+        branchArrray.forEach((branch, index) => {
+            let hasError = false;
+            if(existingBranchName.has(branch.name)){
+                errors.push({
+                    index,
+                    field: "name",
+                    value: branch.name,
+                    message: `Branch name '${branch.name}' already exists`
+                })
+                hasError = true;
+            }
+            if(existingBranchShortName.has(branch.shortName)){
+                errors.push({
+                    index,
+                    field: "shortName",
+                    value: branch.shortName,
+                    message: `Branch short name '${branch.shortName}' already exists`
+                })
+                hasError = true;
+            }
+
+            if(!hasError){
+                validBranches.push(branch);
+            }
+
+        })
+        if(errors.length > 0){
+            return res.status(400).json({
+                success: false,
+                message: "Some branches could not be added due to duplicate name or short name",
+                errors: errors,
+                duplicateCount: errors.length,
+                validCount: validBranches.length
+            });
+        }
+        //now we will add the branches to the database
+        const branches = await prisma.branch.createMany({
+            data: validBranches.map(branch => {
+                return {
+                    name: branch.name,
+                    shortName: branch.shortName,
+                    collegeId: collegeId
+                }
+            })
+        })
+        if(branches.count !== validBranches.length){
+            throw new AppError("Failed to add branches", 400);
+        }
+        return res.status(200).json({
+            success: true,
+            message: "Branches added successfully",
+            data: branches
+        });
+    }
+)
 
 export const addDepartmentNonTeachingStaffController = asyncHandler(
     async(req:Request, res:Response) => {
