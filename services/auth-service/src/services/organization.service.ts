@@ -2,8 +2,8 @@ import pkg from "@prisma/client";
 import { z, ZodError } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../utils/AppError.js";
-import { CreateCollegeInput, CreateOrganizationInput, ServiceResult } from "../types/organization.js";
-import {hashPassword} from "../utils/security.js"
+import { CreateCollegeInput, CreateOrganizationInput, ResetPasswordInput, ServiceResult } from "../types/organization.js";
+import {hashPassword, verifyPassword} from "../utils/security.js"
 import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 
 const { Prisma } = pkg;
@@ -209,4 +209,143 @@ export const createCollegeService = async(
         throw new AppError("Failed to create college", 500);
         
     }
+}
+
+export enum ResetPasswordType{
+    ORGANIZATION = "organization",
+    COLLEGE = "college",
+    NON_TEACHING_STAFF = "non-teaching-staff",
+}
+interface CustomResetPasswordInput extends ResetPasswordInput{
+    type:ResetPasswordType;
+}
+
+export const resetPasswordService =  async(
+    InputData:CustomResetPasswordInput
+):Promise<ServiceResult<boolean>> => {
+    try {
+        const {email,oldPassword,newPassword,type} = InputData;
+        switch(type){
+            case ResetPasswordType.ORGANIZATION: {
+                const organization = await prisma.organization.findUnique({
+                    where:{
+                        email
+                    }
+                })
+                if(!organization){
+                    return{
+                        success: false,
+                        message: "Organization not found",
+                        errors:["Organization not found"],
+                    }
+                }
+                const isOldPasswordValid = await verifyPassword(oldPassword,organization.password);
+                if(!isOldPasswordValid){
+                    return{
+                        success: false,
+                        message: "Invalid old password",
+                        errors:["Invalid old password"],
+                    }
+                }
+                const hashedNewPassword = await hashPassword(newPassword);
+                await prisma.organization.update({
+                    where:{
+                        email
+                    },
+                    data:{
+                        password:hashedNewPassword,
+                    }
+                })
+                return{
+                    success: true,
+                    message: "Password reset successfully",
+                    data: true,
+                }
+            }
+            case ResetPasswordType.COLLEGE: {
+                const college = await prisma.college.findUnique({
+                    where:{
+                        email
+                    }
+                })
+                if(!college){
+                    return{
+                        success: false,
+                        message: "College not found",
+                        errors:["College not found"],
+                    }
+                }
+                const isOldPasswordValid = await verifyPassword(college.password, oldPassword);
+                if(!isOldPasswordValid){
+                    return{
+                        success: false,
+                        message: "Invalid old password",
+                        errors:["Invalid old password"],
+                    }
+                }
+                const hashedNewPassword = await hashPassword(newPassword);
+                await prisma.college.update({
+                    where:{
+                        email
+                    },
+                    data:{
+                        password:hashedNewPassword,
+                    }
+                })
+                return{
+                    success: true,
+                    message: "Password reset successfully",
+                    data: true,
+                }
+            }
+            case ResetPasswordType.NON_TEACHING_STAFF: {
+                const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
+                    where:{
+                        email
+                    }
+                })
+                if(!nonTeachingStaff){
+                    return{
+                        success: false,
+                        message: "Non-teaching staff not found",
+                        errors:["Non-teaching staff not found"],
+                    }
+                }
+                const isOldPasswordValid = await verifyPassword(nonTeachingStaff.password, oldPassword);
+                if(!isOldPasswordValid){
+                    return{
+                        success: false,
+                        message: "Invalid old password",
+                        errors:["Invalid old password"],
+                    }
+                }
+                const hashedNewPassword = await hashPassword(newPassword);
+                await prisma.nonTeachingStaff.update({
+                    where:{
+                        email
+                    },
+                    data:{
+                        password:hashedNewPassword,
+                    }
+                })
+                return{
+                    success: true,
+                    message: "Password reset successfully",
+                    data: true,
+                }
+            }
+            default: {
+                throw new AppError("Invalid type",400);
+            }
+        }
+
+    } catch (error) {
+        console.error("Error resetting password:", error);
+        return {
+            success: false,
+            message: "Failed to reset password",
+            errors: [error instanceof Error ? error.message : "Unknown error occurred"],
+        }
+    }
+
 }

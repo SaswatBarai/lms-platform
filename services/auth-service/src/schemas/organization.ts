@@ -177,3 +177,25 @@ export const loginNonTeachingStaffSchema = z.object({
         .min(1, { message: "Password is required" })
         .trim(),
 })
+
+
+export const resetPasswordScehma = z.object({
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    oldPassword: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
+    newPassword: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .min(8, { message: "Password must be at least 8 characters" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })  
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
+})

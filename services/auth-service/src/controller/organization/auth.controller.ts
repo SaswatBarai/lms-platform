@@ -1,8 +1,8 @@
 
 import { Request, Response } from "express";
-import { createOrganizationService } from "@services/organization.service.js"
+import { createOrganizationService, resetPasswordService } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
-import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput } from "../../types/organization.js";
+import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js";
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
@@ -392,4 +392,17 @@ export const resetPasswordOrganization = asyncHandler(async (req:Request, res:Re
         success: true,
         message: "Password reset successfully"
     })
+})
+
+
+export const resetPasswordOrganizationController = asyncHandler(async (req:Request, res:Response) => {
+    const {email,oldPassword,newPassword}:ResetPasswordInput= req.body;
+    const result:ServiceResult<boolean> = await resetPasswordService({email,oldPassword,newPassword,type:ResetPasswordType.ORGANIZATION});
+    if(!result.success){
+        throw new AppError(result.message, 400);
+    }
+    return res.status(200).json({
+        success: true,
+        message: result.message
+    });
 })

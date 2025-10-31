@@ -1,12 +1,13 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { prisma } from "@lib/prisma.js";
-import { hashPassword, PasetoV4SecurityManager, verifyPassword } from "@utils/security.js";
+import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
-import { LoginNonTeachingStaffInput } from "../../types/organization.js";
+import { LoginNonTeachingStaffInput, ResetPasswordInput } from "../../types/organization.js";
 import crypto from "crypto";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
+import { resetPasswordService, ResetPasswordType } from "@services/organization.service.js";
 
 // The controller function for bulk staff creation
 export const createNonTeachingStaffBulkController = asyncHandler(async (req: Request, res: Response) => {
@@ -216,3 +217,18 @@ export const login= asyncHandler(
     }
 )
 
+
+export const resetPasswordNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email,oldPassword,newPassword}:ResetPasswordInput = req.body;
+        const {success,message,errors} = await resetPasswordService({email,oldPassword,newPassword,type:ResetPasswordType.NON_TEACHING_STAFF});
+        if(!success){
+            throw new AppError(message, 400);
+        }
+        return res.status(200).json({
+            success: true,
+            message: message
+        });
+        
+    }
+)

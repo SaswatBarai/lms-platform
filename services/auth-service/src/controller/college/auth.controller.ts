@@ -1,8 +1,8 @@
-import { CreateCollegeInput, LoginCollegeInput } from "../../types/organization.js"
+import { CreateCollegeInput, LoginCollegeInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js"
 import { AppError } from "@utils/AppError.js";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { Request, Response } from "express";
-import { createCollegeService } from "@services/organization.service.js";
+import { createCollegeService, resetPasswordService, ResetPasswordType } from "@services/organization.service.js";
 import { prisma } from "@lib/prisma.js";
 import redisClient from "@config/redis.js";
 import crypto from "crypto";
@@ -305,5 +305,20 @@ export const resetPasswordCollege = asyncHandler(
             success: true,
             message: "Password reset successfully"
         })
+    }
+)
+
+
+export const resetPasswordCollegeController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email,oldPassword,newPassword}:ResetPasswordInput= req.body;
+        const result:ServiceResult<boolean> = await resetPasswordService({email,oldPassword,newPassword,type:ResetPasswordType.COLLEGE});
+        if(!result.success){
+            throw new AppError(result.message, 400);
+        }
+        return res.status(200).json({
+            success: true,
+            message: result.message
+        });
     }
 )

@@ -5,6 +5,8 @@ declare global {
         interface Request {
             organization: OrganizationContext;
             college: CollegeContext;
+            nonTeachingStaff: NonTeachingStaffContext;
+
         }
     }
 }
@@ -17,6 +19,14 @@ export interface OrganizationContext {
 }
 
 export interface CollegeContext {
+    id: string;
+    email: string;
+    role: string;
+    organizationId?: string;
+    collegeId?: string;
+}
+
+export interface NonTeachingStaffContext {
     id: string;
     email: string;
     role: string;

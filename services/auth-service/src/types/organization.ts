@@ -6,7 +6,8 @@ import {
   createCollegeSchema,
   loginCollegeSchema,
   createNonTeachingStaffSchema,
-  loginNonTeachingStaffSchema
+  loginNonTeachingStaffSchema,
+  resetPasswordScehma
 } from "@schemas/organization.js"
 
 
@@ -19,6 +20,7 @@ export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
 export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
 export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
 export type LoginNonTeachingStaffInput = z.infer<typeof loginNonTeachingStaffSchema>
+export type ResetPasswordInput = z.infer<typeof resetPasswordScehma>
 
 
 export interface ServiceResult<T> {
@@ -27,6 +29,8 @@ export interface ServiceResult<T> {
   message: string;
   errors?: string[];
 }
+
+
 
 export interface TokenPlayload {
   accessToken: string;
@@ -43,4 +47,5 @@ export enum NonTeachingStaffRole {
   "REGISTRAR" = "regestral",
   "ADMINISTRATOR" = "adminstractor",
 }
+
 
