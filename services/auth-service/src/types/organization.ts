@@ -7,7 +7,8 @@ import {
   loginCollegeSchema,
   createNonTeachingStaffSchema,
   loginNonTeachingStaffSchema,
-  resetPasswordScehma
+  resetPasswordScehma,
+  addDepartmentSchema
 } from "@schemas/organization.js"
 
 
@@ -21,8 +22,7 @@ export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
 export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
 export type LoginNonTeachingStaffInput = z.infer<typeof loginNonTeachingStaffSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordScehma>
-
-
+export type AddDepartmentInput = z.infer<typeof addDepartmentSchema>
 export interface ServiceResult<T> {
   success: boolean;
   data?: T;

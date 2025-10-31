@@ -1,6 +1,6 @@
 
 import { Request, Response } from "express";
-import { createOrganizationService, resetPasswordService } from "@services/organization.service.js"
+import { createOrganizationService, resetPasswordService, ResetPasswordType } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js";
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"

@@ -35,6 +35,7 @@ services:
           - "/auth/api/reset-password-non-teaching-staff"
           - "/auth/api/reset-password-college"
           - "/auth/api/reset-password-organization"
+          - "/auth/api/add-department" #later this will shift another service which is department service
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua

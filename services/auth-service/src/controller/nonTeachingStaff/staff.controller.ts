@@ -3,7 +3,7 @@ import { asyncHandler } from "@utils/asyncHandler.js";
 import { prisma } from "@lib/prisma.js";
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
-import { LoginNonTeachingStaffInput, ResetPasswordInput } from "../../types/organization.js";
+import { AddDepartmentInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
 import crypto from "crypto";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
@@ -232,3 +232,100 @@ export const resetPasswordNonTeachingStaffController = asyncHandler(
         
     }
 )
+
+
+export const addDepartmentNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const deapartmentsArray:AddDepartmentInput[] = req.body;
+        const collegeId = req.nonTeachingStaff.collegeId;
+        const role = req.nonTeachingStaff.role;
+        const userId = req.nonTeachingStaff.id;
+
+        //let us check first is this staff is part of the college or not 
+        const staff = await prisma.nonTeachingStaff.findUnique({
+            where:{
+                id:userId
+            }
+        })
+        if(!staff){
+            throw new AppError("Staff not found", 404);
+        }
+        if(staff.collegeId !== collegeId){
+            throw new AppError("Staff is not part of the college", 403);
+        }
+        if(role !== NonTeachingStaffRole.REGISTRAR){
+            throw new AppError("You are not authorized to add departments as you are not a registrar", 403);
+        }
+        //now we will check is the departments already exist or not 
+        const deptname = deapartmentsArray.map(dep => dep.name);
+        const deptshortName = deapartmentsArray.map(dep => dep.shortName);
+        const existingDepartments = await prisma.department.findMany({
+            where:{
+                OR:[
+                    {name: {in:deptname}},
+                    {shortName: {in:deptshortName}},
+                ]
+            }
+        })
+
+        const existingDeptName = new Set(existingDepartments.map(dep => dep.name));
+        const existingDeptShortName = new Set(existingDepartments.map(dep => dep.shortName));
+        const validDepartments: typeof deapartmentsArray = [];
+        const errors: { index: number; field: string; value: string; message: string }[] = [];
+        deapartmentsArray.forEach((department,index) => {
+            let hasError = false;
+            if(existingDeptName.has(department.name)){
+                errors.push({
+                    index,
+                    field: "name",
+                    value: department.name,
+                    message: `Department name '${department.name}' already exists`
+                })
+                hasError = true;
+            }
+            if(existingDeptShortName.has(department.shortName)){
+                errors.push({
+                    index,
+                    field: "shortName",
+                    value: department.shortName,
+                    message: `Department short name '${department.shortName}' already exists`
+                })
+            }
+            if(!hasError){
+                validDepartments.push(department);
+            }
+        })
+        if(errors.length > 0){
+            return res.status(400).json({
+                success: false,
+                message: "Some departments could not be added due to duplicate name or short name",
+                errors: errors,
+                duplicateCount: errors.length,
+                validCount: validDepartments.length
+            });
+        }
+        //now we will add the departments to the database
+        const departments = await prisma.department.createMany({
+            data: validDepartments.map(dep => {
+                return {
+                    name: dep.name,
+                    shortName: dep.shortName,
+                    collegeId: collegeId
+                }
+            })
+        })
+        if(departments.count !== validDepartments.length){
+            throw new AppError("Failed to add departments", 400);
+        }
+        return res.status(200).json({
+            success: true,
+            message: "Departments added successfully",
+            data: departments
+        });
+        
+    }
+)
+
+
+
+

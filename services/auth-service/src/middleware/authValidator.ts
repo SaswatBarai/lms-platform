@@ -19,7 +19,7 @@ export class AuthenticatedUser {
     //meethod to check Oranganiza
     public static async checkOrganization(req:Request,res:Response,next:NextFunction) {
         // SECURITY: Verify request came through Kong
-        this.verifyKongHeaders(req);
+        AuthenticatedUser.verifyKongHeaders(req);
 
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
@@ -60,7 +60,7 @@ export class AuthenticatedUser {
     //method to check College
     public static async checkCollege(req:Request,res:Response,next:NextFunction) {
         // SECURITY: Verify request came through Kong
-        this.verifyKongHeaders(req);
+        AuthenticatedUser.verifyKongHeaders(req);
 
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
@@ -110,29 +110,49 @@ export class AuthenticatedUser {
 
     public static async checkNonTeachingStaff(req:Request,res:Response,next:NextFunction) {
         // SECURITY: Verify request came through Kong
-        this.verifyKongHeaders(req);
+        AuthenticatedUser.verifyKongHeaders(req);
+        
         const userId = req.headers['x-user-id'] as string;
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
         const collegeId = req.headers['x-user-college-id'] as string;
+        
         if (!collegeId) {
             throw new AppError("College ID is required - Please login as non-teaching staff", 401);
         }
+        
         if (!userId || !userEmail || !userRole || !organizationId) {
             throw new AppError("Missing required authentication headers", 401);
         }
+        
         const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
             where:{
                 id:userId
+            },
+            include: {
+                college: {
+                    select: {
+                        organizationId: true
+                    }
+                }
             }
         })
+        
         if(!nonTeachingStaff){
             throw new AppError("Non-teaching staff not found", 404);
         }
+        
+        // SECURITY: Verify non-teaching staff belongs to the college in the token
         if(nonTeachingStaff.collegeId !== collegeId){
             throw new AppError("Unauthorized - Non-teaching staff does not belong to this college", 403);
         }
+        
+        // SECURITY: Verify the college belongs to the organization in the token
+        if(nonTeachingStaff.college.organizationId !== organizationId){
+            throw new AppError("Unauthorized - Staff's college does not belong to this organization", 403);
+        }
+        
         const nonTeachingStaffContext:NonTeachingStaffContext = {
             id:nonTeachingStaff.id, 
             email:nonTeachingStaff.email,
