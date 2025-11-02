@@ -20,9 +20,10 @@ services:
           - "/auth/api/regenerate-access-token-college"
           - "/auth/api/forgot-password-organization"
           - "/auth/api/forgot-password-college"
-          - "/auth/api/reset-password-organization"
-          - "/auth/api/reset-password-college"
+          - "/auth/api/reset-forgot-password-college"
           - "/auth/api/login-non-teaching-staff"  
+          - "/auth/api/forgot-password-non-teaching-staff"
+          - "/auth/api/reset-forgot-password-non-teaching-staff"
         strip_path: false
 
       - name: auth-service-routes-protected
