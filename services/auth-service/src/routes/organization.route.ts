@@ -83,6 +83,7 @@ router.post("/add-department",AuthenticatedUser.checkNonTeachingStaff,validate({
 router.post("/add-course",AuthenticatedUser.checkNonTeachingStaff,validate({body:addCourseBulkSchema}), addCourseNonTeachingStaffController); 
 router.post("/forgot-password-non-teaching-staff", forgotPasswordCollege);
 router.post("/forgot-reset-password-non-teaching-staff",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
+router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.refreshTokenNonTeachingStaff, regenerateAccessTokenCollege);
 
 
 

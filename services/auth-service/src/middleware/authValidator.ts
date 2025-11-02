@@ -164,6 +164,63 @@ export class AuthenticatedUser {
         return next();  
     }
 
+    public static async checkHod(req:Request, res:Response, next:NextFunction) {
+        // SECURITY: Verify request came through Kong
+        AuthenticatedUser.verifyKongHeaders(req);
+        
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
+        
+        if (!collegeId) {
+            throw new AppError("College ID is required - Please login as HOD", 401);
+        }
+        
+        if (!userId || !userEmail || !userRole || !organizationId) {
+            throw new AppError("Missing required authentication headers", 401);
+        }
+        
+        const hod = await prisma.hod.findUnique({
+            where:{
+                id:userId
+            },
+            include: {
+                college: {
+                    select: {
+                        organizationId: true
+                    }
+                }
+            }
+        })
+        
+        if(!hod){
+            throw new AppError("HOD not found", 404);
+        }
+        
+        // SECURITY: Verify HOD belongs to the college in the token
+        if(hod.collegeId !== collegeId){
+            throw new AppError("Unauthorized - HOD does not belong to this college", 403);
+        }
+        
+        // SECURITY: Verify the college belongs to the organization in the token
+        if(hod.college.organizationId !== organizationId){
+            throw new AppError("Unauthorized - HOD's college does not belong to this organization", 403);
+        }
+        
+        const hodContext:HodContext = {
+            id:hod.id, 
+            email:hod.email,
+            role:userRole,
+            organizationId: organizationId,
+            collegeId: collegeId,
+        }
+        req.hod = hodContext;
+        return next();  
+    }
+
+
 
     //Refresh Token Middleware
 

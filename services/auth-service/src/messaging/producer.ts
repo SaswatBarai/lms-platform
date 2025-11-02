@@ -114,7 +114,7 @@ export class KafkaProducer {
   /**
    * Send hod welcome email
    */
-  public async sendHodWelcomeEmail = (
+  public async sendHodWelcomeEmail(
     email:string,
     name:string,
     tempPassword:string,
@@ -171,8 +171,24 @@ export class KafkaProducer {
     return this.sendMessage("forgot-password-messages", payload);
   }
 
-  
-
+  /**
+   * Send hod forgot password email
+   */
+  public async sendHodForgotPassword(
+    email:string,
+    sessionToken:string,
+    collegeName:string,
+    departmentName:string,
+    departmentShortName:string,
+    name:string
+  ):Promise<boolean> {
+    const payload:NotificationPayload = {
+      action:NotificationAction.FORGOT_PASSWORD,
+      type:NotificationType.HOD_FORGOT_PASSWORD,
+      data:{email,sessionToken,collegeName,departmentName,departmentShortName,name}
+    }
+    return this.sendMessage("forgot-password-messages",payload);
+  }
 
   /**
    * Disconnect producer

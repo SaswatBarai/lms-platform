@@ -1,11 +1,17 @@
 import { EmailService } from "@services/email.service.js";
-import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate } from "../templates/index.js";
+import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate } from "../templates/index.js";
 import { ForgotPasswordData } from "../types/notification.types.js";
 
 interface ExtendedForgotPasswordData extends ForgotPasswordData {
   collegeName?: string;
   name?: string;
 }
+
+interface HodForgotPasswordData extends ExtendedForgotPasswordData{
+  departmentName: string;
+  departShortName:string;
+}
+
 
 export class PasswordResetHandler {
   /**
@@ -96,5 +102,34 @@ export class PasswordResetHandler {
     console.error(`[PasswordResetHandler] ❌ Failed to send non-teaching staff password reset email to ${email}`);
     return false;
   }
+
+
+  public static async handleHodPasswordReset(data: HodForgotPasswordData):Promise<boolean> {
+    const {name,email,sessionToken,departShortName,departmentName,collegeName} = data;
+    if (!email || !sessionToken || !collegeName || !departmentName || !departShortName || !name) {
+      console.error("[PasswordResetHandler] Missing required fields for HOD password reset");
+      return false;
+    }
+    console.log(`[PasswordResetHandler] Processing HOD password reset for ${email}`);
+
+    const resetLink = `http://localhost:8000/auth/api/reset-password-hod?token=${sessionToken}`;
+    const html = hodPasswordResetEmailTemplate(email, name, collegeName, departmentName, departShortName, resetLink);
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Password Reset - ${departmentName} HOD | ${collegeName} LMS`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[PasswordResetHandler] ✅ HOD password reset email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[PasswordResetHandler] ❌ Failed to send HOD password reset email to ${email}`);
+    return false;
+  }
+
+  
 }
 

@@ -24,6 +24,7 @@ services:
           - "/auth/api/login-non-teaching-staff"  
           - "/auth/api/forgot-password-non-teaching-staff"
           - "/auth/api/reset-forgot-password-non-teaching-staff"
+          - "/auth/api/regenerate-access-token-non-teaching-staff"
         strip_path: false
 
       - name: auth-service-routes-protected

@@ -163,6 +163,12 @@ export class NotificationConsumer {
         await PasswordResetHandler.handleNonTeachingStaffPasswordReset(data);
         console.log(`[NotificationConsumer] ✅ Non-teaching staff password reset email sent successfully`);
         break;
+      case NotificationType.HOD_FORGOT_PASSWORD:
+        console.log(`[NotificationConsumer] 📧 Sending HOD password reset email to: ${data.email}`);
+        await PasswordResetHandler.handleHodPasswordReset(data);
+        console.log(`[NotificationConsumer] ✅ HOD password reset email sent successfully`);
+        break;
+      
         
 
       default:

@@ -12,7 +12,7 @@ import {
   addCourseSchema,
   createHodSchema,
   loginHodSchema,
-  forgotResetPassword
+  forgotResetPasswordSchema
 } from "@schemas/organization.js"
 
 
@@ -26,7 +26,7 @@ export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
 export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
 export type LoginNonTeachingStaffInput = z.infer<typeof loginNonTeachingStaffSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordScehma>
-export type ForgotResetPasswordInput = z.infer<typeof forgotResetPassword>
+export type ForgotResetPasswordInput = z.infer<typeof forgotResetPasswordSchema>
 export type AddDepartmentInput = z.infer<typeof addDepartmentSchema>
 export type AddCourseInput = z.infer<typeof addCourseSchema>
 export type CreateHodInput = z.infer<typeof createHodSchema>
