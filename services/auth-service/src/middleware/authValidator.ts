@@ -1,8 +1,8 @@
 import { prisma } from "@lib/prisma.js";
 import { AppError } from "@utils/AppError.js";
 import {Request,Response,NextFunction} from "express"
-import { CollegeContext, NonTeachingStaffContext, OrganizationContext} from "../types/express.js"
-import { PasetoRefreshPayload, PasetoV4SecurityManager } from "@utils/security.js";
+import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext} from "../types/express.js"
+import { PasetoRefreshPayload, PasetoTokenPayload, PasetoV4SecurityManager } from "@utils/security.js";
 
 
 
@@ -164,6 +164,9 @@ export class AuthenticatedUser {
         return next();  
     }
 
+
+    //Refresh Token Middleware
+
     public static async refreshTokenCollege(req:Request,res:Response,next:NextFunction) {
         const refreshToken = req.cookies.refreshToken;
         if(!refreshToken){
@@ -221,5 +224,83 @@ export class AuthenticatedUser {
         return next();
     }
 
+    public static async refreshTokenHod(req:Request, res:Response , next:NextFunction){
+        const refreshToken = req.cookies.refreshToken;
+        if(!refreshToken){
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const payload:PasetoRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        if(!payload){
+            throw new AppError("Invalid refresh token", 401);
+        }
+
+        const hod = await prisma.hod.findUnique({
+            where:{
+                id:payload.userId
+            },
+            include:{
+                college:{
+                    select:{
+                        id: true,
+                        organizationId: true
+                    }
+                }
+            }   
+        })
+        if(!hod){
+            throw new AppError("Invalid refresh token", 401);
+        }
+        const hodContext:HodContext = {
+            id:hod.id,
+            email:hod.email,
+            role:"hod" as const,
+            collegeId: hod.collegeId,
+            organizationId: hod.college.organizationId,
+        }
+        req.hod = hodContext;
+        return next();
+    }
+
+    public static async refreshTokenNonTeachingStaff(req:Request, res:Response, next:NextFunction) {
+        const refreshToken = req.cookies.refreshToken;
+        if(!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const payload:PasetoRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        if(!payload){
+            throw new AppError("Invalid refresh token", 401);
+        }
+
+        const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
+            where:{
+                id:payload.userId
+            },
+            include:{
+                college:{
+                    select:{
+                        id: true,
+                        organizationId: true
+                    }
+                }
+            }
+        })
+
+        if(!nonTeachingStaff){
+            throw new AppError("Non-teaching staff not found", 404);
+        }
+        const nonTeachingStaffContext:NonTeachingStaffContext = {
+            id:nonTeachingStaff.id,
+            email:nonTeachingStaff.email,
+            role:nonTeachingStaff.role,
+            organizationId:nonTeachingStaff.college.organizationId,
+            collegeId:nonTeachingStaff.collegeId,
+        }
+        req.nonTeachingStaff = nonTeachingStaffContext;
+        return next();
+    }
     
 }

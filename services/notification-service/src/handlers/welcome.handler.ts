@@ -1,6 +1,7 @@
 import { EmailService } from "@services/email.service.js";
 import { welcomeEmailTemplate, staffWelcomeEmailTemplate } from "../templates/index.js";
-import { WelcomeEmailData, StaffWelcomeEmailData } from "../types/notification.types.js";
+import { WelcomeEmailData, StaffWelcomeEmailData, HodWelcomeEmailData } from "../types/notification.types.js";
+import { hodWelcomeEmailTemplate } from "templates/hod-welcome.template.js";
 
 export class WelcomeEmailHandler {
   /**
@@ -40,7 +41,7 @@ export class WelcomeEmailHandler {
    * Handle welcome email for staff account
    */
   public static async handleStaffWelcome(data: StaffWelcomeEmailData): Promise<boolean> {
-    const { email, name, tempPassword, loginUrl } = data;
+    const { email, name, tempPassword, loginUrl,collegeName } = data;
 
     if (!email || !name || !tempPassword) {
       console.error("[WelcomeEmailHandler] Missing required data for staff welcome");
@@ -50,8 +51,10 @@ export class WelcomeEmailHandler {
     console.log(`[WelcomeEmailHandler] Processing staff welcome email for ${email}`);
 
     const html = staffWelcomeEmailTemplate(
+      email,
       name,
       tempPassword,
+      collegeName || "College",
       loginUrl || "http://localhost:8000/auth/api/login-staff"
     );
 
@@ -69,5 +72,38 @@ export class WelcomeEmailHandler {
     console.error(`[WelcomeEmailHandler] ❌ Failed to send staff welcome email to ${email}`);
     return false;
   }
+
+  public static async handleHodWelcome(data: HodWelcomeEmailData):Promise<boolean> {
+    const { email, name, tempPassword, collegeName, loginUrl } = data;
+
+    if (!email || !name || !tempPassword || !collegeName || !loginUrl) {
+      console.error("[WelcomeEmailHandler] Missing required data for hod welcome");
+      return false;
+    }
+
+    console.log(`[WelcomeEmailHandler] Processing hod welcome email for ${email}`);
+    
+    const html = hodWelcomeEmailTemplate(
+      email,
+      name,
+      tempPassword,
+      collegeName,
+      loginUrl || "http://localhost:8000/auth/api/login-hod"
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Welcome ${name}! Your HOD Account is Ready`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[WelcomeEmailHandler] ✅ HOD welcome email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[WelcomeEmailHandler] ❌ Failed to send hod welcome email to ${email}`);
+    return false;
+  } 
 }
 

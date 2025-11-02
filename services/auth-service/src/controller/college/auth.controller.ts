@@ -1,4 +1,4 @@
-import { CreateCollegeInput, LoginCollegeInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js"
+import { CreateCollegeInput, ForgotResetPasswordInput, LoginCollegeInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js"
 import { AppError } from "@utils/AppError.js";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { Request, Response } from "express";
@@ -270,11 +270,11 @@ export const forgotPasswordCollege = asyncHandler(
     }
 )
 
-export const resetPasswordCollege = asyncHandler(
+export const resetForgotPasswordCollegeController = asyncHandler(
     async(req:Request, res:Response) => {
-        const {email, token, password}:{email:string, token:string, password:string} = req.body;
+        const {email, token, password}:ForgotResetPasswordInput = req.body;
         console.log(email, token, password);
-        if(!email || !token){
+        if(!email || !token || !password){
             throw new AppError("Email and token are required", 400);
         }
         if(!validateEmail(email)){

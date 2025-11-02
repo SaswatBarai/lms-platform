@@ -196,6 +196,24 @@ export const resetPasswordScehma = z.object({
         .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
 })
 
+export const forgotResetPasswordSchema = z.object({
+    email: z.string({ message: "Invalid email address" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    token: z.string({ message: "Token is required" })
+        .min(1, { message: "Session token is required" })
+        .trim(),
+    password: z.string({ message: "Password is required" })
+    .min(1, { message: "Password is required" })
+    .min(8, { message: "Password must be at least 8 characters" })
+    .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+    .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+    .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+    .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
+})
+
 
 export const addDepartmentSchema = z.object({
     name: z.string({ message: "Name is required" })
@@ -220,7 +238,7 @@ export const addDepartmentBulkSchema = z.array(addDepartmentSchema).min(1, {
 });
 
 
-export const addBranchSchema = z.object({
+export const addCourseSchema = z.object({
     name:z.string({ message: "Name is required" })
         .min(3, { message: "Name must be at least 3 characters" })
         .max(255, { message: "Name must be at most 255 characters" })
@@ -233,6 +251,36 @@ export const addBranchSchema = z.object({
         .nonempty({ message: "Short name is required" }),
 })
 
-export const addBranchBulkSchema = z.array(addBranchSchema).min(1, {
-    message: "Must provide at least one branch."
+export const addCourseBulkSchema = z.array(addCourseSchema).min(1, {
+    message: "Must provide at least one course."
 });
+
+
+export const createHodSchema = z.object({
+    name: z.string({message: "Name is required"})
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    email: z.string({message: "Email is required"})
+        .email({message: "Invalid email address"})
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    departmentId: z.string({message: "Department ID is required"})
+        .min(1, { message: "Department ID is required" })
+        .trim()
+        .nonempty({ message: "Department ID is required" })
+})
+
+
+export const loginHodSchema = z.object({
+    email: z.string({message: "Email is required"})
+        .email({message: "Invalid email address"})
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    password: z.string({message: "Password is required"})
+        .min(1, { message: "Password is required" })
+        .trim(),
+})

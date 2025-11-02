@@ -7,7 +7,8 @@ import {
     logoutOrganization,
     regenerateAccessTokenOrganization,
     forgotPasswordOrganization,
-    resetPasswordOrganizationController
+    resetPasswordOrganizationController,
+    resetForgotPasswordOrganization
 } from "@controller/organization/auth.controller.js"
 import {
     createCollegeController,
@@ -15,11 +16,11 @@ import {
     loginCollegeController,
     logoutCollege,
     regenerateAccessTokenCollege,
-    resetPasswordCollege,
-    resetPasswordCollegeController
+    resetPasswordCollegeController,
+    resetForgotPasswordCollegeController
 } from "../controller/college/auth.controller.js"
 import {
-    addBranchNonTeachingStaffController,
+    addCourseNonTeachingStaffController,
     addDepartmentNonTeachingStaffController,
     createNonTeachingStaffBulkController,
     login as loginNonTeachingStaff,
@@ -36,7 +37,8 @@ import {
     loginNonTeachingStaffSchema,
     resetPasswordScehma,
     addDepartmentBulkSchema,
-    addBranchBulkSchema,
+    addCourseBulkSchema,
+    forgotResetPasswordSchema,
 
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
@@ -52,6 +54,7 @@ router.post("/login-organization", validate({ body: loginOrganizationSchema }), 
 router.post("/logout-organization", AuthenticatedUser.checkOrganization, logoutOrganization);
 router.post("/regenerate-access-token-organization", AuthenticatedUser.refreshTokenOrganization, regenerateAccessTokenOrganization);
 router.post("/forgot-password-organization", forgotPasswordOrganization);
+router.post("/forgot-reset-password-organization",validate({body:forgotResetPasswordSchema}),resetForgotPasswordOrganization)
 router.post("/reset-password-organization",AuthenticatedUser.checkOrganization,validate({body:resetPasswordScehma}), resetPasswordOrganizationController);
 
 
@@ -61,7 +64,9 @@ router.post("/login-college", validate({ body: loginCollegeSchema }), loginColle
 router.post("/logout-college", AuthenticatedUser.checkCollege, logoutCollege);
 router.post("/regenerate-access-token-college", AuthenticatedUser.refreshTokenCollege, regenerateAccessTokenCollege);
 router.post("/forgot-password-college", forgotPasswordCollege);
+router.post("/forgot-reset-password-college",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
 router.post("/reset-password-college",AuthenticatedUser.checkCollege,validate({body:resetPasswordScehma}), resetPasswordCollegeController);
+
 
 
 
@@ -75,8 +80,19 @@ router.post(
 router.post("/login-non-teaching-staff", validate({ body: loginNonTeachingStaffSchema }), loginNonTeachingStaff);
 router.post("/reset-password-non-teaching-staff",AuthenticatedUser.checkNonTeachingStaff,validate({body:resetPasswordScehma}), resetPasswordNonTeachingStaffController);
 router.post("/add-department",AuthenticatedUser.checkNonTeachingStaff,validate({body:addDepartmentBulkSchema}), addDepartmentNonTeachingStaffController);
-router.post("/add-branch",AuthenticatedUser.checkNonTeachingStaff,validate({body:addBranchBulkSchema}), addBranchNonTeachingStaffController);   
+router.post("/add-course",AuthenticatedUser.checkNonTeachingStaff,validate({body:addCourseBulkSchema}), addCourseNonTeachingStaffController); 
+router.post("/forgot-password-non-teaching-staff", forgotPasswordCollege);
+router.post("/forgot-reset-password-non-teaching-staff",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
+
+
+
 // Protected test route to verify authentication plugin
+
+
+
+// Hod Routes
+router.post("/create-hod",AuthenticatedUser.checkNonTeachingStaff,createCollegeController);
+
 
 
 

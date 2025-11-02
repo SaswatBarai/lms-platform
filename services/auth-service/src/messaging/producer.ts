@@ -74,7 +74,7 @@ export class KafkaProducer {
       data: { email, otp }
     };
 
-    return this.sendMessage("otp-auth", payload);
+    return this.sendMessage("otp-messages", payload);
   }
 
   /**
@@ -88,7 +88,7 @@ export class KafkaProducer {
       data: { email, collegeName, loginUrl }
     };
 
-    return this.sendMessage("otp-auth", payload);
+    return this.sendMessage("welcome-messages", payload);
   }
 
   /**
@@ -98,17 +98,40 @@ export class KafkaProducer {
     email: string,
     name: string,
     tempPassword: string,
-    loginUrl: string
+    loginUrl: string,
+    collegeName:string
   ): Promise<boolean> {
     const payload: NotificationPayload = {
       action: NotificationAction.EMAIL_NOTIFICATION,
       type: NotificationType.STAFF_WELCOME_EMAIL,
       subType: NotificationSubType.CREATE_ACCOUNT,
-      data: { email, name, tempPassword, loginUrl }
+      data: { email, name, tempPassword, loginUrl, collegeName }
     };
 
-    return this.sendMessage("otp-auth", payload);
+    return this.sendMessage("welcome-messages", payload);
   }
+
+  /**
+   * Send hod welcome email
+   */
+  public async sendHodWelcomeEmail = (
+    email:string,
+    name:string,
+    tempPassword:string,
+    collegeName:string,
+    loginUrl:string
+  ):Promise<boolean> {
+    const payload:NotificationPayload = {
+      action:NotificationAction.EMAIL_NOTIFICATION,
+      type:NotificationType.HOD_WELCOME_EMAIL,  
+      subType:NotificationSubType.CREATE_ACCOUNT,
+      data:{email,name,tempPassword,collegeName,loginUrl}
+    }
+    return this.sendMessage("welcome-messages",payload);
+  }
+
+
+
 
   /**
    * Send organization forgot password email
@@ -121,6 +144,18 @@ export class KafkaProducer {
     };
 
     return this.sendMessage("forgot-password-messages", payload);
+  }
+  /**
+   * Send non-teaching staff forgot password email
+   */
+
+  public async sendNonTeachingStaffForgotPassword(email:string, sessionToken:string,name:string,collegeName:string):Promise<boolean> {
+    const payload:NotificationPayload = {
+      action:NotificationAction.FORGOT_PASSWORD,
+      type:NotificationType.NON_TEACHING_STAFF_FORGOT_PASSWORD,
+      data:{email,sessionToken,name,collegeName}
+    }
+    return this.sendMessage("forgot-password-messages",payload);
   }
 
   /**
@@ -135,6 +170,9 @@ export class KafkaProducer {
 
     return this.sendMessage("forgot-password-messages", payload);
   }
+
+  
+
 
   /**
    * Disconnect producer

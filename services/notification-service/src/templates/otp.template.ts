@@ -7,28 +7,29 @@ export const otpEmailTemplate = (otp: string): string => `
   <title>OTP Verification - LMS Platform</title>
   <style>
     :root {
-      --primary: #1e40af;
-      --primary-dark: #1e3a8a;
-      --primary-light: #3b82f6;
-      --secondary: #06b6d4;
-      --accent: #f59e0b;
-      --background: #f8fafc;
-      --surface: #ffffff;
-      --surface-secondary: #f1f5f9;
-      --text-primary: #1e293b;
-      --text-secondary: #64748b;
-      --text-muted: #94a3b8;
-      --border: #e2e8f0;
-      --border-focus: #3b82f6;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --error: #ef4444;
-      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --background: #ffffff;
+      --foreground: #0a0a0a;
+      --card: #ffffff;
+      --card-foreground: #0a0a0a;
+      --popover: #ffffff;
+      --popover-foreground: #0a0a0a;
+      --primary: #171717;
+      --primary-foreground: #fafafa;
+      --secondary: #f5f5f5;
+      --secondary-foreground: #171717;
+      --muted: #f5f5f5;
+      --muted-foreground: #737373;
+      --accent: #f5f5f5;
+      --accent-foreground: #171717;
+      --destructive: #ef4444;
+      --destructive-foreground: #fafafa;
+      --border: #e5e5e5;
+      --input: #e5e5e5;
+      --ring: #171717;
+      --radius: 0.5rem;
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
       --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
       --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-      --gradient-primary: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-      --gradient-secondary: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-      --gradient-otp: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
     }
 
     * {
@@ -38,9 +39,9 @@ export const otpEmailTemplate = (otp: string): string => `
     }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
       background: var(--background);
-      color: var(--text-primary);
+      color: var(--foreground);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -56,18 +57,20 @@ export const otpEmailTemplate = (otp: string): string => `
     .email-container {
       max-width: 600px;
       margin: 0 auto;
-      background: var(--surface);
-      border-radius: 16px;
+      background: var(--card);
+      border-radius: var(--radius);
       overflow: hidden;
       box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
     }
 
     /* Header */
     .email-header {
-      background: var(--gradient-otp);
+      background: var(--primary);
       padding: 40px 30px;
       text-align: center;
       position: relative;
+      border-bottom: 1px solid var(--border);
     }
 
     .header-logo {
@@ -80,27 +83,27 @@ export const otpEmailTemplate = (otp: string): string => `
     .logo-icon {
       width: 48px;
       height: 48px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 12px;
+      background: var(--primary-foreground);
+      color: var(--primary);
+      border-radius: var(--radius);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 24px;
-      font-weight: bold;
-      color: white;
+      font-weight: 600;
     }
 
     .logo-text {
       font-size: 24px;
-      font-weight: 700;
-      color: white;
-      letter-spacing: -0.5px;
+      font-weight: 600;
+      color: var(--primary-foreground);
+      letter-spacing: -0.025em;
     }
 
     .header-title {
       font-size: 18px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.9);
+      color: var(--primary-foreground);
       margin-bottom: 8px;
     }
 
@@ -116,30 +119,30 @@ export const otpEmailTemplate = (otp: string): string => `
 
     .verification-title {
       font-size: 28px;
-      font-weight: 700;
-      color: var(--text-primary);
+      font-weight: 600;
+      color: var(--foreground);
       margin-bottom: 12px;
-      line-height: 1.2;
+      line-height: 1.25;
     }
 
     .verification-subtitle {
       font-size: 16px;
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
       margin-bottom: 8px;
     }
 
     .verification-message {
       font-size: 16px;
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
       line-height: 1.6;
       margin-bottom: 24px;
     }
 
     /* OTP Display - Hero Section */
     .otp-hero {
-      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-      border: 2px solid var(--border);
-      border-radius: 16px;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 40px 30px;
       margin: 40px 0;
       text-align: center;
@@ -154,14 +157,14 @@ export const otpEmailTemplate = (otp: string): string => `
       left: -50%;
       width: 200%;
       height: 200%;
-      background: radial-gradient(circle, rgba(124, 58, 237, 0.03) 0%, transparent 70%);
+      background: radial-gradient(circle, rgba(0, 0, 0, 0.02) 0%, transparent 70%);
       pointer-events: none;
     }
 
     .otp-label {
       font-size: 14px;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--muted-foreground);
       text-transform: uppercase;
       letter-spacing: 1px;
       margin-bottom: 16px;
@@ -170,13 +173,13 @@ export const otpEmailTemplate = (otp: string): string => `
 
     .otp-display {
       font-size: 48px;
-      font-weight: 800;
+      font-weight: 600;
       letter-spacing: 8px;
-      color: var(--primary);
-      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-      background: var(--surface);
+      color: var(--foreground);
+      font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+      background: var(--background);
       padding: 24px 32px;
-      border-radius: 16px;
+      border-radius: var(--radius);
       border: 3px solid var(--border);
       margin: 20px 0;
       display: inline-block;
@@ -200,29 +203,30 @@ export const otpEmailTemplate = (otp: string): string => `
       align-items: center;
       gap: 8px;
       font-size: 14px;
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
     }
 
     .otp-meta-icon {
       width: 20px;
       height: 20px;
-      background: var(--gradient-secondary);
+      background: var(--primary);
+      color: var(--primary-foreground);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
       font-size: 12px;
       flex-shrink: 0;
     }
 
     /* Security Info */
     .security-info {
-      background: var(--surface-secondary);
-      border-radius: 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 24px;
       margin: 32px 0;
-      border-left: 4px solid var(--warning);
+      position: relative;
     }
 
     .security-header {
@@ -235,12 +239,12 @@ export const otpEmailTemplate = (otp: string): string => `
     .security-icon {
       width: 32px;
       height: 32px;
-      background: var(--warning);
-      border-radius: 8px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-radius: var(--radius);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
       font-size: 16px;
       flex-shrink: 0;
     }
@@ -248,21 +252,21 @@ export const otpEmailTemplate = (otp: string): string => `
     .security-title {
       font-size: 16px;
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--foreground);
     }
 
     .security-text {
       font-size: 14px;
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
       line-height: 1.5;
       margin: 0;
     }
 
     /* Instructions */
     .instructions {
-      background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-      border: 1px solid #10b981;
-      border-radius: 12px;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 24px;
       margin: 32px 0;
       text-align: center;
@@ -271,19 +275,19 @@ export const otpEmailTemplate = (otp: string): string => `
     .instructions-title {
       font-size: 16px;
       font-weight: 600;
-      color: #065f46;
+      color: var(--foreground);
       margin-bottom: 8px;
     }
 
     .instructions-text {
       font-size: 14px;
-      color: #065f46;
+      color: var(--muted-foreground);
       line-height: 1.5;
     }
 
     /* Footer */
     .email-footer {
-      background: var(--surface-secondary);
+      background: var(--muted);
       border-top: 1px solid var(--border);
       padding: 32px 30px;
     }
@@ -308,25 +312,25 @@ export const otpEmailTemplate = (otp: string): string => `
       gap: 8px;
       font-size: 16px;
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--foreground);
     }
 
     .footer-logo-icon {
       width: 24px;
       height: 24px;
-      background: var(--gradient-primary);
-      border-radius: 6px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-radius: calc(var(--radius) / 2);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
       font-size: 12px;
-      font-weight: bold;
+      font-weight: 600;
     }
 
     .footer-copyright {
       font-size: 12px;
-      color: var(--text-muted);
+      color: var(--muted-foreground);
     }
 
     .footer-links {
@@ -335,7 +339,7 @@ export const otpEmailTemplate = (otp: string): string => `
     }
 
     .footer-link {
-      color: var(--text-secondary);
+      color: var(--muted-foreground);
       text-decoration: none;
       font-size: 12px;
       font-weight: 500;
@@ -343,7 +347,7 @@ export const otpEmailTemplate = (otp: string): string => `
     }
 
     .footer-link:hover {
-      color: var(--primary);
+      color: var(--foreground);
     }
 
     /* Responsive Design */

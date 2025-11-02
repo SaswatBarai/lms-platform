@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { createOrganizationService, resetPasswordService, ResetPasswordType } from "@services/organization.service.js"
 import { asyncHandler } from "@utils/asyncHandler.js";
-import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput, ResetPasswordInput, ServiceResult } from "../../types/organization.js";
+import { type verifyOrganizationOtpInput, type CreateOrganizationInput, type LoginOrganizationInput, ResetPasswordInput, ServiceResult, ForgotResetPasswordInput } from "../../types/organization.js";
 import { generateOtp, hashOtp, verifyOtp } from "@utils/otp.js"
 import { KafkaProducer } from "@messaging/producer.js"
 import redisClient from "@config/redis.js"
@@ -121,7 +121,6 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
         data: createOrgResult.data
     })
 })
-
 
 
 export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {
@@ -345,7 +344,7 @@ export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:R
         throw new AppError("Organization not found", 404);
     }
     const sessionToken = crypto.randomBytes(32).toString("hex");
-    await redisClient.setex(`org-auth-${email}`, 10 * 60, sessionToken);
+    await redisClient.setex(`org-auth-${email}`, 10 * 60, sessionToken);//10 minutes
     const kafkaProducer = KafkaProducer.getInstance();
     
     const isPublished = await kafkaProducer.sendOrganizationForgotPassword(email, sessionToken);
@@ -360,9 +359,9 @@ export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:R
     }
 })
 
-export const resetPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
-    const {email, token, password}:{email:string, token:string, password:string} = req.body;
-    if(!email || !token){
+export const resetForgotPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
+    const {email, token, password}:ForgotResetPasswordInput = req.body;
+    if(!email || !token || !password){
         throw new AppError("Email and token are required", 400);
     }
     if(!validateEmail(email)){

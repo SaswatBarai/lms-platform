@@ -1,4 +1,4 @@
-export const welcomeEmailTemplate = (name: string, loginUrl: string): string => `
+export const hodWelcomeEmailTemplate = (email: string, name: string, tempPassword: string, collegeName: string, loginUrl: string): string => `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,20 +16,17 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
       --primary: #171717;
       --primary-foreground: #fafafa;
       --secondary: #f5f5f5;
-      --secondary-foreground: #171717;
+      --secondary-foreground: #0a0a0a;
       --muted: #f5f5f5;
       --muted-foreground: #737373;
       --accent: #f5f5f5;
-      --accent-foreground: #171717;
+      --accent-foreground: #0a0a0a;
       --destructive: #ef4444;
       --destructive-foreground: #fafafa;
       --border: #e5e5e5;
       --input: #e5e5e5;
-      --ring: #171717;
+      --ring: #d4d4d8;
       --radius: 0.5rem;
-      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     }
 
     * {
@@ -60,7 +57,7 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
       background: var(--card);
       border-radius: var(--radius);
       overflow: hidden;
-      box-shadow: var(--shadow-lg);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
       border: 1px solid var(--border);
     }
 
@@ -70,7 +67,6 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
       padding: 40px 30px;
       text-align: center;
       position: relative;
-      border-bottom: 1px solid var(--border);
     }
 
     .header-logo {
@@ -95,15 +91,16 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
 
     .logo-text {
       font-size: 24px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--primary-foreground);
-      letter-spacing: -0.025em;
+      letter-spacing: -0.5px;
     }
 
     .header-title {
       font-size: 18px;
       font-weight: 500;
       color: var(--primary-foreground);
+      opacity: 0.9;
       margin-bottom: 8px;
     }
 
@@ -119,10 +116,10 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
 
     .welcome-title {
       font-size: 28px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--foreground);
       margin-bottom: 12px;
-      line-height: 1.25;
+      line-height: 1.2;
     }
 
     .welcome-subtitle {
@@ -138,53 +135,110 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
       margin-bottom: 24px;
     }
 
-    /* Features Grid */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
-      margin: 40px 0;
-    }
-
-    .feature-card {
+    /* Credentials Card */
+    .credentials-card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 24px;
-      text-align: center;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow);
+      margin: 32px 0;
+      position: relative;
     }
 
-    .feature-card:hover {
-      box-shadow: var(--shadow-md);
-      border-color: var(--ring);
+    .credentials-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
     }
 
-    .feature-icon {
-      width: 48px;
-      height: 48px;
+    .credentials-icon {
+      width: 40px;
+      height: 40px;
       background: var(--primary);
       color: var(--primary-foreground);
       border-radius: var(--radius);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      margin: 0 auto 16px;
+      font-size: 18px;
     }
 
-    .feature-title {
-      font-size: 16px;
+    .credentials-title {
+      font-size: 18px;
       font-weight: 600;
       color: var(--foreground);
-      margin-bottom: 8px;
     }
 
-    .feature-description {
-      font-size: 14px;
+    .credential-item {
+      margin-bottom: 16px;
+    }
+
+    .credential-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .credential-label {
+      font-size: 12px;
+      font-weight: 600;
       color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .credential-value {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--foreground);
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+      background: var(--muted);
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      word-break: break-all;
+      letter-spacing: 1px;
+    }
+
+    /* Alert Box */
+    .alert-box {
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin: 32px 0;
+      position: relative;
+    }
+
+    .alert-content {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .alert-icon {
+      width: 24px;
+      height: 24px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .alert-text {
+      font-size: 14px;
+      color: var(--foreground);
       line-height: 1.5;
+    }
+
+    .alert-text strong {
+      font-weight: 600;
     }
 
     /* CTA Section */
@@ -196,52 +250,53 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
     .cta-button {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       background: var(--primary);
       color: var(--primary-foreground);
       text-decoration: none;
       padding: 16px 32px;
       border-radius: var(--radius);
       font-size: 16px;
-      font-weight: 500;
+      font-weight: 600;
       transition: all 0.2s ease;
-      box-shadow: var(--shadow);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
       border: none;
       cursor: pointer;
     }
 
     .cta-button:hover {
-      background: var(--accent);
-      color: var(--accent-foreground);
-      box-shadow: var(--shadow-md);
+      opacity: 0.9;
+      transform: translateY(-1px);
     }
 
     .cta-button-icon {
-      font-size: 20px;
+      font-size: 18px;
     }
 
-    /* Security Notice */
-    .security-notice {
-      background: var(--card);
+    /* Support Section */
+    .support-section {
+      background: var(--muted);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 20px;
+      padding: 24px;
       margin: 32px 0;
       text-align: center;
     }
 
-    .security-title {
+    .support-title {
       font-size: 16px;
       font-weight: 600;
       color: var(--foreground);
       margin-bottom: 8px;
     }
 
-    .security-text {
+    .support-text {
       font-size: 14px;
       color: var(--muted-foreground);
       line-height: 1.5;
-    }    /* Footer */
+    }
+
+    /* Footer */
     .email-footer {
       background: var(--muted);
       border-top: 1px solid var(--border);
@@ -323,11 +378,6 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
         font-size: 24px;
       }
 
-      .features-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
-      }
-
       .footer-content {
         flex-direction: column;
         text-align: center;
@@ -349,35 +399,42 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
           <div class="logo-icon">🎓</div>
           <div class="logo-text">LMS Platform</div>
         </div>
-        <div class="header-title">Welcome to Our Platform</div>
+        <div class="header-title">HOD Account Created</div>
       </div>
 
       <!-- Main Body -->
       <div class="email-body">
         <div class="welcome-section">
-          <h1 class="welcome-title">Welcome to LMS, ${name}!</h1>
-          <p class="welcome-subtitle">Your account has been successfully created</p>
+          <h1 class="welcome-title">Welcome aboard, ${name}!</h1>
+          <p class="welcome-subtitle">Your Head of Department account has been successfully created</p>
           <p class="welcome-message">
-            Get ready to embark on your learning journey. Your account is now active and you can access all the features of our Learning Management System.
+            You now have access to the LMS Platform as Head of Department for ${collegeName}. Use the temporary password below to log in and start managing your department.
           </p>
         </div>
 
-        <!-- Features Grid -->
-        <div class="features-grid">
-          <div class="feature-card">
-            <div class="feature-icon">📚</div>
-            <div class="feature-title">Course Management</div>
-            <div class="feature-description">Access and manage your courses with ease</div>
+        <!-- Credentials Card -->
+        <div class="credentials-card">
+          <div class="credentials-header">
+            <div class="credentials-icon">🔐</div>
+            <div class="credentials-title">Your Login Credentials</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <div class="feature-title">Progress Tracking</div>
-            <div class="feature-description">Monitor your learning progress and achievements</div>
+          <div class="credential-item">
+            <span class="credential-label">Email</span>
+            <div class="credential-value">${email}</div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon">👥</div>
-            <div class="feature-title">Community</div>
-            <div class="feature-description">Connect with instructors and fellow learners</div>
+          <div class="credential-item">
+            <span class="credential-label">Temporary Password</span>
+            <div class="credential-value">${tempPassword}</div>
+          </div>
+        </div>
+
+        <!-- Security Alert -->
+        <div class="alert-box">
+          <div class="alert-content">
+            <div class="alert-icon">⚠️</div>
+            <div class="alert-text">
+              <strong>Security Reminder:</strong> This is a temporary password. Please change it immediately after your first login to ensure account security.
+            </div>
           </div>
         </div>
 
@@ -385,15 +442,15 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
         <div class="cta-section">
           <a href="${loginUrl}" class="cta-button">
             <span class="cta-button-icon">🚀</span>
-            Start Your Learning Journey
+            Access Your Dashboard
           </a>
         </div>
 
-        <!-- Security Notice -->
-        <div class="security-notice">
-          <div class="security-title">🔒 Account Security</div>
-          <p class="security-text">
-            If you did not request this account creation, please contact our administration team immediately to secure your information.
+        <!-- Support Section -->
+        <div class="support-section">
+          <div class="support-title">Need Help Getting Started?</div>
+          <p class="support-text">
+            Contact your administrator if you have any questions about accessing the platform or need assistance with your account setup.
           </p>
         </div>
       </div>
@@ -420,4 +477,3 @@ export const welcomeEmailTemplate = (name: string, loginUrl: string): string => 
 </body>
 </html>
 `;
-

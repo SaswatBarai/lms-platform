@@ -35,12 +35,12 @@ model College {
   updatedAt        DateTime           @updatedAt
   recoveryEmail    String?            @db.VarChar(255)
   phone            String             @unique @db.VarChar(20)
-  branches         Branch[]
   organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deans            Dean[]
   departments      Department[]
   hods             Hod[]
   nonTeachingStaff NonTeachingStaff[]
+  courses          Course[]
 }
 
 model Dean {
@@ -116,7 +116,7 @@ model Teacher {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 }
 
-model Branch {
+model Course {
   id           String     @id @default(cuid())
   name         String     @db.VarChar(255)
   shortName    String     @db.VarChar(50)
@@ -124,6 +124,23 @@ model Branch {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  batches      Batch[]
+}
+
+//Here batch means like couurse btech there will be 4  years 
+//batch 2023 to 2027
+//batch 2024 to 2028
+//  
+//
+//
+model Batch {
+  id           String     @id @default(cuid())
+  courseId     String
+  batchYear    Int
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
 }
 
 model RefreshToken {

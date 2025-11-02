@@ -3,7 +3,7 @@ import { asyncHandler } from "@utils/asyncHandler.js";
 import { prisma } from "@lib/prisma.js";
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
-import { AddBranchInput, AddDepartmentInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
+import { AddCourseInput, AddDepartmentInput, ForgotResetPasswordInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
 import crypto from "crypto";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
@@ -14,7 +14,17 @@ export const createNonTeachingStaffBulkController = asyncHandler(async (req: Req
     
     // 1. Get College ID from authenticated admin
     const { id: collegeId } = req.college; // From AuthenticatedUser.checkCollege middleware
-
+    const college = await prisma.college.findUnique({
+        where:{
+            id:collegeId
+        },
+        select:{
+            name:true
+        }
+    })
+    if(!college){
+        throw new AppError("College not found", 404);
+    }
     // 2. Get the array of staff from the validated body
     const staffArray: { name: string, email: string, phone: string, role: "studentsection" | "regestral" | "adminstractor" }[] = req.body;
 
@@ -123,6 +133,7 @@ export const createNonTeachingStaffBulkController = asyncHandler(async (req: Req
                 data.email,
                 data.name,
                 data.tempPassword,
+                college.name,
                 "http://localhost:8000/auth/api/login-staff"
             );
         }
@@ -192,7 +203,8 @@ export const login= asyncHandler(
         const securityManager = PasetoV4SecurityManager.getInstance();
 
         const accessToken = await securityManager.generateAccessToken(tokenPaylaod);
-        const refreshToken = await securityManager.generateRefreshToken(existingStaff.id, accessSessionId);
+        const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
+        const refreshToken = await securityManager.generateRefreshToken(existingStaff.id, sessionId);
 
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
@@ -205,7 +217,7 @@ export const login= asyncHandler(
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Login successful",
             data: {
@@ -230,9 +242,9 @@ export const resetPasswordNonTeachingStaffController = asyncHandler(
     }
 )
 
-export const addBranchNonTeachingStaffController = asyncHandler(
+export const addCourseNonTeachingStaffController = asyncHandler(
     async(req:Request, res:Response) => {
-        const branchArrray:AddBranchInput[] = req.body;
+        const courseArrray:AddCourseInput[] = req.body;
         const collegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
         const userId = req.nonTeachingStaff.id;
@@ -258,81 +270,81 @@ export const addBranchNonTeachingStaffController = asyncHandler(
         }
 
         if(role != NonTeachingStaffRole.REGISTRAR){
-            throw new AppError("You are not authorized to add branches as you are not a registrar", 403);
+            throw new AppError("You are not authorized to add courses as you are not a registrar", 403);
         }
 
-        //now we will check is the branches already exist or not 
-        const branchname = branchArrray.map(branch => branch.name);
-        const branchshortName = branchArrray.map(branch => branch.shortName);
-        const existingBranches = await prisma.branch.findMany({
+        //now we will check is the courses already exist or not 
+        const coursename = courseArrray.map(course => course.name);
+        const courseshortName = courseArrray.map(course => course.shortName);
+        const existingCourses = await prisma.course.findMany({
             where:{
                 OR:[
-                    {name: {in:branchname}},
-                    {shortName: {in:branchshortName}},
+                    {name: {in:coursename}},
+                    {shortName: {in:courseshortName}},
                 ]
             }
         })
-        const existingBranchName = new Set(existingBranches.map(branch => branch.name));
-        const existingBranchShortName = new Set(existingBranches.map(branch => branch.shortName));
-        const validBranches: typeof branchArrray = [];
+        const existingCourseName = new Set(existingCourses.map(course => course.name));
+        const existingCourseShortName = new Set(existingCourses.map(course => course.shortName));
+        const validCourses: typeof courseArrray = [];
         const errors:{
             index:number;
             field:string;
             value:string;
             message:string;
         }[] = [];
-        branchArrray.forEach((branch, index) => {
+        courseArrray.forEach((course, index) => {
             let hasError = false;
-            if(existingBranchName.has(branch.name)){
+            if(existingCourseName.has(course.name)){
                 errors.push({
                     index,
                     field: "name",
-                    value: branch.name,
-                    message: `Branch name '${branch.name}' already exists`
+                    value: course.name,
+                    message: `Course name '${course.name}' already exists`
                 })
                 hasError = true;
             }
-            if(existingBranchShortName.has(branch.shortName)){
+            if(existingCourseShortName.has(course.shortName)){
                 errors.push({
                     index,
                     field: "shortName",
-                    value: branch.shortName,
-                    message: `Branch short name '${branch.shortName}' already exists`
+                    value: course.shortName,
+                    message: `Course short name '${course.shortName}' already exists`
                 })
                 hasError = true;
             }
 
             if(!hasError){
-                validBranches.push(branch);
+                validCourses.push(course);
             }
 
         })
         if(errors.length > 0){
             return res.status(400).json({
                 success: false,
-                message: "Some branches could not be added due to duplicate name or short name",
+                message: "Some courses could not be added due to duplicate name or short name",
                 errors: errors,
                 duplicateCount: errors.length,
-                validCount: validBranches.length
+                validCount: validCourses.length
             });
         }
-        //now we will add the branches to the database
-        const branches = await prisma.branch.createMany({
-            data: validBranches.map(branch => {
+        //now we will add the courses to the database
+        const courses = await prisma.course.createMany({
+            data: validCourses.map(course => {
                 return {
-                    name: branch.name,
-                    shortName: branch.shortName,
+                    name: course.name,
+                    shortName: course.shortName,
                     collegeId: collegeId
                 }
             })
         })
-        if(branches.count !== validBranches.length){
-            throw new AppError("Failed to add branches", 400);
+        if(courses.count !== validCourses.length){
+            throw new AppError("Failed to add courses", 400);
         }
         return res.status(200).json({
             success: true,
-            message: "Branches added successfully",
-            data: branches
+            message: "Courses added successfully",
+            data: courses
         });
     }
 )
@@ -428,6 +440,141 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
         
     }
 )
+
+
+export const regenerateAccessTokenNonTeachingStaff = asyncHandler(
+    async(req:Request,res:Response) => {
+        const {id} = req.nonTeachingStaff;
+        const key = `activeSession:non-teaching-staff:${id}`;
+        const sessionId = await redisClient.hget(key, 'sessionId');
+        if(!sessionId){
+            throw new AppError("Session not found", 404);
+        }
+        const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
+            where:{
+                id
+            }
+        })
+        if(!nonTeachingStaff){
+            throw new AppError("Non-teaching staff not found", 404);
+        }
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const accessToken = await securityManager.generateAccessToken({
+            id: nonTeachingStaff.id,
+            email: nonTeachingStaff.email,
+            name: nonTeachingStaff.name,
+            role: nonTeachingStaff.role,
+            type: "non-teaching-staff",
+        })
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+        return res.status(200).json({
+            success: true,
+            message: "Access token regenerated successfully",
+            data: {
+                accessToken
+            }
+        });
+    }
+)
+
+
+export const forgotPasswordNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email} =  req.body;
+        if(!email){
+            throw new AppError("Email is required", 400);
+        } 
+        if(!validateEmail(email)){
+            throw new AppError("Invalid email", 400);
+        }
+
+        if(await redisClient.exists(`non-teaching-staff-auth-${email}`)){
+            throw new AppError("Already details are present", 400);
+        }
+        const staff = await prisma.nonTeachingStaff.findUnique({
+            where:{
+                email
+            },
+            include:{
+                college:{
+                    select:{
+                      name:true  
+                    }
+                }
+            }
+        })
+        if(!staff){
+            return res.status(404).json({
+                success: false,
+                message: "Non-teaching staff not found",
+            })
+        }
+
+        //let us craete the session token 
+        const sessionToken = crypto.randomBytes(32).toString("hex");
+        await redisClient.setex(`non-teaching-staff-auth-${email}`, 10 * 60, sessionToken);//10 minutes
+        const kafkaProducer = KafkaProducer.getInstance();
+        const isPublished = await kafkaProducer.sendNonTeachingStaffForgotPassword(email, sessionToken, staff.name, staff.college.name);
+
+        if(!isPublished){
+            throw new AppError("Failed to send forgot password email", 500);
+        }
+        return res.status(200).json({
+            success: true,
+            message: "Mail has been sent to your email, please check your email to reset your password",
+            data: {
+                email
+            }
+        })
+    }
+)
+
+
+export const resetForgotPasswordNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {email,password,token}:ForgotResetPasswordInput = req.body;
+        if(!email || !password || !token){
+            throw new AppError("Missing required fields", 400);
+        }
+        if(!validateEmail(email)){
+            throw new AppError("Invalid email", 400);
+        }
+        if(token.length !== 64){
+            throw new AppError("Invalid token", 400);
+        }
+        const sessionToken = await redisClient.get(`non-teaching-staff-auth-${email}`);
+        if(!sessionToken){
+            throw new AppError("Invalid token", 400);
+        }
+        if(sessionToken != token){
+            throw new AppError("Invalid token", 400);
+        }
+        await redisClient.del(`non-teaching-staff-auth-${email}`);
+        const hashedPassword = await hashPassword(password);
+        await prisma.nonTeachingStaff.update({
+            where:{
+                email
+            },
+            data:{
+                password:hashedPassword
+            }
+        })
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully",
+            data: {
+                email
+            }
+        })
+
+    }
+)
+
+
 
 
 
