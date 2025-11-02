@@ -25,6 +25,9 @@ services:
           - "/auth/api/forgot-password-non-teaching-staff"
           - "/auth/api/reset-forgot-password-non-teaching-staff"
           - "/auth/api/regenerate-access-token-non-teaching-staff"
+          - "/auth/api/login-hod"
+          - "/auth/api/forgot-password-hod"
+          - "/auth/api/forgot-reset-password-hod"
         strip_path: false
 
       - name: auth-service-routes-protected
@@ -39,6 +42,10 @@ services:
           - "/auth/api/reset-password-organization"
           - "/auth/api/add-department" #later this will shift another service which is department service
           - "/auth/api/add-course"
+          - "/auth/api/create-hod"
+          - "/auth/api/logout-hod"
+          - "/auth/api/regenerate-access-token-hod"
+          - "/auth/api/reset-password-hod"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua

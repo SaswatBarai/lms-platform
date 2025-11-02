@@ -39,9 +39,11 @@ import {
     addDepartmentBulkSchema,
     addCourseBulkSchema,
     forgotResetPasswordSchema,
+    loginHodSchema,
 
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
+import { regenerateAccessTokenHod } from "@controller/hod/auth.controller.js";
 
 const router: Router = Router();
 
@@ -93,6 +95,12 @@ router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.ref
 
 // Hod Routes
 router.post("/create-hod",AuthenticatedUser.checkNonTeachingStaff,createCollegeController);
+router.post("/login-hod", validate({ body: loginHodSchema }), loginCollegeController);
+router.post("/logout-hod", AuthenticatedUser.checkCollege, logoutCollege);
+router.post("/regenerate-access-token-hod", AuthenticatedUser.refreshTokenHod, regenerateAccessTokenHod);
+router.post("/forgot-password-hod", forgotPasswordCollege);
+router.post("/forgot-reset-password-hod",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
+router.post("/reset-password-hod",AuthenticatedUser.checkHod,validate({body:resetPasswordScehma}), resetPasswordCollegeController);
 
 
 
