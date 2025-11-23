@@ -270,6 +270,7 @@ export const forgotPasswordCollege = asyncHandler(
     }
 )
 
+//forgot password
 export const resetForgotPasswordCollegeController = asyncHandler(
     async(req:Request, res:Response) => {
         const {email, token, password}:ForgotResetPasswordInput = req.body;

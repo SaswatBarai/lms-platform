@@ -29,4 +29,4 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY prisma ./prisma
 EXPOSE 4001
-CMD [ "sh", "-c", "pnpm db:generate && pnpm start" ]
+CMD [ "sh", "-c", "pnpm db:generate && npx prisma migrate deploy && pnpm start" ]
