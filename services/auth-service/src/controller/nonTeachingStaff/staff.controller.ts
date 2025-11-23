@@ -574,8 +574,11 @@ export const resetForgotPasswordNonTeachingStaffController = asyncHandler(
     }
 )
 
-
-
-
-
+export const addBatchNonTeachingStaffController = asyncHandler(
+    async(req:Request, res:Response) => {
+        const {courseId, batchYear}: {courseId: string, batchYear: string} = req.body;
+        // TODO: Implement batch creation logic
+        res.status(200).json({ message: "Not implemented yet" });
+    }
+)
 

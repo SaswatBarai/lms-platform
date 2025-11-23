@@ -90,11 +90,14 @@ model Department {
   hod       Hod?      @relation(fields: [hodId], references: [id])
   students  Student[]
   teachers  Teacher[]
+  sections  Section[]
 }
 
 model Student {
   id           String     @id @default(cuid())
   departmentId String
+  batchId     String
+  sectionId   String
   name         String     @db.VarChar(255)
   email        String     @unique @db.VarChar(255)
   password     String     @db.VarChar(255)
@@ -102,6 +105,8 @@ model Student {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  batch        Batch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
 }
 
 model Teacher {
@@ -131,8 +136,6 @@ model Course {
 //batch 2023 to 2027
 //batch 2024 to 2028
 //  
-//
-//
 model Batch {
   id           String     @id @default(cuid())
   courseId     String
@@ -140,6 +143,10 @@ model Batch {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  sections     Section[]
+  students     Student[]
+
 
 }
 
@@ -170,3 +177,22 @@ enum UserRole {
   regestral
   adminstractor
 }
+
+
+
+model Section {
+  id       String   @id @default(cuid())
+  batchId  String 
+  sectionNo String   @db.VarChar(50)
+  capacity  Int?       @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  departmentId String
+
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)  
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  students     Student[]
+  
+}
+

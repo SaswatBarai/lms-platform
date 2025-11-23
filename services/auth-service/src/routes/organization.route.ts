@@ -89,6 +89,7 @@ router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.ref
 
 
 
+6
 // Protected test route to verify authentication plugin
 
 
@@ -101,6 +102,12 @@ router.post("/regenerate-access-token-hod", AuthenticatedUser.refreshTokenHod, r
 router.post("/forgot-password-hod", forgotPasswordCollege);
 router.post("/forgot-reset-password-hod",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
 router.post("/reset-password-hod",AuthenticatedUser.checkHod,validate({body:resetPasswordScehma}), resetPasswordCollegeController);
+
+
+//Student Routes
+
+
+
 
 
 

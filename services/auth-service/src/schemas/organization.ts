@@ -284,3 +284,70 @@ export const loginHodSchema = z.object({
         .min(1, { message: "Password is required" })
         .trim(),
 })
+
+
+
+
+enum BatchType {
+    BTECH = 4,
+    MTECH = 2,
+    MBA   = 2,
+    BBA   = 2,
+    BCA   = 3,
+    MCA   = 3,
+  }
+  
+  // ------------------------------------------------------------------
+  // 2. Helper: extract the allowed enum keys as a string literal union
+  // ------------------------------------------------------------------
+  type BatchTypeKey = keyof typeof BatchType; // "BTECH" | "MTECH" | ...
+  
+  // ------------------------------------------------------------------
+  // 3. The schema
+  // ------------------------------------------------------------------
+  export const addBatchSchema = z.object({
+    // ---- batchYear -------------------------------------------------
+    batchYear: z
+      .string({ message: "Batch year is required" })
+      .min(1, { message: "Batch year is required" })
+      .trim()
+      .refine((val) => /^\d{4}-\d{4}$/.test(val), {
+        message: "Invalid batch year format – expected YYYY-YYYY",
+      })
+      .nonempty({ message: "Batch year is required" })
+      .max(100, { message: "Batch year must be at most 100 characters" })
+      // ---- calculate duration & validate it -------------------------
+      .refine(
+        (val) => {
+          const parts = val.split("-");
+          if (parts.length !== 2) return false;
+          const [start, end] = parts.map(Number);
+          if (!start || !end || isNaN(start) || isNaN(end)) return false;
+          const calculated = end - start;
+          return Number.isInteger(calculated) && calculated > 0;
+        },
+        { message: "Start year must be before end year" }
+      ),
+  
+    // ---- batchType -------------------------------------------------
+    batchType: z.enum(
+      // enum keys are the only allowed values
+      Object.keys(BatchType) as [BatchTypeKey, ...BatchTypeKey[]],
+      { message: "Batch type is required" }
+    ),
+  })
+  // ---- cross-field validation: duration must match enum value ---
+  .refine(
+    (data) => {
+      const parts = data.batchYear.split("-");
+      if (parts.length !== 2) return false;
+      const [start, end] = parts.map(Number);
+      if (!start || !end || isNaN(start) || isNaN(end)) return false;
+      const calculatedDuration = end - start;
+      const expectedDuration = BatchType[data.batchType as BatchTypeKey];
+      return calculatedDuration === expectedDuration;
+    },
+    {
+      message: "Batch duration must match the specified batch type duration",
+    }
+  );
