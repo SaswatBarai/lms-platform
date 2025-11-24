@@ -43,6 +43,8 @@ services:
           - "/auth/api/reset-password-organization"
           - "/auth/api/add-department" #later this will shift another service which is department service
           - "/auth/api/add-course"
+          - "/auth/api/add-batch"
+          - "/auth/api/add-section"
           - "/auth/api/create-hod"
           - "/auth/api/logout-hod"
           - "/auth/api/regenerate-access-token-hod"

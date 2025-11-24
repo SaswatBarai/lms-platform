@@ -239,16 +239,18 @@ export const addDepartmentBulkSchema = z.array(addDepartmentSchema).min(1, {
 
 
 export const addCourseSchema = z.object({
-    name:z.string({ message: "Name is required" })
-        .min(3, { message: "Name must be at least 3 characters" })
-        .max(255, { message: "Name must be at most 255 characters" })
-        .trim()
-        .nonempty({ message: "Name is required" }),
-    shortName:z.string({ message: "Short name is required" })
-        .min(2, { message: "Short name must be at least 2 characters" })
-        .max(50, { message: "Short name must be at most 50 characters" })
-        .trim()
-        .nonempty({ message: "Short name is required" }),
+    name: z.enum(
+        ["BACHELOR_OF_TECHNOLOGY", "MASTER_OF_TECHNOLOGY", "BACHELOR_OF_COMPUTER_APPLICATIONS", "MASTER_OF_COMPUTER_APPLICATIONS"],
+        { 
+            message: "Course name must be one of: BACHELOR_OF_TECHNOLOGY, MASTER_OF_TECHNOLOGY, BACHELOR_OF_COMPUTER_APPLICATIONS, MASTER_OF_COMPUTER_APPLICATIONS" 
+        }
+    ),
+    shortName: z.enum(
+        ["BTECH", "MTECH", "BCA", "MCA"],
+        { 
+            message: "Course short name must be one of: BTECH, MTECH, BCA, MCA" 
+        }
+    ),
 })
 
 export const addCourseBulkSchema = z.array(addCourseSchema).min(1, {
@@ -306,6 +308,12 @@ enum BatchType {
   // 3. The schema
   // ------------------------------------------------------------------
   export const addBatchSchema = z.object({
+    // ---- courseId -------------------------------------------------
+    courseId: z.string({ message: "Course ID is required" })
+      .min(1, { message: "Course ID is required" })
+      .trim()
+      .nonempty({ message: "Course ID is required" }),
+    
     // ---- batchYear -------------------------------------------------
     batchYear: z
       .string({ message: "Batch year is required" })
@@ -351,3 +359,21 @@ enum BatchType {
       message: "Batch duration must match the specified batch type duration",
     }
   );
+
+
+export const addSectionSchema = z.object({
+    no_of_section: z.number({ message: "Number of section is required" })
+        .min(1,{message:"Number of section must be at least 1"})
+        .int({message:"Number of section must be an integer"})
+        .positive({message:"Number of section must be a positive number"})
+        .max(10,{message:"Number of section must be at most 10"}),
+    department_id: z.string({ message: "Department ID is required" })
+        .min(1, { message: "Department ID is required" })
+        .trim()
+        .nonempty({ message: "Department ID is required" })
+        .trim(),
+    batch_id: z.string({ message: "Batch ID is required" })
+        .min(1, { message: "Batch ID is required" })
+        .trim()
+        .nonempty({ message: "Batch ID is required" })
+})

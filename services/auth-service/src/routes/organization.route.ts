@@ -20,10 +20,13 @@ import {
     resetForgotPasswordCollegeController
 } from "../controller/college/auth.controller.js"
 import {
+    addBatchNonTeachingStaffController,
     addCourseNonTeachingStaffController,
     addDepartmentNonTeachingStaffController,
+    addSectionNonTeachingStaffController,
     createNonTeachingStaffBulkController,
     login as loginNonTeachingStaff,
+    logoutNonTeachingStaffController,
     resetPasswordNonTeachingStaffController
 } from "../controller/nonTeachingStaff/staff.controller.js"
 import { validate } from "@middleware/validate.js"
@@ -38,6 +41,8 @@ import {
     resetPasswordScehma,
     addDepartmentBulkSchema,
     addCourseBulkSchema,
+    addBatchSchema,
+    addSectionSchema,
     forgotResetPasswordSchema,
     loginHodSchema,
 
@@ -82,10 +87,14 @@ router.post(
 router.post("/login-non-teaching-staff", validate({ body: loginNonTeachingStaffSchema }), loginNonTeachingStaff);
 router.post("/reset-password-non-teaching-staff",AuthenticatedUser.checkNonTeachingStaff,validate({body:resetPasswordScehma}), resetPasswordNonTeachingStaffController);
 router.post("/add-department",AuthenticatedUser.checkNonTeachingStaff,validate({body:addDepartmentBulkSchema}), addDepartmentNonTeachingStaffController);
-router.post("/add-course",AuthenticatedUser.checkNonTeachingStaff,validate({body:addCourseBulkSchema}), addCourseNonTeachingStaffController); 
+router.post("/add-course",AuthenticatedUser.checkNonTeachingStaff,validate({body:addCourseBulkSchema}), addCourseNonTeachingStaffController);
+router.post("/add-batch",AuthenticatedUser.checkNonTeachingStaff,validate({body:addBatchSchema}), addBatchNonTeachingStaffController);
+router.post("/add-section",AuthenticatedUser.checkNonTeachingStaff,validate({body:addSectionSchema}), addSectionNonTeachingStaffController);
 router.post("/forgot-password-non-teaching-staff", forgotPasswordCollege);
 router.post("/forgot-reset-password-non-teaching-staff",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
 router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.refreshTokenNonTeachingStaff, regenerateAccessTokenCollege);
+router.post("/logout-non-teaching-staff", AuthenticatedUser.checkNonTeachingStaff, logoutNonTeachingStaffController);
+
 
 
 

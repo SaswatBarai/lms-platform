@@ -121,10 +121,24 @@ model Teacher {
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 }
 
+enum CourseShortName {
+  BTECH
+  MTECH
+  BCA
+  MCA
+}
+
+enum CourseName {
+  BACHELOR_OF_TECHNOLOGY            @map("Bachelor of Technology")
+  MASTER_OF_TECHNOLOGY              @map("Master of Technology")
+  BACHELOR_OF_COMPUTER_APPLICATIONS @map("Bachelor of Computer Applications")
+  MASTER_OF_COMPUTER_APPLICATIONS   @map("Master of Computer Applications")
+}
+
 model Course {
   id           String     @id @default(cuid())
-  name         String     @db.VarChar(255)
-  shortName    String     @db.VarChar(50)
+  name         CourseName @default(BACHELOR_OF_TECHNOLOGY)
+  shortName    CourseShortName @default(BTECH)
   collegeId    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -139,15 +153,12 @@ model Course {
 model Batch {
   id           String     @id @default(cuid())
   courseId     String
-  batchYear    Int
+  batchYear    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
   sections     Section[]
   students     Student[]
-
-
 }
 
 model RefreshToken {

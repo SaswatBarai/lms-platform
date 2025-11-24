@@ -10,9 +10,11 @@ import {
   resetPasswordScehma,
   addDepartmentSchema,
   addCourseSchema,
+  addBatchSchema,
   createHodSchema,
   loginHodSchema,
-  forgotResetPasswordSchema
+  forgotResetPasswordSchema,
+  addSectionSchema
 } from "@schemas/organization.js"
 
 
@@ -29,8 +31,11 @@ export type ResetPasswordInput = z.infer<typeof resetPasswordScehma>
 export type ForgotResetPasswordInput = z.infer<typeof forgotResetPasswordSchema>
 export type AddDepartmentInput = z.infer<typeof addDepartmentSchema>
 export type AddCourseInput = z.infer<typeof addCourseSchema>
+export type AddBatchInput = z.infer<typeof addBatchSchema>
 export type CreateHodInput = z.infer<typeof createHodSchema>
 export type LoginHodInput = z.infer<typeof loginHodSchema>
+export type AddSectionInput = z.infer<typeof addSectionSchema>
+
 export interface ServiceResult<T> {
   success: boolean;
   data?: T;
