@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { welcomeEmailTemplate, staffWelcomeEmailTemplate } from "../templates/index.js";
-import { WelcomeEmailData, StaffWelcomeEmailData, HodWelcomeEmailData } from "../types/notification.types.js";
+import { welcomeEmailTemplate, staffWelcomeEmailTemplate, studentWelcomeEmailTemplate } from "../templates/index.js";
+import { WelcomeEmailData, StaffWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData } from "../types/notification.types.js";
 import { hodWelcomeEmailTemplate } from "templates/hod-welcome.template.js";
 
 export class WelcomeEmailHandler {
@@ -104,6 +104,44 @@ export class WelcomeEmailHandler {
 
     console.error(`[WelcomeEmailHandler] ❌ Failed to send hod welcome email to ${email}`);
     return false;
-  } 
+  }
+
+  /**
+   * Handle welcome email for student account
+   */
+  public static async handleStudentWelcome(data: StudentWelcomeEmailData): Promise<boolean> {
+    const { email, name, regNo, tempPassword, collegeName, departmentName, loginUrl } = data;
+
+    if (!email || !name || !regNo || !tempPassword || !collegeName || !departmentName) {
+      console.error("[WelcomeEmailHandler] Missing required data for student welcome");
+      return false;
+    }
+
+    console.log(`[WelcomeEmailHandler] Processing student welcome email for ${email} (RegNo: ${regNo})`);
+
+    const html = studentWelcomeEmailTemplate(
+      email,
+      name,
+      regNo,
+      tempPassword,
+      collegeName,
+      departmentName,
+      loginUrl || "http://localhost:8000/auth/api/login-student"
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Welcome ${name}! Your Student Account at ${collegeName} is Ready`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[WelcomeEmailHandler] ✅ Student welcome email sent to ${email} (RegNo: ${regNo})`);
+      return true;
+    }
+
+    console.error(`[WelcomeEmailHandler] ❌ Failed to send student welcome email to ${email}`);
+    return false;
+  }
 }
 

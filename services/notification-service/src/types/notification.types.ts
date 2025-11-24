@@ -8,6 +8,7 @@ export enum NotificationType {
   ORG_OTP = "org-otp",
   WELCOME_EMAIL = "welcome-email",
   STAFF_WELCOME_EMAIL = "staff-welcome-email",
+  STUDENT_WELCOME_EMAIL = "student-welcome-email",
   DEAN_WELCOME_EMAIL = "dean-welcome-email",
   HOD_WELCOME_EMAIL = "hod-welcome-email",
   COLLEGE_FORGOT_PASSWORD = "college-forgot-password",
@@ -51,6 +52,16 @@ export interface HodWelcomeEmailData {
   name: string;
   tempPassword: string;
   collegeName: string;
+  loginUrl: string;
+}
+
+export interface StudentWelcomeEmailData {
+  email: string;
+  name: string;
+  regNo: string;
+  tempPassword: string;
+  collegeName: string;
+  departmentName: string;
   loginUrl: string;
 }
 

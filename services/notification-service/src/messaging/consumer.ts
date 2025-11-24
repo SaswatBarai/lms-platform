@@ -129,11 +129,18 @@ export class NotificationConsumer {
         await WelcomeEmailHandler.handleStaffWelcome(data);
         console.log(`[NotificationConsumer] ✅ Staff welcome email sent successfully`);
         break;
+
       case NotificationType.HOD_WELCOME_EMAIL:
-        await WelcomeEmailHandler.handleHodWelcome(data)
+        console.log(`[NotificationConsumer] 👋 Sending HOD welcome email to: ${data.email}`);
+        await WelcomeEmailHandler.handleHodWelcome(data);
+        console.log(`[NotificationConsumer] ✅ HOD welcome email sent successfully`);
         break;
 
-        
+      case NotificationType.STUDENT_WELCOME_EMAIL:
+        console.log(`[NotificationConsumer] 🎓 Sending student welcome email to: ${data.email} (RegNo: ${data.regNo})`);
+        await WelcomeEmailHandler.handleStudentWelcome(data);
+        console.log(`[NotificationConsumer] ✅ Student welcome email sent successfully`);
+        break;
 
       default:
         console.log(`[NotificationConsumer] ❓ Unknown email notification type: ${type}`);

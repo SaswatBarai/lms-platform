@@ -377,3 +377,44 @@ export const addSectionSchema = z.object({
         .trim()
         .nonempty({ message: "Batch ID is required" })
 })
+
+
+
+export const studentDetailsSchema = z.object({
+    name: z.string({ message: "Name is required" })
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    email: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    phone: z.string({ message: "Phone number is required" })
+        .min(1, { message: "Phone number is required" })
+        .regex(/^\+?[\d\s\-\(\)]{10,20}$/, { message: "Invalid phone number format" })
+        .max(20, { message: "Phone number must be at most 20 characters" })
+        .trim(),
+    gender: z.enum(["MALE", "FEMALE", "OTHER"], {
+        message: "Gender must be one of: MALE, FEMALE, OTHER"
+    })
+})
+
+export const createStudentBulkSchema = z.object({
+    students: z.array(studentDetailsSchema).min(1, {
+        message: "Must provide at least one student."
+    })
+    .max(500,{
+        message: "Cannot create more than 500 students at once."
+    }),
+    batchId: z.string({ message: "Batch ID is required" })
+        .min(1, { message: "Batch ID is required" })
+        .trim()
+        .nonempty({ message: "Batch ID is required" }),
+    departmentId: z.string({ message: "Department ID is required" })
+        .min(1, { message: "Department ID is required" })
+        .trim()
+        .nonempty({ message: "Department ID is required" }),
+    dryRun: z.boolean().optional().default(false)  // Preview mode - see allocation without creating
+})

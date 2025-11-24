@@ -191,6 +191,28 @@ export class KafkaProducer {
   }
 
   /**
+   * Send student welcome email with registration number and password
+   */
+  public async sendStudentWelcomeEmail(
+    email: string,
+    name: string,
+    regNo: string,
+    tempPassword: string,
+    collegeName: string,
+    departmentName: string,
+    loginUrl: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.EMAIL_NOTIFICATION,
+      type: NotificationType.STUDENT_WELCOME_EMAIL,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, name, regNo, tempPassword, collegeName, departmentName, loginUrl }
+    };
+
+    return this.sendMessage("welcome-messages", payload);
+  }
+
+  /**
    * Disconnect producer
    */
   public async disconnect(): Promise<void> {

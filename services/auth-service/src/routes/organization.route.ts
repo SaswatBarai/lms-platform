@@ -29,6 +29,9 @@ import {
     logoutNonTeachingStaffController,
     resetPasswordNonTeachingStaffController
 } from "../controller/nonTeachingStaff/staff.controller.js"
+import {
+    createStudentBulkController
+} from "../controller/students/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
@@ -43,6 +46,7 @@ import {
     addCourseBulkSchema,
     addBatchSchema,
     addSectionSchema,
+    createStudentBulkSchema,
     forgotResetPasswordSchema,
     loginHodSchema,
 
@@ -111,6 +115,7 @@ router.post("/reset-password-hod",AuthenticatedUser.checkHod,validate({body:rese
 
 
 //Student Routes
+router.post("/create-student-bulk",AuthenticatedUser.checkNonTeachingStaff,validate({body:createStudentBulkSchema}), createStudentBulkController);
 
 
 
