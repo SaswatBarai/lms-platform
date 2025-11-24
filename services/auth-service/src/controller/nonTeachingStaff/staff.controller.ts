@@ -4,7 +4,8 @@ import { prisma } from "@lib/prisma.js";
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
 import { AddCourseInput, AddDepartmentInput, ForgotResetPasswordInput, LoginNonTeachingStaffInput, NonTeachingStaffRole, ResetPasswordInput } from "../../types/organization.js";
-import crypto from "crypto";
+import * as crypto from "node:crypto";
+import process from "node:process";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
 import { resetPasswordService, ResetPasswordType } from "@services/organization.service.js";
@@ -46,8 +47,8 @@ export const createNonTeachingStaffBulkController = asyncHandler(async (req: Req
     });
 
     // Create a set of existing emails and phones for quick lookup
-    const existingEmails = new Set(existingStaff.map(s => s.email));
-    const existingPhones = new Set(existingStaff.map(s => s.phone));
+    const existingEmails = new Set(existingStaff.map((s: { email: string; phone: string }) => s.email));
+    const existingPhones = new Set(existingStaff.map((s: { email: string; phone: string }) => s.phone));
 
     // Validate and collect errors
     const errors: { index: number; field: string; value: string; message: string }[] = [];
@@ -206,14 +207,15 @@ export const login= asyncHandler(
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
         const refreshToken = await securityManager.generateRefreshToken(existingStaff.id, sessionId);
 
+        const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction,
             maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
         });
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction,
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
@@ -230,7 +232,7 @@ export const login= asyncHandler(
 export const resetPasswordNonTeachingStaffController = asyncHandler(
     async(req:Request, res:Response) => {
         const {email,oldPassword,newPassword}:ResetPasswordInput = req.body;
-        const {success,message,errors} = await resetPasswordService({email,oldPassword,newPassword,type:ResetPasswordType.NON_TEACHING_STAFF});
+        const {success,message} = await resetPasswordService({oldPassword,newPassword,type:ResetPasswordType.NON_TEACHING_STAFF, email});
         if(!success){
             throw new AppError(message, 400);
         }
@@ -284,8 +286,8 @@ export const addCourseNonTeachingStaffController = asyncHandler(
                 ]
             }
         })
-        const existingCourseName = new Set(existingCourses.map(course => course.name));
-        const existingCourseShortName = new Set(existingCourses.map(course => course.shortName));
+        const existingCourseName = new Set(existingCourses.map((course: { name: string; }) => course.name));
+        const existingCourseShortName = new Set(existingCourses.map((course: { shortName: string; }) => course.shortName));
         const validCourses: typeof courseArrray = [];
         const errors:{
             index:number;
@@ -372,8 +374,8 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
             throw new AppError("You are not authorized to add departments as you are not a registrar", 403);
         }
         //now we will check is the departments already exist or not 
-        const deptname = deapartmentsArray.map(dep => dep.name);
-        const deptshortName = deapartmentsArray.map(dep => dep.shortName);
+        const deptname = deapartmentsArray.map((dep) => dep.name);
+        const deptshortName = deapartmentsArray.map((dep) => dep.shortName);
         const existingDepartments = await prisma.department.findMany({
             where:{
                 OR:[
@@ -468,7 +470,7 @@ export const regenerateAccessTokenNonTeachingStaff = asyncHandler(
         })
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: process?.env?.NODE_ENV === "production",
             maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
         });
         return res.status(200).json({
@@ -514,7 +516,7 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
             })
         }
 
-        //let us craete the session token 
+        //let us create the session token 
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`non-teaching-staff-auth-${email}`, 10 * 60, sessionToken);//10 minutes
         const kafkaProducer = KafkaProducer.getInstance();

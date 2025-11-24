@@ -65,19 +65,6 @@ model Hod {
   college     College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 }
 
-model NonTeachingStaff {
-  id        String   @id @default(cuid())
-  collegeId String
-  name      String   @db.VarChar(255)
-  email     String   @unique @db.VarChar(255)
-  password  String   @db.VarChar(255)
-  role      UserRole @default(studentsection)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  phone     String   @unique @db.VarChar(20)
-  college   College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
-}
-
 model Department {
   id        String    @id @default(cuid())
   name      String    @db.VarChar(255)
@@ -91,6 +78,19 @@ model Department {
   students  Student[]
   teachers  Teacher[]
   sections  Section[]
+}
+
+model NonTeachingStaff {
+  id        String   @id @default(cuid())
+  collegeId String
+  name      String   @db.VarChar(255)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  role      UserRole @default(studentsection)
+  phone     String   @unique @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  college   College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
 }
 
 model Student {

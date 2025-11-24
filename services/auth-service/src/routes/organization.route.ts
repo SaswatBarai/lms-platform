@@ -89,9 +89,6 @@ router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.ref
 
 
 
-6
-// Protected test route to verify authentication plugin
-
 
 
 // Hod Routes
