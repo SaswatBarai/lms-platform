@@ -1,5 +1,6 @@
 import { NotificationConsumer } from "./messaging/consumer.js";
 import env from "./config/env.js";
+import app from "./app.js";
 
 async function startNotificationService() {
   try {
@@ -10,10 +11,18 @@ async function startNotificationService() {
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
+    // Start the HTTP server for health checks
+    const PORT = env.PORT || 4002;
+    const server = app.listen(PORT, () => {
+      console.log(`[NotificationService] HTTP server running on port ${PORT}`);
+    });
+
     // Start the Kafka consumer
     await NotificationConsumer.start();
 
     console.log("[NotificationService] ✅ Service started successfully");
+
+    return server;
 
   } catch (error) {
     console.error("[NotificationService] ❌ Failed to start service:", error);

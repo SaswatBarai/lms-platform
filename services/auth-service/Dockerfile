@@ -13,7 +13,8 @@ RUN pnpm install --frozen-lockfile
 # -----------------------------
 FROM base AS build
 COPY . .
-# Skip database generation during build - we'll do it at runtime
+# Generate Prisma client during build
+RUN pnpm db:generate
 RUN pnpm run build
 
 
@@ -29,4 +30,4 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY prisma ./prisma
 EXPOSE 4001
-CMD [ "sh", "-c", "pnpm db:generate && npx prisma migrate deploy && pnpm start" ]
+CMD [ "sh", "-c", "npx prisma migrate deploy && pnpm start" ]
