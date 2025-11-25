@@ -9,14 +9,10 @@ import * as crypto from "node:crypto";
 import redisClient from "@config/redis.js";
 import process from "node:process";
 
-// ==================== CONFIGURATION ====================
 const MAX_SECTION_CAPACITY = 70;
 const MIN_STUDENTS_PER_SECTION = 5;
-const MAX_BATCH_SIZE = 500; // Maximum students per API call
+const MAX_BATCH_SIZE = 500;
 
-// ==================== HELPER FUNCTIONS ====================
-
-// Helper function to generate unique alphanumeric registration number
 function generateRegNo(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const length = Math.random() < 0.5 ? 7 : 8;
@@ -29,29 +25,23 @@ function generateRegNo(): string {
     return regNo;
 }
 
-// Helper function to generate random password
 function generateRandomPassword(): string {
     return crypto.randomBytes(8).toString("hex");
 }
 
-// Helper function to generate meaningful section codes
-// Format: DEPT-BATCH-XXX (e.g., CSE-2024-A1B)
 function generateSectionCode(deptShortName: string, batchYear: string, sectionNumber: number): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let suffix = "";
     
-    // Generate 3 random characters
     for (let i = 0; i < 3; i++) {
         suffix += chars[Math.floor(Math.random() * chars.length)];
     }
     
-    // Extract year (e.g., "2024-2028" -> "24")
     const year = batchYear.split("-")[0]?.slice(-2) || "XX";
     
     return `${deptShortName.toUpperCase()}-${year}-S${sectionNumber}${suffix}`;
 }
 
-// Interface for validation errors
 interface ValidationError {
     index: number;
     field: string;
@@ -59,7 +49,6 @@ interface ValidationError {
     message: string;
 }
 
-// Interface for student input
 interface StudentInput {
     name: string;
     email: string;
@@ -67,7 +56,6 @@ interface StudentInput {
     gender: "MALE" | "FEMALE" | "OTHER";
 }
 
-// Interface for section tracking
 interface SectionTrack {
     id: string;
     sectionNo: string;
@@ -87,19 +75,17 @@ export const createStudentBulkController = asyncHandler(
             students: StudentInput[],
             batchId: string,
             departmentId: string,
-            dryRun?: boolean  // Preview mode - don't actually create, just show what would happen
+            dryRun?: boolean
         } = req.body;
 
         const staffCollegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
         const userId = req.nonTeachingStaff.id;
 
-        // Validate batch size
         if (students.length > MAX_BATCH_SIZE) {
             throw new AppError(`Cannot create more than ${MAX_BATCH_SIZE} students at once. Please split into smaller batches.`, 400);
         }
 
-        // Check if staff is part of the college
         const staff = await prisma.nonTeachingStaff.findUnique({
             where:{
                 id:userId
@@ -122,12 +108,10 @@ export const createStudentBulkController = asyncHandler(
             throw new AppError("Staff is not part of the college", 403);
         }
 
-        // Check if staff has student section role
         if(role !== NonTeachingStaffRole.STUDENT_SECTION){
             throw new AppError("You are not authorized to create students. Only student section staff can create students.", 403);
         }
 
-        // Validate that the batch exists and belongs to the college
         const batch = await prisma.batch.findUnique({
             where:{
                 id: batchId
@@ -154,7 +138,6 @@ export const createStudentBulkController = asyncHandler(
             throw new AppError("Batch does not belong to your college", 403);
         }
 
-        // Validate that the department exists and belongs to the college
         const department = await prisma.department.findUnique({
             where:{
                 id: departmentId
@@ -177,7 +160,6 @@ export const createStudentBulkController = asyncHandler(
             throw new AppError("Department does not belong to your college", 403);
         }
 
-        // Get all existing sections for this batch and department (with gender info)
         let availableSections = await prisma.section.findMany({
             where:{
                 batchId: batchId,
@@ -187,13 +169,12 @@ export const createStudentBulkController = asyncHandler(
                 students: {
                     select: {
                         id: true,
-                        gender: true  // Include gender for better ratio calculation
+                        gender: true
                     }
                 }
             }
         });
 
-        // Calculate total available capacity in existing sections
         const existingCapacity = availableSections.reduce((total, section) => {
             const usedCapacity = section.students.length;
             return total + (MAX_SECTION_CAPACITY - usedCapacity);
@@ -202,7 +183,6 @@ export const createStudentBulkController = asyncHandler(
         const totalStudentsToAdd = students.length;
         const additionalCapacityNeeded = totalStudentsToAdd - existingCapacity;
 
-        // Calculate how many new sections we need to create
         let sectionsCreated = 0;
         const sectionsToCreateData: Array<{batchId: string; departmentId: string; sectionNo: string; capacity: number}> = [];
         
@@ -210,7 +190,6 @@ export const createStudentBulkController = asyncHandler(
             const sectionsNeeded = Math.ceil(additionalCapacityNeeded / MAX_SECTION_CAPACITY);
             const generatedCodes = new Set<string>();
             
-            // Get existing section codes to avoid duplicates
             const existingSectionCodes = new Set(availableSections.map(s => s.sectionNo));
             const existingSectionCount = availableSections.length;
             
@@ -238,14 +217,12 @@ export const createStudentBulkController = asyncHandler(
                 });
             }
 
-            // Only create sections if not in dry run mode
             if (!dryRun && sectionsToCreateData.length > 0) {
                 await prisma.section.createMany({
                     data: sectionsToCreateData
                 });
                 sectionsCreated = sectionsToCreateData.length;
 
-                // Refresh available sections list to include newly created ones
                 availableSections = await prisma.section.findMany({
                     where:{
                         batchId: batchId,
@@ -261,18 +238,14 @@ export const createStudentBulkController = asyncHandler(
                     }
                 });
             } else if (dryRun) {
-                // In dry run, simulate the sections for allocation preview
                 sectionsCreated = sectionsToCreateData.length;
             }
         }
 
-        // If still no sections (shouldn't happen but safety check)
         if(availableSections.length === 0){
             throw new AppError("Failed to create sections. Please try again.", 500);
         }
 
-        // ==================== VALIDATION ====================
-        // Check for duplicate emails AND phone numbers
         const emails = students.map(s => s.email);
         const phones = students.map(s => s.phone);
 
@@ -290,7 +263,6 @@ export const createStudentBulkController = asyncHandler(
         const existingEmails = new Set(existingByEmail.map(s => s.email));
         const existingPhones = new Set(existingByPhone.map(s => s.phone));
 
-        // Also check for duplicates within the input array itself
         const seenEmails = new Set<string>();
         const seenPhones = new Set<string>();
         const validationErrors: ValidationError[] = [];
@@ -299,7 +271,6 @@ export const createStudentBulkController = asyncHandler(
         students.forEach((student, index) => {
             let hasError = false;
 
-            // Check email duplicates in database
             if (existingEmails.has(student.email)) {
                 validationErrors.push({
                     index,
@@ -309,7 +280,6 @@ export const createStudentBulkController = asyncHandler(
                 });
                 hasError = true;
             }
-            // Check email duplicates in input
             else if (seenEmails.has(student.email)) {
                 validationErrors.push({
                     index,
@@ -320,7 +290,6 @@ export const createStudentBulkController = asyncHandler(
                 hasError = true;
             }
 
-            // Check phone duplicates in database
             if (existingPhones.has(student.phone)) {
                 validationErrors.push({
                     index,
@@ -330,7 +299,6 @@ export const createStudentBulkController = asyncHandler(
                 });
                 hasError = true;
             }
-            // Check phone duplicates in input
             else if (seenPhones.has(student.phone)) {
                 validationErrors.push({
                     index,
@@ -348,7 +316,6 @@ export const createStudentBulkController = asyncHandler(
             }
         });
 
-        // Return detailed validation errors if any
         if (validationErrors.length > 0) {
             return res.status(400).json({
                 success: false,
@@ -364,7 +331,6 @@ export const createStudentBulkController = asyncHandler(
             throw new AppError("No valid students to create after validation", 400);
         }
 
-        // Get all existing registration numbers to avoid duplicates
         const existingRegNos = await prisma.student.findMany({
             select: {
                 regNo: true
@@ -372,14 +338,11 @@ export const createStudentBulkController = asyncHandler(
         });
         const existingRegNoSet = new Set(existingRegNos.map(s => s.regNo));
 
-        // Step 1: Divide students into male and female groups
         const maleStudents = validStudents.filter(s => s.gender === "MALE");
         const femaleStudents = validStudents.filter(s => s.gender === "FEMALE");
         const otherStudents = validStudents.filter(s => s.gender === "OTHER");
 
-        // Prepare section tracking with current capacity and EXISTING gender counts
         const sectionTracking: SectionTrack[] = availableSections.map(section => {
-            // Count existing students by gender
             const existingMale = section.students.filter(s => s.gender === "MALE").length;
             const existingFemale = section.students.filter(s => s.gender === "FEMALE").length;
             const existingOther = section.students.filter(s => s.gender === "OTHER").length;
@@ -398,7 +361,6 @@ export const createStudentBulkController = asyncHandler(
             };
         });
 
-        // For dry run with new sections, add simulated sections to tracking
         if (dryRun && sectionsToCreateData.length > 0) {
             sectionsToCreateData.forEach((sectionData, index) => {
                 sectionTracking.push({
@@ -416,19 +378,15 @@ export const createStudentBulkController = asyncHandler(
             });
         }
 
-        // Helper function to find best section for a student based on gender ratio
-        // Considers BOTH existing students AND newly allocated students
         function findBestSection(gender: "MALE" | "FEMALE" | "OTHER"): SectionTrack | null {
             const sortedSections = [...sectionTracking].sort((a, b) => {
                 const aAvailable = a.maxCapacity - a.currentCount;
                 const bAvailable = b.maxCapacity - b.currentCount;
                 
-                // Prioritize sections with more available capacity
                 if (aAvailable !== bAvailable) {
                     return bAvailable - aAvailable;
                 }
                 
-                // Calculate total gender counts (existing + new)
                 const aTotalMale = a.existingMaleCount + a.newMaleCount;
                 const aTotalFemale = a.existingFemaleCount + a.newFemaleCount;
                 const aTotalOther = a.existingOtherCount + a.newOtherCount;
@@ -437,7 +395,6 @@ export const createStudentBulkController = asyncHandler(
                 const bTotalFemale = b.existingFemaleCount + b.newFemaleCount;
                 const bTotalOther = b.existingOtherCount + b.newOtherCount;
                 
-                // Then prioritize gender balance (prefer sections with fewer of this gender)
                 if (gender === "MALE") {
                     return aTotalMale - bTotalMale;
                 } else if (gender === "FEMALE") {
@@ -447,12 +404,9 @@ export const createStudentBulkController = asyncHandler(
                 }
             });
 
-            // Find first section with available capacity
             return sortedSections.find(s => s.currentCount < s.maxCapacity) || null;
         }
 
-        // Step 2 & 3: Allocate students maintaining good gender ratio
-        // Allocate male and female students alternately to maintain balance
         const studentsToCreate: Array<{
             name: string;
             email: string;
@@ -478,9 +432,7 @@ export const createStudentBulkController = asyncHandler(
         let femaleIndex = 0;
         let otherIndex = 0;
 
-        // Allocate students maintaining gender balance
         while (maleIndex < maleStudents.length || femaleIndex < femaleStudents.length || otherIndex < otherStudents.length) {
-            // Alternate between male and female for better ratio
             if (maleIndex < maleStudents.length) {
                 const student = maleStudents[maleIndex];
                 if (!student) continue;
@@ -490,7 +442,6 @@ export const createStudentBulkController = asyncHandler(
                     throw new AppError("No available capacity in sections. All sections are full (max capacity: 70).", 400);
                 }
 
-                // Generate unique registration number
                 let regNo: string;
                 let regNoAttempts = 0;
                 const maxRegNoAttempts = 1000;
@@ -543,7 +494,6 @@ export const createStudentBulkController = asyncHandler(
                     throw new AppError("No available capacity in sections. All sections are full (max capacity: 70).", 400);
                 }
 
-                // Generate unique registration number
                 let regNo: string;
                 let regNoAttempts = 0;
                 const maxRegNoAttempts = 1000;
@@ -587,7 +537,6 @@ export const createStudentBulkController = asyncHandler(
                 femaleIndex++;
             }
 
-            // Allocate OTHER gender students
             if (otherIndex < otherStudents.length) {
                 const student = otherStudents[otherIndex];
                 if (!student) continue;
@@ -597,7 +546,6 @@ export const createStudentBulkController = asyncHandler(
                     throw new AppError("No available capacity in sections. All sections are full (max capacity: 70).", 400);
                 }
 
-                // Generate unique registration number
                 let regNo: string;
                 let regNoAttempts = 0;
                 const maxRegNoAttempts = 1000;
@@ -642,14 +590,12 @@ export const createStudentBulkController = asyncHandler(
             }
         }
 
-        // Step 4 & 5: Check for sections with irregular/low student count and reallocate
         const sectionsToReallocate: Array<{
             sectionId: string;
             students: typeof studentsToCreate;
             originalSection: SectionTrack;
         }> = [];
 
-        // Find sections with too few total students (existing + newly allocated)
         sectionTracking.forEach(section => {
             const totalNewStudents = section.newMaleCount + section.newFemaleCount + section.newOtherCount;
             const totalExisting = section.existingMaleCount + section.existingFemaleCount + section.existingOtherCount;
@@ -657,7 +603,6 @@ export const createStudentBulkController = asyncHandler(
             
             const newStudentsInSection = studentsToCreate.filter(s => s.sectionId === section.id);
             
-            // If total students is less than minimum threshold and we have new students to reallocate
             if (totalStudents < MIN_STUDENTS_PER_SECTION && newStudentsInSection.length > 0) {
                 sectionsToReallocate.push({
                     sectionId: section.id,
@@ -667,29 +612,24 @@ export const createStudentBulkController = asyncHandler(
             }
         });
 
-        // Reallocate students from sections with too few students
         for (const reallocation of sectionsToReallocate) {
             const section = reallocation.originalSection;
 
             for (const student of reallocation.students) {
-                // Find a better section for this student (prefer sections with more capacity)
                 const newSection = findBestSection(student.gender as "MALE" | "FEMALE" | "OTHER");
                 
                 if (newSection && newSection.id !== section.id && newSection.currentCount < newSection.maxCapacity) {
-                    // Update student's section
                     const studentIndex = studentsToCreate.findIndex(s => 
                         s.email === student.email && s.sectionId === section.id
                     );
                     
                     if (studentIndex !== -1 && studentsToCreate[studentIndex]) {
                         const studentToMove = studentsToCreate[studentIndex];
-                        // Remove from old section
                         section.currentCount--;
                         if (studentToMove.gender === "MALE") section.newMaleCount--;
                         else if (studentToMove.gender === "FEMALE") section.newFemaleCount--;
                         else section.newOtherCount--;
 
-                        // Add to new section
                         studentToMove.sectionId = newSection.id;
                         newSection.currentCount++;
                         if (studentToMove.gender === "MALE") newSection.newMaleCount++;
@@ -700,7 +640,6 @@ export const createStudentBulkController = asyncHandler(
             }
         }
 
-        // Build section summary with gender distribution (for both dry run and actual)
         const sectionSummary = sectionTracking
             .filter(s => s.newMaleCount > 0 || s.newFemaleCount > 0 || s.newOtherCount > 0)
             .map(s => ({
@@ -729,7 +668,6 @@ export const createStudentBulkController = asyncHandler(
                 availableCapacity: s.maxCapacity - s.currentCount
             }));
 
-        // If dry run, return preview without creating anything
         if (dryRun) {
             return res.status(200).json({
                 success: true,
@@ -756,9 +694,7 @@ export const createStudentBulkController = asyncHandler(
             });
         }
 
-        // ==================== ACTUAL CREATION (with transaction) ====================
         const createdStudents = await prisma.$transaction(async (tx) => {
-            // Create all students
             const result = await tx.student.createMany({
                 data: studentsToCreate,
                 skipDuplicates: false
@@ -771,11 +707,9 @@ export const createStudentBulkController = asyncHandler(
             return result;
         });
 
-        // Send welcome emails via Kafka (outside transaction - emails are async)
         const kafkaProducer = KafkaProducer.getInstance();
         const loginUrl = "http://localhost:8000/auth/api/login-student";
 
-        // Send emails in parallel for better performance
         await Promise.all(emailData.map(data => 
             kafkaProducer.sendStudentWelcomeEmail(
                 data.email,
@@ -814,12 +748,10 @@ export const createStudentBulkController = asyncHandler(
 )
 
 
-// ==================== STUDENT LOGIN ====================
 export const loginStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { identifier, password }: { identifier: string; password: string } = req.body;
 
-        // Find student by email or regNo
         const student = await prisma.student.findFirst({
             where: {
                 OR: [
@@ -852,20 +784,17 @@ export const loginStudentController = asyncHandler(
             throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
         }
 
-        // Verify password
         const isPasswordValid = await verifyPassword(student.password, password);
         if (!isPasswordValid) {
             throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
         }
 
-        // Single device login - invalidate existing session
         const sessionKey = `activeSession:student:${student.id}`;
         const existingSessionId = await redisClient.hget(sessionKey, 'sessionId');
         if (existingSessionId) {
             await redisClient.hdel(sessionKey, 'sessionId');
         }
 
-        // Generate new session
         const accessSessionId = crypto.randomBytes(16).toString('hex');
 
         const tokenPayload = {
@@ -883,7 +812,6 @@ export const loginStudentController = asyncHandler(
             sessionId: accessSessionId
         };
 
-        // Store session in Redis
         await redisClient.hset(sessionKey, {
             sessionId: accessSessionId,
             studentId: student.id,
@@ -891,25 +819,23 @@ export const loginStudentController = asyncHandler(
             collegeId: student.department.collegeId,
             active: 'true',
         });
-        await redisClient.expire(sessionKey, 1 * 24 * 60 * 60); // 1 day
+        await redisClient.expire(sessionKey, 1 * 24 * 60 * 60);
 
-        // Generate tokens
         const securityManager = PasetoV4SecurityManager.getInstance();
         const accessToken = await securityManager.generateAccessToken(tokenPayload);
         const refreshSessionId = crypto.randomBytes(16).toString('hex');
         const refreshToken = await securityManager.generateRefreshToken(student.id, refreshSessionId);
 
-        // Set cookies
         const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
             secure: isProduction,
-            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+            maxAge: 1 * 24 * 60 * 60 * 1000
         });
         res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: isProduction,
-            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+            maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
         return res.status(200).json({
@@ -934,7 +860,6 @@ export const loginStudentController = asyncHandler(
 );
 
 
-// ==================== STUDENT LOGOUT ====================
 export const logoutStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { id } = req.student;
@@ -943,11 +868,9 @@ export const logoutStudentController = asyncHandler(
             throw new AppError("Student not found", 404);
         }
 
-        // Clear session from Redis
         const sessionKey = `activeSession:student:${id}`;
         await redisClient.hdel(sessionKey, 'sessionId');
 
-        // Clear cookies
         res.clearCookie("accessToken");
         res.clearCookie("refreshToken");
 
@@ -959,7 +882,6 @@ export const logoutStudentController = asyncHandler(
 );
 
 
-// ==================== REGENERATE ACCESS TOKEN ====================
 export const regenerateAccessTokenStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { id } = req.student;
@@ -1010,7 +932,7 @@ export const regenerateAccessTokenStudentController = asyncHandler(
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
             secure: process?.env?.NODE_ENV === "production",
-            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+            maxAge: 1 * 24 * 60 * 60 * 1000
         });
 
         return res.status(200).json({
@@ -1024,7 +946,6 @@ export const regenerateAccessTokenStudentController = asyncHandler(
 );
 
 
-// ==================== RESET PASSWORD (AFTER LOGIN) ====================
 export const resetPasswordStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { oldPassword, newPassword }: { oldPassword: string; newPassword: string } = req.body;
@@ -1038,13 +959,11 @@ export const resetPasswordStudentController = asyncHandler(
             throw new AppError("Student not found", 404);
         }
 
-        // Verify old password
         const isPasswordValid = await verifyPassword(student.password, oldPassword);
         if (!isPasswordValid) {
             throw new AppError("Current password is incorrect", 400);
         }
 
-        // Hash and update new password
         const hashedPassword = await hashPassword(newPassword);
         await prisma.student.update({
             where: { id },
@@ -1059,7 +978,6 @@ export const resetPasswordStudentController = asyncHandler(
 );
 
 
-// ==================== FORGOT PASSWORD (Before Login) ====================
 export const forgotPasswordStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { identifier }: { identifier: string } = req.body;
@@ -1068,10 +986,8 @@ export const forgotPasswordStudentController = asyncHandler(
             throw new AppError("Email or Registration Number is required", 400);
         }
 
-        // Check if it's an email or regNo
         const isEmail = identifier.includes('@');
         
-        // Find student by email or regNo
         const student = await prisma.student.findFirst({
             where: isEmail 
                 ? { email: identifier.toLowerCase() }
@@ -1090,27 +1006,22 @@ export const forgotPasswordStudentController = asyncHandler(
         });
 
         if (!student) {
-            // For security, don't reveal if user exists or not
             return res.status(200).json({
                 success: true,
                 message: "If an account with that email/registration number exists, a password reset link has been sent."
             });
         }
 
-        // Check if there's already a pending reset request
         const redisKey = `student-forgot-password-${student.email}`;
         const existingToken = await redisClient.exists(redisKey);
         if (existingToken) {
             throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
         }
 
-        // Generate session token
         const sessionToken = crypto.randomBytes(32).toString("hex");
         
-        // Store in Redis with 10 minute expiry
         await redisClient.setex(redisKey, 10 * 60, sessionToken);
 
-        // Send forgot password email via Kafka
         const kafkaProducer = KafkaProducer.getInstance();
         const isPublished = await kafkaProducer.sendStudentForgotPassword(
             student.email,
@@ -1122,7 +1033,6 @@ export const forgotPasswordStudentController = asyncHandler(
         );
 
         if (!isPublished) {
-            // Clean up Redis if email fails
             await redisClient.del(redisKey);
             throw new AppError("Failed to send password reset email. Please try again later.", 500);
         }
@@ -1131,14 +1041,13 @@ export const forgotPasswordStudentController = asyncHandler(
             success: true,
             message: "If an account with that email/registration number exists, a password reset link has been sent.",
             data: {
-                email: student.email.replace(/(.{2})(.*)(@.*)/, "$1***$3") // Mask email for security
+                email: student.email.replace(/(.{2})(.*)(@.*)/, "$1***$3")
             }
         });
     }
 );
 
 
-// ==================== RESET FORGOT PASSWORD (Token-based) ====================
 export const resetForgotPasswordStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { email, password, token }: { email: string; password: string; token: string } = req.body;
@@ -1155,7 +1064,6 @@ export const resetForgotPasswordStudentController = asyncHandler(
             throw new AppError("Invalid reset token", 400);
         }
 
-        // Verify token from Redis
         const redisKey = `student-forgot-password-${email.toLowerCase()}`;
         const storedToken = await redisClient.get(redisKey);
 
@@ -1167,7 +1075,6 @@ export const resetForgotPasswordStudentController = asyncHandler(
             throw new AppError("Invalid reset token", 400);
         }
 
-        // Find student
         const student = await prisma.student.findUnique({
             where: { email: email.toLowerCase() }
         });
@@ -1176,17 +1083,14 @@ export const resetForgotPasswordStudentController = asyncHandler(
             throw new AppError("Student not found", 404);
         }
 
-        // Delete the token from Redis
         await redisClient.del(redisKey);
 
-        // Hash and update the new password
         const hashedPassword = await hashPassword(password);
         await prisma.student.update({
             where: { id: student.id },
             data: { password: hashedPassword }
         });
 
-        // Invalidate any existing sessions
         const sessionKey = `activeSession:student:${student.id}`;
         await redisClient.del(sessionKey);
 
