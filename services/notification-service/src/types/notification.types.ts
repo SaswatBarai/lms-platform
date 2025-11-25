@@ -14,7 +14,8 @@ export enum NotificationType {
   COLLEGE_FORGOT_PASSWORD = "college-forgot-password",
   ORG_FORGOT_PASSWORD = "org-forgot-password",
   NON_TEACHING_STAFF_FORGOT_PASSWORD = "non-teaching-staff-forgot-password",
-  HOD_FORGOT_PASSWORD = "hod-forgot-password"
+  HOD_FORGOT_PASSWORD = "hod-forgot-password",
+  STUDENT_FORGOT_PASSWORD = "student-forgot-password"
 }
 export enum NotificationSubType {
   CREATE_ACCOUNT = "create-account"
@@ -68,5 +69,14 @@ export interface StudentWelcomeEmailData {
 export interface ForgotPasswordData {
   email: string;
   sessionToken: string;
+}
+
+export interface StudentForgotPasswordData {
+  email: string;
+  sessionToken: string;
+  name: string;
+  regNo: string;
+  collegeName: string;
+  departmentName: string;
 }
 

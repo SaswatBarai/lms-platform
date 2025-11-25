@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate } from "../templates/index.js";
-import { ForgotPasswordData } from "../types/notification.types.js";
+import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate } from "../templates/index.js";
+import { ForgotPasswordData, StudentForgotPasswordData } from "../types/notification.types.js";
 
 interface ExtendedForgotPasswordData extends ForgotPasswordData {
   collegeName?: string;
@@ -130,6 +130,43 @@ export class PasswordResetHandler {
     return false;
   }
 
-  
+  /**
+   * Handle password reset email for student
+   */
+  public static async handleStudentPasswordReset(data: StudentForgotPasswordData): Promise<boolean> {
+    const { email, sessionToken, name, regNo, collegeName, departmentName } = data;
+
+    if (!email || !sessionToken || !name || !regNo || !collegeName || !departmentName) {
+      console.error("[PasswordResetHandler] Missing required fields for student password reset");
+      return false;
+    }
+
+    console.log(`[PasswordResetHandler] Processing student password reset for ${email} (${regNo})`);
+
+    const resetUrl = "http://localhost:8000/auth/api/forgot-reset-password-student";
+    const html = studentPasswordResetEmailTemplate(
+      email,
+      name,
+      regNo,
+      sessionToken,
+      collegeName,
+      departmentName,
+      resetUrl
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Password Reset Request - ${collegeName} Student Portal`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[PasswordResetHandler] ✅ Student password reset email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[PasswordResetHandler] ❌ Failed to send student password reset email to ${email}`);
+    return false;
+  }
 }
 

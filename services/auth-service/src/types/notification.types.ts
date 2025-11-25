@@ -14,7 +14,8 @@ export enum NotificationType {
   COLLEGE_FORGOT_PASSWORD = "college-forgot-password",
   ORG_FORGOT_PASSWORD = "org-forgot-password",
   NON_TEACHING_STAFF_FORGOT_PASSWORD = "non-teaching-staff-forgot-password",
-  HOD_FORGOT_PASSWORD = "hod-forgot-password"
+  HOD_FORGOT_PASSWORD = "hod-forgot-password",
+  STUDENT_FORGOT_PASSWORD = "student-forgot-password"
 }
 
 export enum NotificationSubType {

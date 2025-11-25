@@ -29,6 +29,10 @@ services:
           - "/auth/api/login-hod"
           - "/auth/api/forgot-password-hod"
           - "/auth/api/forgot-reset-password-hod"
+          - "/auth/api/login-student"
+          - "/auth/api/regenerate-access-token-student"
+          - "/auth/api/forgot-password-student"
+          - "/auth/api/forgot-reset-password-student"
         strip_path: false
 
       - name: auth-service-routes-protected
@@ -50,6 +54,8 @@ services:
           - "/auth/api/logout-hod"
           - "/auth/api/regenerate-access-token-hod"
           - "/auth/api/reset-password-hod"
+          - "/auth/api/logout-student"
+          - "/auth/api/reset-password-student"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua

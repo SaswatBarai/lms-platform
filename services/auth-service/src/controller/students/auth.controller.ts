@@ -1,11 +1,13 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "@utils/asyncHandler.js";
 import { prisma } from "@lib/prisma.js";
-import { hashPassword } from "@utils/security.js";
+import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
 import { AppError } from "@utils/AppError.js";
 import { NonTeachingStaffRole } from "../../types/organization.js";
 import * as crypto from "node:crypto";
+import redisClient from "@config/redis.js";
+import process from "node:process";
 
 // ==================== CONFIGURATION ====================
 const MAX_SECTION_CAPACITY = 70;
@@ -810,3 +812,390 @@ export const createStudentBulkController = asyncHandler(
         });
     }
 )
+
+
+// ==================== STUDENT LOGIN ====================
+export const loginStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { identifier, password }: { identifier: string; password: string } = req.body;
+
+        // Find student by email or regNo
+        const student = await prisma.student.findFirst({
+            where: {
+                OR: [
+                    { email: identifier.toLowerCase() },
+                    { regNo: identifier.toUpperCase() }
+                ]
+            },
+            include: {
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                name: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                },
+                batch: {
+                    include: {
+                        course: true
+                    }
+                },
+                section: true
+            }
+        });
+
+        if (!student) {
+            throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
+        }
+
+        // Verify password
+        const isPasswordValid = await verifyPassword(student.password, password);
+        if (!isPasswordValid) {
+            throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
+        }
+
+        // Single device login - invalidate existing session
+        const sessionKey = `activeSession:student:${student.id}`;
+        const existingSessionId = await redisClient.hget(sessionKey, 'sessionId');
+        if (existingSessionId) {
+            await redisClient.hdel(sessionKey, 'sessionId');
+        }
+
+        // Generate new session
+        const accessSessionId = crypto.randomBytes(16).toString('hex');
+
+        const tokenPayload = {
+            id: student.id,
+            email: student.email,
+            name: student.name,
+            regNo: student.regNo,
+            role: "student",
+            type: "student",
+            departmentId: student.departmentId,
+            batchId: student.batchId,
+            sectionId: student.sectionId,
+            collegeId: student.department.collegeId,
+            organizationId: student.department.college.organizationId,
+            sessionId: accessSessionId
+        };
+
+        // Store session in Redis
+        await redisClient.hset(sessionKey, {
+            sessionId: accessSessionId,
+            studentId: student.id,
+            organizationId: student.department.college.organizationId,
+            collegeId: student.department.collegeId,
+            active: 'true',
+        });
+        await redisClient.expire(sessionKey, 1 * 24 * 60 * 60); // 1 day
+
+        // Generate tokens
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const accessToken = await securityManager.generateAccessToken(tokenPayload);
+        const refreshSessionId = crypto.randomBytes(16).toString('hex');
+        const refreshToken = await securityManager.generateRefreshToken(student.id, refreshSessionId);
+
+        // Set cookies
+        const isProduction = process?.env?.NODE_ENV === "production";
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Login successful",
+            data: {
+                accessToken,
+                student: {
+                    id: student.id,
+                    name: student.name,
+                    email: student.email,
+                    regNo: student.regNo,
+                    department: student.department.name,
+                    batch: student.batch.batchYear,
+                    course: student.batch.course.shortName,
+                    section: student.section.sectionNo,
+                    college: student.department.college.name
+                }
+            }
+        });
+    }
+);
+
+
+// ==================== STUDENT LOGOUT ====================
+export const logoutStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { id } = req.student;
+
+        if (!id) {
+            throw new AppError("Student not found", 404);
+        }
+
+        // Clear session from Redis
+        const sessionKey = `activeSession:student:${id}`;
+        await redisClient.hdel(sessionKey, 'sessionId');
+
+        // Clear cookies
+        res.clearCookie("accessToken");
+        res.clearCookie("refreshToken");
+
+        return res.status(200).json({
+            success: true,
+            message: "Logout successful"
+        });
+    }
+);
+
+
+// ==================== REGENERATE ACCESS TOKEN ====================
+export const regenerateAccessTokenStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { id } = req.student;
+
+        const sessionKey = `activeSession:student:${id}`;
+        const sessionId = await redisClient.hget(sessionKey, 'sessionId');
+        
+        if (!sessionId) {
+            throw new AppError("Session not found. Please login again.", 404);
+        }
+
+        const student = await prisma.student.findUnique({
+            where: { id },
+            include: {
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!student) {
+            throw new AppError("Student not found", 404);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const accessToken = await securityManager.generateAccessToken({
+            id: student.id,
+            email: student.email,
+            name: student.name,
+            regNo: student.regNo,
+            role: "student",
+            type: "student",
+            departmentId: student.departmentId,
+            batchId: student.batchId,
+            sectionId: student.sectionId,
+            collegeId: student.department.collegeId,
+            organizationId: student.department.college.organizationId,
+            sessionId: sessionId
+        });
+
+        res.cookie("accessToken", accessToken, {
+            httpOnly: true,
+            secure: process?.env?.NODE_ENV === "production",
+            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Access token regenerated successfully",
+            data: {
+                accessToken
+            }
+        });
+    }
+);
+
+
+// ==================== RESET PASSWORD (AFTER LOGIN) ====================
+export const resetPasswordStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { oldPassword, newPassword }: { oldPassword: string; newPassword: string } = req.body;
+        const { id } = req.student;
+
+        const student = await prisma.student.findUnique({
+            where: { id }
+        });
+
+        if (!student) {
+            throw new AppError("Student not found", 404);
+        }
+
+        // Verify old password
+        const isPasswordValid = await verifyPassword(student.password, oldPassword);
+        if (!isPasswordValid) {
+            throw new AppError("Current password is incorrect", 400);
+        }
+
+        // Hash and update new password
+        const hashedPassword = await hashPassword(newPassword);
+        await prisma.student.update({
+            where: { id },
+            data: { password: hashedPassword }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully. Please login again with your new password."
+        });
+    }
+);
+
+
+// ==================== FORGOT PASSWORD (Before Login) ====================
+export const forgotPasswordStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { identifier }: { identifier: string } = req.body;
+
+        if (!identifier) {
+            throw new AppError("Email or Registration Number is required", 400);
+        }
+
+        // Check if it's an email or regNo
+        const isEmail = identifier.includes('@');
+        
+        // Find student by email or regNo
+        const student = await prisma.student.findFirst({
+            where: isEmail 
+                ? { email: identifier.toLowerCase() }
+                : { regNo: identifier.toUpperCase() },
+            include: {
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!student) {
+            // For security, don't reveal if user exists or not
+            return res.status(200).json({
+                success: true,
+                message: "If an account with that email/registration number exists, a password reset link has been sent."
+            });
+        }
+
+        // Check if there's already a pending reset request
+        const redisKey = `student-forgot-password-${student.email}`;
+        const existingToken = await redisClient.exists(redisKey);
+        if (existingToken) {
+            throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
+        }
+
+        // Generate session token
+        const sessionToken = crypto.randomBytes(32).toString("hex");
+        
+        // Store in Redis with 10 minute expiry
+        await redisClient.setex(redisKey, 10 * 60, sessionToken);
+
+        // Send forgot password email via Kafka
+        const kafkaProducer = KafkaProducer.getInstance();
+        const isPublished = await kafkaProducer.sendStudentForgotPassword(
+            student.email,
+            sessionToken,
+            student.name,
+            student.regNo,
+            student.department.college.name,
+            student.department.name
+        );
+
+        if (!isPublished) {
+            // Clean up Redis if email fails
+            await redisClient.del(redisKey);
+            throw new AppError("Failed to send password reset email. Please try again later.", 500);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "If an account with that email/registration number exists, a password reset link has been sent.",
+            data: {
+                email: student.email.replace(/(.{2})(.*)(@.*)/, "$1***$3") // Mask email for security
+            }
+        });
+    }
+);
+
+
+// ==================== RESET FORGOT PASSWORD (Token-based) ====================
+export const resetForgotPasswordStudentController = asyncHandler(
+    async(req: Request, res: Response) => {
+        const { email, password, token }: { email: string; password: string; token: string } = req.body;
+
+        if (!email || !password || !token) {
+            throw new AppError("Email, password, and token are required", 400);
+        }
+
+        if (!validateEmail(email)) {
+            throw new AppError("Invalid email format", 400);
+        }
+
+        if (token.length !== 64) {
+            throw new AppError("Invalid reset token", 400);
+        }
+
+        // Verify token from Redis
+        const redisKey = `student-forgot-password-${email.toLowerCase()}`;
+        const storedToken = await redisClient.get(redisKey);
+
+        if (!storedToken) {
+            throw new AppError("Reset token has expired or is invalid. Please request a new password reset.", 400);
+        }
+
+        if (storedToken !== token) {
+            throw new AppError("Invalid reset token", 400);
+        }
+
+        // Find student
+        const student = await prisma.student.findUnique({
+            where: { email: email.toLowerCase() }
+        });
+
+        if (!student) {
+            throw new AppError("Student not found", 404);
+        }
+
+        // Delete the token from Redis
+        await redisClient.del(redisKey);
+
+        // Hash and update the new password
+        const hashedPassword = await hashPassword(password);
+        await prisma.student.update({
+            where: { id: student.id },
+            data: { password: hashedPassword }
+        });
+
+        // Invalidate any existing sessions
+        const sessionKey = `activeSession:student:${student.id}`;
+        await redisClient.del(sessionKey);
+
+        return res.status(200).json({
+            success: true,
+            message: "Password has been reset successfully. Please login with your new password.",
+            data: {
+                email: student.email
+            }
+        });
+    }
+);

@@ -213,6 +213,26 @@ export class KafkaProducer {
   }
 
   /**
+   * Send student forgot password email
+   */
+  public async sendStudentForgotPassword(
+    email: string,
+    sessionToken: string,
+    name: string,
+    regNo: string,
+    collegeName: string,
+    departmentName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.FORGOT_PASSWORD,
+      type: NotificationType.STUDENT_FORGOT_PASSWORD,
+      data: { email, sessionToken, name, regNo, collegeName, departmentName }
+    };
+
+    return this.sendMessage("forgot-password-messages", payload);
+  }
+
+  /**
    * Disconnect producer
    */
   public async disconnect(): Promise<void> {

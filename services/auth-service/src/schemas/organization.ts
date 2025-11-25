@@ -418,3 +418,52 @@ export const createStudentBulkSchema = z.object({
         .nonempty({ message: "Department ID is required" }),
     dryRun: z.boolean().optional().default(false)  // Preview mode - see allocation without creating
 })
+
+// Student Login Schema - can login with email OR registration number
+export const loginStudentSchema = z.object({
+    identifier: z.string({ message: "Email or Registration Number is required" })
+        .min(1, { message: "Email or Registration Number is required" })
+        .trim()
+        .nonempty({ message: "Email or Registration Number is required" }),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .trim()
+})
+
+// Student Reset Password Schema (after login)
+export const resetPasswordStudentSchema = z.object({
+    oldPassword: z.string({ message: "Current password is required" })
+        .min(1, { message: "Current password is required" })
+        .trim(),
+    newPassword: z.string({ message: "New password is required" })
+        .min(8, { message: "New password must be at least 8 characters" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" })
+})
+
+// Student Forgot Password Schema (request reset)
+export const forgotPasswordStudentSchema = z.object({
+    identifier: z.string({ message: "Email or Registration Number is required" })
+        .min(1, { message: "Email or Registration Number is required" })
+        .trim()
+        .nonempty({ message: "Email or Registration Number is required" })
+})
+
+// Student Reset Forgot Password Schema (with token)
+export const resetForgotPasswordStudentSchema = z.object({
+    email: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email format" })
+        .toLowerCase()
+        .trim(),
+    password: z.string({ message: "Password is required" })
+        .min(8, { message: "Password must be at least 8 characters" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" }),
+    token: z.string({ message: "Reset token is required" })
+        .length(64, { message: "Invalid reset token" })
+        .trim()
+})

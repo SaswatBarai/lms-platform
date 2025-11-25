@@ -176,7 +176,11 @@ export class NotificationConsumer {
         console.log(`[NotificationConsumer] ✅ HOD password reset email sent successfully`);
         break;
       
-        
+      case NotificationType.STUDENT_FORGOT_PASSWORD:
+        console.log(`[NotificationConsumer] 🎓 Sending student password reset email to: ${data.email} (RegNo: ${data.regNo})`);
+        await PasswordResetHandler.handleStudentPasswordReset(data);
+        console.log(`[NotificationConsumer] ✅ Student password reset email sent successfully`);
+        break;
 
       default:
         console.log(`[NotificationConsumer] ❓ Unknown forgot password type: ${type}`);

@@ -30,7 +30,13 @@ import {
     resetPasswordNonTeachingStaffController
 } from "../controller/nonTeachingStaff/staff.controller.js"
 import {
-    createStudentBulkController
+    createStudentBulkController,
+    loginStudentController,
+    logoutStudentController,
+    regenerateAccessTokenStudentController,
+    resetPasswordStudentController,
+    forgotPasswordStudentController,
+    resetForgotPasswordStudentController
 } from "../controller/students/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
@@ -49,7 +55,10 @@ import {
     createStudentBulkSchema,
     forgotResetPasswordSchema,
     loginHodSchema,
-
+    loginStudentSchema,
+    resetPasswordStudentSchema,
+    forgotPasswordStudentSchema,
+    resetForgotPasswordStudentSchema
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
 import { regenerateAccessTokenHod } from "@controller/hod/auth.controller.js";
@@ -115,8 +124,13 @@ router.post("/reset-password-hod",AuthenticatedUser.checkHod,validate({body:rese
 
 
 //Student Routes
-router.post("/create-student-bulk",AuthenticatedUser.checkNonTeachingStaff,validate({body:createStudentBulkSchema}), createStudentBulkController);
-
+router.post("/create-student-bulk", AuthenticatedUser.checkNonTeachingStaff, validate({body:createStudentBulkSchema}), createStudentBulkController);
+router.post("/login-student", validate({ body: loginStudentSchema }), loginStudentController);
+router.post("/logout-student", AuthenticatedUser.checkStudent, logoutStudentController);
+router.post("/regenerate-access-token-student", AuthenticatedUser.refreshTokenStudent, regenerateAccessTokenStudentController);
+router.post("/reset-password-student", AuthenticatedUser.checkStudent, validate({ body: resetPasswordStudentSchema }), resetPasswordStudentController);
+router.post("/forgot-password-student", validate({ body: forgotPasswordStudentSchema }), forgotPasswordStudentController);
+router.post("/forgot-reset-password-student", validate({ body: resetForgotPasswordStudentSchema }), resetForgotPasswordStudentController);
 
 
 

@@ -204,8 +204,8 @@ function PasetoVaultAuthHandler:access(conf)
 
   kong.log.info("User type detected: " .. tostring(user_type) .. ", User ID: " .. tostring(user_id))
 
-  -- Validate session in Redis (single device login check for organizations, colleges, and non-teaching staff)
-  if user_type == "organization" or user_type == "college" or user_type == "non-teaching-staff" then
+  -- Validate session in Redis (single device login check for organizations, colleges, non-teaching staff, and students)
+  if user_type == "organization" or user_type == "college" or user_type == "non-teaching-staff" or user_type == "student" then
     kong.log.info("Running session validation for " .. user_type)
     local session_ok, session_err = self:validate_session_in_redis(conf, user_id, session_id, user_type, claims)
     if not session_ok then
@@ -238,16 +238,34 @@ function PasetoVaultAuthHandler:access(conf)
   local organization_id = claims.organizationId or claims.orgId or claims.organization_id
   local college_id = claims.collegeId or claims.college_id
   local session_id = claims.sessionId or claims.sid or claims.session_id
+  
+  -- Student-specific claims
+  local department_id = claims.departmentId or claims.department_id
+  local batch_id = claims.batchId or claims.batch_id
+  local section_id = claims.sectionId or claims.section_id
+  local reg_no = claims.regNo or claims.reg_no or claims.registrationNumber
 
   -- Set only the essential headers as requested
   set_if_exists("Id", user_id)
   set_if_exists("Email", email)
+  set_if_exists("Name", name)
   set_if_exists("Role", role)
   set_if_exists("Organization-Id", organization_id)
   set_if_exists("College-Id", college_id)
+  
+  -- Student-specific headers
+  set_if_exists("Department-Id", department_id)
+  set_if_exists("Batch-Id", batch_id)
+  set_if_exists("Section-Id", section_id)
+  set_if_exists("Reg-No", reg_no)
 
   -- Debug: Log what headers are being set
   kong.log.info("Setting headers - Id: " .. tostring(user_id) .. ", Email: " .. tostring(email) .. ", Role: " .. tostring(role) .. ", OrgId: " .. tostring(organization_id) .. ", CollegeId: " .. tostring(college_id))
+  
+  -- Log student-specific headers if present
+  if user_type == "student" then
+    kong.log.info("Student headers - DeptId: " .. tostring(department_id) .. ", BatchId: " .. tostring(batch_id) .. ", SectionId: " .. tostring(section_id) .. ", RegNo: " .. tostring(reg_no))
+  end
 
   -- Debug: Check if headers are actually being set
   kong.log.info("Header check - X-User-Id: " .. tostring(kong.request.get_headers()["X-User-Id"]))
@@ -304,8 +322,8 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
     return true, nil
   end
 
-  -- Only validate for organization, college, and non-teaching-staff types
-  if user_type ~= "organization" and user_type ~= "college" and user_type ~= "non-teaching-staff" then
+  -- Only validate for organization, college, non-teaching-staff, and student types
+  if user_type ~= "organization" and user_type ~= "college" and user_type ~= "non-teaching-staff" and user_type ~= "student" then
     kong.log.info("Session validation skipped - user type: " .. tostring(user_type))
     return true, nil
   end
@@ -333,6 +351,8 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
     key = "activeSession:college:" .. user_id
   elseif user_type == "non-teaching-staff" then
     key = "activeSession:non-teaching-staff:" .. user_id
+  elseif user_type == "student" then
+    key = "activeSession:student:" .. user_id
   else
     kong.log.warn("Unsupported user type for session validation: " .. user_type)
     return false, "Unsupported user type"
@@ -342,11 +362,16 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
   local active_value, err1 = red:hget(key, "active")
   local stored_session_id, err2 = red:hget(key, "sessionId")
   
-  -- For college and non-teaching staff users, also get organizationId while connection is still active
+  -- For college, non-teaching staff, and student users, also get organizationId while connection is still active
   local stored_org_id = nil
+  local stored_college_id = nil
   local err3 = nil
-  if user_type == "college" or user_type == "non-teaching-staff" then
+  local err4 = nil
+  if user_type == "college" or user_type == "non-teaching-staff" or user_type == "student" then
     stored_org_id, err3 = red:hget(key, "organizationId")
+  end
+  if user_type == "student" then
+    stored_college_id, err4 = red:hget(key, "collegeId")
   end
   
   -- Put connection back into pool AFTER getting all needed data
@@ -355,8 +380,8 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
     kong.log.warn("Failed to set Redis keepalive: " .. (err_pool or "unknown"))
   end
   
-  if err1 or err2 or err3 then
-    kong.log.err("Redis error: " .. (err1 or err2 or err3 or "unknown"))
+  if err1 or err2 or err3 or err4 then
+    kong.log.err("Redis error: " .. (err1 or err2 or err3 or err4 or "unknown"))
     return false, "Session validation failed"
   end
   
@@ -405,6 +430,34 @@ function PasetoVaultAuthHandler:validate_session_in_redis(conf, user_id, session
     end
 
     kong.log.info(user_type .. " organization validation successful for " .. user_type .. ": " .. user_id)
+  end
+
+  -- For student users, validate organizationId and collegeId
+  if user_type == "student" and claims then
+    local token_org_id = claims.organizationId or claims.orgId or claims.organization_id
+    local token_college_id = claims.collegeId or claims.college_id
+
+    -- Validate organizationId
+    if stored_org_id and stored_org_id ~= ngx.null then
+      if token_org_id ~= stored_org_id then
+        kong.log.warn("OrganizationId mismatch for student: " .. user_id ..
+                      ". Token org: " .. tostring(token_org_id) ..
+                      ", Redis org: " .. stored_org_id)
+        return false, "Student does not belong to specified organization"
+      end
+    end
+
+    -- Validate collegeId
+    if stored_college_id and stored_college_id ~= ngx.null then
+      if token_college_id ~= stored_college_id then
+        kong.log.warn("CollegeId mismatch for student: " .. user_id ..
+                      ". Token college: " .. tostring(token_college_id) ..
+                      ", Redis college: " .. stored_college_id)
+        return false, "Student does not belong to specified college"
+      end
+    end
+
+    kong.log.info("Student validation successful for: " .. user_id)
   end
 
   kong.log.info("Session validation successful for " .. user_type .. ": " .. user_id .. ", session: " .. session_id)

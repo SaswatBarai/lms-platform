@@ -5,4 +5,5 @@ export { studentWelcomeEmailTemplate } from "./student-welcome.template.js";
 export { passwordResetEmailTemplate } from "./password-reset.template.js";
 export { nonTeachingStaffPasswordResetEmailTemplate } from "./non-teaching-staff-password-reset.template.js";
 export { hodPasswordResetEmailTemplate } from "./hod-reset-temp.js";
+export { studentPasswordResetEmailTemplate } from "./student-password-reset.template.js";
 

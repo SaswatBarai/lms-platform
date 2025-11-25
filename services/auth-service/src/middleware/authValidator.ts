@@ -1,7 +1,7 @@
 import { prisma } from "@lib/prisma.js";
 import { AppError } from "@utils/AppError.js";
 import {Request,Response,NextFunction} from "express"
-import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext} from "../types/express.js"
+import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext} from "../types/express.js"
 import { PasetoRefreshPayload, PasetoTokenPayload, PasetoV4SecurityManager } from "@utils/security.js";
 
 
@@ -357,6 +357,134 @@ export class AuthenticatedUser {
             collegeId:nonTeachingStaff.collegeId,
         }
         req.nonTeachingStaff = nonTeachingStaffContext;
+        return next();
+    }
+
+    // ==================== STUDENT AUTHENTICATION ====================
+    
+    public static async checkStudent(req:Request, res:Response, next:NextFunction) {
+        // SECURITY: Verify request came through Kong
+        AuthenticatedUser.verifyKongHeaders(req);
+        
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
+        const departmentId = req.headers['x-user-department-id'] as string;
+        const batchId = req.headers['x-user-batch-id'] as string;
+        const sectionId = req.headers['x-user-section-id'] as string;
+        const regNo = req.headers['x-user-reg-no'] as string;
+        const name = req.headers['x-user-name'] as string;
+        
+        if (!userId || !userEmail || !userRole) {
+            throw new AppError("Missing required authentication headers", 401);
+        }
+        
+        const student = await prisma.student.findUnique({
+            where:{
+                id: userId
+            },
+            include: {
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                },
+                batch: true,
+                section: true
+            }
+        })
+        
+        if(!student){
+            throw new AppError("Student not found", 404);
+        }
+        
+        // SECURITY: Verify student belongs to the department/college in the token
+        if(collegeId && student.department.collegeId !== collegeId){
+            throw new AppError("Unauthorized - Student does not belong to this college", 403);
+        }
+        
+        // SECURITY: Verify the college belongs to the organization in the token
+        if(organizationId && student.department.college.organizationId !== organizationId){
+            throw new AppError("Unauthorized - Student's college does not belong to this organization", 403);
+        }
+
+        // SECURITY: Verify regNo matches if provided in headers
+        if(regNo && student.regNo !== regNo){
+            throw new AppError("Unauthorized - Registration number mismatch", 403);
+        }
+        
+        const studentContext: StudentContext = {
+            id: student.id, 
+            email: student.email,
+            regNo: student.regNo,
+            name: student.name,
+            role: userRole,
+            organizationId: student.department.college.organizationId,
+            collegeId: student.department.collegeId,
+            departmentId: student.departmentId,
+            batchId: student.batchId,
+            sectionId: student.sectionId
+        }
+        req.student = studentContext;
+        return next();  
+    }
+
+    public static async refreshTokenStudent(req:Request, res:Response, next:NextFunction) {
+        const refreshToken = req.cookies.refreshToken;
+        if(!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const payload:PasetoRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        if(!payload){
+            throw new AppError("Invalid refresh token", 401);
+        }
+
+        const student = await prisma.student.findUnique({
+            where:{
+                id: payload.userId
+            },
+            include:{
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                },
+                batch: true,
+                section: true
+            }
+        })
+
+        if(!student){
+            throw new AppError("Student not found", 404);
+        }
+        
+        const studentContext: StudentContext = {
+            id: student.id,
+            email: student.email,
+            regNo: student.regNo,
+            name: student.name,
+            role: "student",
+            organizationId: student.department.college.organizationId,
+            collegeId: student.department.collegeId,
+            departmentId: student.departmentId,
+            batchId: student.batchId,
+            sectionId: student.sectionId
+        }
+        req.student = studentContext;
         return next();
     }
     
