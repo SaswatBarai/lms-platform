@@ -1,13 +1,19 @@
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import type { Application } from 'express';
 
-const SWAGGER_PATH = process.env.SWAGGER_PATH || path.join(process.cwd(), 'swagger');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SWAGGER_PATH = process.env.SWAGGER_PATH || path.join(__dirname, '../../docs/swagger');
 
 export const setupSwagger = (app: Application) => {
   try {
+    console.log(`🔍 Setting up Swagger from path: ${SWAGGER_PATH}`);
     const swaggerDocument = YAML.load(path.join(SWAGGER_PATH, 'openapi.yaml'));
+    console.log('✅ Swagger document loaded successfully');
 
     const orangeTheme = `
       .swagger-ui .topbar { display: none }
@@ -216,55 +222,39 @@ export const setupSwagger = (app: Application) => {
       }
     `;
 
-    app.use(
-      '/api-docs',
-      swaggerUi.serve,
-      swaggerUi.setup(swaggerDocument, {
-        explorer: true,
-        customCss: orangeTheme,
-        customSiteTitle: "LMS Auth Service API",
-        swaggerOptions: {
-          persistAuthorization: true,
-          displayRequestDuration: true,
-          requestInterceptor: (req: any) => {
-            // Ensure requests go through properly
-            return req;
-          },
-          responseInterceptor: (res: any) => {
-            // Handle responses properly
-            return res;
-          },
-          tryItOutEnabled: true
-        }
-      })
-    );
+    // Setup Swagger UI middleware
+    const swaggerUiHandler = swaggerUi.setup(swaggerDocument, {
+      explorer: true,
+      customCss: orangeTheme,
+      customSiteTitle: "LMS Auth Service API",
+      swaggerOptions: {
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        requestInterceptor: (req: any) => {
+          // Ensure requests go through properly
+          return req;
+        },
+        responseInterceptor: (res: any) => {
+          // Handle responses properly
+          return res;
+        },
+        tryItOutEnabled: true
+      }
+    });
 
-    app.use(
-      '/auth/api/api-docs',
-      swaggerUi.serve,
-      swaggerUi.setup(swaggerDocument, {
-        explorer: true,
-        customCss: orangeTheme,
-        customSiteTitle: "LMS Auth Service API",
-        swaggerOptions: {
-          persistAuthorization: true,
-          displayRequestDuration: true,
-          requestInterceptor: (req: any) => {
-            // Ensure requests go through properly
-            return req;
-          },
-          responseInterceptor: (res: any) => {
-            // Handle responses properly
-            return res;
-          },
-          tryItOutEnabled: true
-        }
-      })
-    );
+    // Serve Swagger UI - handle both direct and Kong proxied paths
+    app.use('/api-docs', swaggerUi.serve);
+    app.get('/api-docs', swaggerUiHandler);
+    
+    app.use('/auth/api/api-docs', swaggerUi.serve);
+    app.get('/auth/api/api-docs', swaggerUiHandler);
 
-    console.log('📄 Swagger Docs available at /api-docs (via Kong: http://localhost:8000/auth/api/api-docs)');
+    console.log('📄 Swagger Docs available at:');
+    console.log('   - Direct: http://localhost:4001/api-docs');
+    console.log('   - Via Kong: http://localhost:8000/auth/api/api-docs');
   } catch (error) {
     console.error('❌ Failed to load Swagger API documentation:', error);
+    console.error('Error details:', error);
   }
 };
 

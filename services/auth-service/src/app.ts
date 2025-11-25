@@ -52,12 +52,12 @@ app.get("/",(req,res)=>{
     res.status(200).json({message:"Auth Service is up and running"});
 })
 
+// Setup Swagger BEFORE other routes
 if (process.env.NODE_ENV !== 'production') {
     setupSwagger(app);
 }
 
 //All routes
-
 app.use("/auth/api",organizationRoutes)
 
 //health check

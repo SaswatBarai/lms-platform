@@ -37,9 +37,12 @@ services:
 
       - name: auth-service-swagger
         paths:
-          - "/auth/api/api-docs"
+          - "~/auth/api/api-docs.*"
         strip_path: false
-        path_handling: v1
+        preserve_host: true
+        methods:
+          - GET
+        regex_priority: 10
 
       - name: auth-service-routes-protected
         paths:

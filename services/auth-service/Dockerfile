@@ -27,6 +27,7 @@ RUN corepack enable
 RUN apk add --no-cache curl
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/docs ./docs
 COPY package.json ./
 COPY prisma ./prisma
 EXPOSE 4001
