@@ -35,6 +35,12 @@ services:
           - "/auth/api/forgot-reset-password-student"
         strip_path: false
 
+      - name: auth-service-swagger
+        paths:
+          - "/auth/api/api-docs"
+        strip_path: false
+        path_handling: v1
+
       - name: auth-service-routes-protected
         paths:
           - "/auth/api/test-protected"

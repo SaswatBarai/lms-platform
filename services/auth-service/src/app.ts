@@ -4,22 +4,57 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import organizationRoutes from "@routes/organization.route.js";
 import errorHandler from "@middleware/errorHandler.js";
+import { setupSwagger } from "@config/swagger.js";
 
 const app:Application = express();
 
-//middlewares
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
-app.use(cookieParser()); // Parse cookies for refresh token handling
+app.use(cookieParser());
 app.use(morgan("dev"));
 
-// Set security HTTP headers
-app.use(helmet());
+// CORS for Swagger UI
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(
+  helmet({
+    ...(process.env.NODE_ENV === "production" 
+      ? {} 
+      : {
+          contentSecurityPolicy: {
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              imgSrc: ["'self'", "data:", "https:"],
+              connectSrc: ["'self'", "http://localhost:8000", "http://localhost:4001"],
+              fontSrc: ["'self'", "data:"],
+            },
+          },
+          crossOriginEmbedderPolicy: false,
+          crossOriginOpenerPolicy: false,
+          crossOriginResourcePolicy: { policy: "cross-origin" },
+        }
+    ),
+  })
+);
 
 //routes
 app.get("/",(req,res)=>{
     res.status(200).json({message:"Auth Service is up and running"});
 })
+
+if (process.env.NODE_ENV !== 'production') {
+    setupSwagger(app);
+}
 
 //All routes
 

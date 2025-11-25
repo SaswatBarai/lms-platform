@@ -1,0 +1,2020 @@
+openapi: 3.0.0
+info:
+  title: LMS Auth Service API
+  version: 1.0.0
+  description: |
+    Authentication and Authorization microservice for the LMS Platform.
+    
+    This service handles:
+    - Organization and College registration and authentication
+    - Student, HOD, and Non-Teaching Staff authentication
+    - Password reset and recovery flows
+    - Session management with single-device login enforcement
+    - Token generation and refresh using PASETO v4
+    
+  contact:
+    name: LMS Platform Team
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:8000/auth/api
+    description: Kong Gateway (Recommended - Use this for all API calls)
+  - url: http://localhost:4001/auth/api
+    description: Direct Service (Internal/Development only)
+
+tags:
+  - name: Organization
+    description: Organization account management and authentication
+  - name: College
+    description: College account management and authentication
+  - name: Student
+    description: Student authentication and management
+  - name: HOD
+    description: Head of Department authentication and management
+  - name: Non-Teaching Staff
+    description: Non-teaching staff management and operations
+  - name: Health
+    description: Service health checks
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the auth service
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /create-organization:
+    post:
+      tags:
+        - Organization
+      summary: Create organization account
+      description: Initiates organization registration by sending an OTP to the provided email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+            examples:
+              example1:
+                value:
+                  name: "Tech University"
+                  email: "admin@tech.edu"
+                  password: "SecurePass123!"
+                  recoveryEmail: "recovery@tech.edu"
+                  address: "123 University Street"
+                  phone: "+1234567890"
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /verify-organization-otp:
+    post:
+      tags:
+        - Organization
+      summary: Verify organization OTP
+      description: Verifies the OTP sent during organization registration and creates the organization account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOTPRequest'
+      responses:
+        '200':
+          description: OTP verified and organization created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /resend-organization-otp:
+    post:
+      tags:
+        - Organization
+      summary: Resend organization OTP
+      description: Resends the OTP to the organization's email address (rate limited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@tech.edu"
+      responses:
+        '200':
+          description: OTP resent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OTPResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /login-organization:
+    post:
+      tags:
+        - Organization
+      summary: Organization login
+      description: Authenticates an organization and returns access tokens. Enforces single-device login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-organization:
+    post:
+      tags:
+        - Organization
+      summary: Organization logout
+      description: Logs out the organization and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-organization:
+    post:
+      tags:
+        - Organization
+      summary: Regenerate organization access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Access token regenerated successfully"
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        example: "v4.public.eyJ..."
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /forgot-password-organization:
+    post:
+      tags:
+        - Organization
+      summary: Request organization password reset
+      description: Initiates password recovery by sending a reset link to the organization's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@tech.edu"
+      responses:
+        '200':
+          description: Password reset email sent (or generic message for security)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /forgot-reset-password-organization:
+    post:
+      tags:
+        - Organization
+      summary: Reset organization password (forgot password flow)
+      description: Resets the organization password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-organization:
+    post:
+      tags:
+        - Organization
+      summary: Reset organization password (authenticated)
+      description: Changes the organization password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /create-college:
+    post:
+      tags:
+        - College
+      summary: Create college account
+      description: Creates a new college account under the authenticated organization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCollegeRequest'
+      responses:
+        '200':
+          description: College created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /login-college:
+    post:
+      tags:
+        - College
+      summary: College login
+      description: Authenticates a college and returns access tokens. Enforces single-device login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollegeLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-college:
+    post:
+      tags:
+        - College
+      summary: College logout
+      description: Logs out the college and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-college:
+    post:
+      tags:
+        - College
+      summary: Regenerate college access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-college:
+    post:
+      tags:
+        - College
+      summary: Request college password reset
+      description: Initiates password recovery by sending a reset link to the college's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "admin@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /forgot-reset-password-college:
+    post:
+      tags:
+        - College
+      summary: Reset college password (forgot password flow)
+      description: Resets the college password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-college:
+    post:
+      tags:
+        - College
+      summary: Reset college password (authenticated)
+      description: Changes the college password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /create-non-teaching-staff-bulk:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Create non-teaching staff (bulk)
+      description: Creates multiple non-teaching staff members in bulk. Requires college authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNonTeachingStaffBulkRequest'
+            examples:
+              example1:
+                value:
+                  - name: "John Doe"
+                    email: "john.doe@college.edu"
+                    phone: "+1234567890"
+                    role: "studentsection"
+                  - name: "Jane Smith"
+                    email: "jane.smith@college.edu"
+                    phone: "+1234567891"
+                    role: "regestral"
+      responses:
+        '200':
+          description: Staff members created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /login-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Non-teaching staff login
+      description: Authenticates a non-teaching staff member and returns access tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Non-teaching staff logout
+      description: Logs out the non-teaching staff member and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Regenerate non-teaching staff access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /reset-password-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Reset non-teaching staff password (authenticated)
+      description: Changes the staff member's password while logged in
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Request non-teaching staff password reset
+      description: Initiates password recovery by sending a reset link to the staff member's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "staff@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /forgot-reset-password-non-teaching-staff:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Reset non-teaching staff password (forgot password flow)
+      description: Resets the staff member's password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /add-department:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Add departments (bulk)
+      description: Creates multiple departments in bulk. Requires non-teaching staff authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddDepartmentBulkRequest'
+            examples:
+              example1:
+                value:
+                  - name: "Computer Science"
+                    shortName: "CS"
+                  - name: "Electrical Engineering"
+                    shortName: "EE"
+      responses:
+        '200':
+          description: Departments created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /add-course:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Add courses (bulk)
+      description: Creates multiple courses in bulk. Requires non-teaching staff authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCourseBulkRequest'
+            examples:
+              example1:
+                value:
+                  - name: "BACHELOR_OF_TECHNOLOGY"
+                    shortName: "BTECH"
+                  - name: "MASTER_OF_TECHNOLOGY"
+                    shortName: "MTECH"
+      responses:
+        '200':
+          description: Courses created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /add-batch:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Add batch
+      description: Creates a new batch for a course. Requires non-teaching staff authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddBatchRequest'
+            examples:
+              example1:
+                value:
+                  courseId: "course-uuid-here"
+                  batchYear: "2024-2028"
+                  batchType: "BTECH"
+      responses:
+        '200':
+          description: Batch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /add-section:
+    post:
+      tags:
+        - Non-Teaching Staff
+      summary: Add sections (bulk)
+      description: Creates multiple sections for a batch and department. Requires non-teaching staff authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSectionRequest'
+            examples:
+              example1:
+                value:
+                  no_of_section: 3
+                  department_id: "dept-uuid-here"
+                  batch_id: "batch-uuid-here"
+      responses:
+        '200':
+          description: Sections created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /create-hod:
+    post:
+      tags:
+        - HOD
+      summary: Create HOD account
+      description: Creates a new Head of Department account. Requires non-teaching staff authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateHODRequest'
+            examples:
+              example1:
+                value:
+                  name: "Dr. John Smith"
+                  email: "hod.cs@college.edu"
+                  departmentId: "dept-uuid-here"
+      responses:
+        '200':
+          description: HOD created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /login-hod:
+    post:
+      tags:
+        - HOD
+      summary: HOD login
+      description: Authenticates a Head of Department and returns access tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HODLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-hod:
+    post:
+      tags:
+        - HOD
+      summary: HOD logout
+      description: Logs out the HOD and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-hod:
+    post:
+      tags:
+        - HOD
+      summary: Regenerate HOD access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-hod:
+    post:
+      tags:
+        - HOD
+      summary: Request HOD password reset
+      description: Initiates password recovery by sending a reset link to the HOD's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "hod@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /forgot-reset-password-hod:
+    post:
+      tags:
+        - HOD
+      summary: Reset HOD password (forgot password flow)
+      description: Resets the HOD password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-hod:
+    post:
+      tags:
+        - HOD
+      summary: Reset HOD password (authenticated)
+      description: Changes the HOD password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /create-student-bulk:
+    post:
+      tags:
+        - Student
+      summary: Create students (bulk)
+      description: |
+        Creates multiple students in bulk with automatic section allocation and gender balance.
+        Requires non-teaching staff with STUDENT_SECTION role authentication.
+        Supports dry-run mode for preview.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStudentBulkRequest'
+            examples:
+              example1:
+                value:
+                  students:
+                    - name: "Alice Johnson"
+                      email: "alice@college.edu"
+                      phone: "+1234567890"
+                      gender: "FEMALE"
+                    - name: "Bob Smith"
+                      email: "bob@college.edu"
+                      phone: "+1234567891"
+                      gender: "MALE"
+                  batchId: "batch-uuid-here"
+                  departmentId: "dept-uuid-here"
+                  dryRun: false
+      responses:
+        '200':
+          description: Students created successfully (or dry-run preview)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStudentBulkResponse'
+        '201':
+          description: Students created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStudentBulkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /login-student:
+    post:
+      tags:
+        - Student
+      summary: Student login
+      description: Authenticates a student using email or registration number. Enforces single-device login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-student:
+    post:
+      tags:
+        - Student
+      summary: Student logout
+      description: Logs out the student and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-student:
+    post:
+      tags:
+        - Student
+      summary: Regenerate student access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-student:
+    post:
+      tags:
+        - Student
+      summary: Reset student password (authenticated)
+      description: Changes the student password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-student:
+    post:
+      tags:
+        - Student
+      summary: Request student password reset
+      description: Initiates password recovery by sending a reset link. Can use email or registration number.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identifier
+              properties:
+                identifier:
+                  type: string
+                  description: Email or registration number
+                  example: "student@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent (or generic message for security)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /forgot-reset-password-student:
+    post:
+      tags:
+        - Student
+      summary: Reset student password (forgot password flow)
+      description: Resets the student password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /test-protected:
+    get:
+      tags:
+        - Organization
+        - College
+        - Student
+        - HOD
+        - Non-Teaching Staff
+      summary: Test protected route
+      description: Tests authentication and returns user information extracted from the PASETO token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedRouteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PASETO
+      description: |
+        PASETO v4 public token authentication.
+        
+        Include the token in the Authorization header:
+        ```
+        Authorization: Bearer v4.public.eyJ...
+        ```
+        
+        Tokens are automatically set as HTTP-only cookies on login,
+        but you can also use the Authorization header for API calls.
+
+  schemas:
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - recoveryEmail
+        - phone
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: "Tech University"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "admin@tech.edu"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "SecurePass123!"
+        recoveryEmail:
+          type: string
+          format: email
+          maxLength: 255
+          example: "recovery@tech.edu"
+        address:
+          type: string
+          minLength: 5
+          maxLength: 500
+          example: "123 University Street"
+        phone:
+          type: string
+          pattern: '^\+?[\d\s\-\(\)]{10,20}$'
+          maxLength: 20
+          example: "+1234567890"
+
+    VerifyOTPRequest:
+      type: object
+      required:
+        - email
+        - otp
+        - sessionToken
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@tech.edu"
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+        sessionToken:
+          type: string
+          example: "abc123def456..."
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@tech.edu"
+        password:
+          type: string
+          format: password
+          example: "SecurePass123!"
+
+    StudentLoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Email or registration number
+          example: "student@college.edu"
+        password:
+          type: string
+          format: password
+          example: "StudentPass123!"
+
+    CreateCollegeRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - organizationId
+        - phone
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: "Engineering College"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "admin@college.edu"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "CollegePass123!"
+        organizationId:
+          type: string
+          example: "org-uuid-here"
+        recoveryEmail:
+          type: string
+          format: email
+          maxLength: 255
+          example: "recovery@college.edu"
+        phone:
+          type: string
+          pattern: '^\+?[\d\s\-\(\)]{10,20}$'
+          maxLength: 20
+          example: "+1234567890"
+        address:
+          type: string
+          minLength: 5
+          maxLength: 500
+          example: "456 College Avenue"
+
+    CreateNonTeachingStaffBulkRequest:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        required:
+          - name
+          - email
+          - phone
+        properties:
+          name:
+            type: string
+            minLength: 3
+            maxLength: 255
+            example: "John Doe"
+          email:
+            type: string
+            format: email
+            maxLength: 255
+            example: "john.doe@college.edu"
+          phone:
+            type: string
+            pattern: '^\+?[\d\s\-\(\)]{10,20}$'
+            maxLength: 20
+            example: "+1234567890"
+          role:
+            type: string
+            enum: [studentsection, regestral, adminstractor]
+            default: studentsection
+            example: "studentsection"
+
+    CreateStudentBulkRequest:
+      type: object
+      required:
+        - students
+        - batchId
+        - departmentId
+      properties:
+        students:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required:
+              - name
+              - email
+              - phone
+              - gender
+            properties:
+              name:
+                type: string
+                minLength: 3
+                maxLength: 255
+                example: "Alice Johnson"
+              email:
+                type: string
+                format: email
+                maxLength: 255
+                example: "alice@college.edu"
+              phone:
+                type: string
+                pattern: '^\+?[\d\s\-\(\)]{10,20}$'
+                maxLength: 20
+                example: "+1234567890"
+              gender:
+                type: string
+                enum: [MALE, FEMALE, OTHER]
+                example: "FEMALE"
+        batchId:
+          type: string
+          example: "batch-uuid-here"
+        departmentId:
+          type: string
+          example: "dept-uuid-here"
+        dryRun:
+          type: boolean
+          default: false
+          description: Preview mode - shows allocation without creating students
+
+    CreateHODRequest:
+      type: object
+      required:
+        - name
+        - email
+        - departmentId
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: "Dr. John Smith"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "hod.cs@college.edu"
+        departmentId:
+          type: string
+          example: "dept-uuid-here"
+
+    AddDepartmentBulkRequest:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        required:
+          - name
+          - shortName
+        properties:
+          name:
+            type: string
+            minLength: 3
+            maxLength: 255
+            example: "Computer Science"
+          shortName:
+            type: string
+            minLength: 2
+            maxLength: 50
+            example: "CS"
+          hodId:
+            type: string
+            example: "hod-uuid-here"
+
+    AddCourseBulkRequest:
+      type: array
+      minItems: 1
+      items:
+        type: object
+        required:
+          - name
+          - shortName
+        properties:
+          name:
+            type: string
+            enum: [BACHELOR_OF_TECHNOLOGY, MASTER_OF_TECHNOLOGY, BACHELOR_OF_COMPUTER_APPLICATIONS, MASTER_OF_COMPUTER_APPLICATIONS]
+            example: "BACHELOR_OF_TECHNOLOGY"
+          shortName:
+            type: string
+            enum: [BTECH, MTECH, BCA, MCA]
+            example: "BTECH"
+
+    AddBatchRequest:
+      type: object
+      required:
+        - courseId
+        - batchYear
+        - batchType
+      properties:
+        courseId:
+          type: string
+          example: "course-uuid-here"
+        batchYear:
+          type: string
+          pattern: '^\d{4}-\d{4}$'
+          description: Format YYYY-YYYY (e.g., 2024-2028)
+          example: "2024-2028"
+        batchType:
+          type: string
+          enum: [BTECH, MTECH, MBA, BBA, BCA, MCA]
+          description: Must match the duration calculated from batchYear
+          example: "BTECH"
+
+    AddSectionRequest:
+      type: object
+      required:
+        - no_of_section
+        - department_id
+        - batch_id
+      properties:
+        no_of_section:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 3
+        department_id:
+          type: string
+          example: "dept-uuid-here"
+        batch_id:
+          type: string
+          example: "batch-uuid-here"
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - email
+        - oldPassword
+        - newPassword
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.edu"
+        oldPassword:
+          type: string
+          format: password
+          example: "OldPass123!"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    StudentResetPasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+          format: password
+          example: "OldPass123!"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    ForgotResetPasswordRequest:
+      type: object
+      required:
+        - email
+        - token
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.edu"
+        token:
+          type: string
+          description: Reset token from forgot password email
+          example: "abc123def456..."
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    StudentForgotResetPasswordRequest:
+      type: object
+      required:
+        - email
+        - token
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "student@college.edu"
+        token:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: 64-character hex reset token from forgot password email
+          example: "a1b2c3d4e5f6..."
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    OTPResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "OTP sent successfully"
+        data:
+          type: object
+          properties:
+            email:
+              type: string
+              format: email
+            sessionToken:
+              type: string
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    OrganizationLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            organization:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+
+    CollegeLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            college:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                organizationId:
+                  type: string
+
+    StaffLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            staff:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+                collegeId:
+                  type: string
+
+    HODLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            hod:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                departmentId:
+                  type: string
+
+    StudentLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            student:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                regNo:
+                  type: string
+                department:
+                  type: string
+                batch:
+                  type: string
+                course:
+                  type: string
+                section:
+                  type: string
+                college:
+                  type: string
+
+    CreateStudentBulkResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        dryRun:
+          type: boolean
+          description: Present if dryRun=true, shows preview without creating
+        preview:
+          type: object
+          description: Only present in dry-run mode
+          properties:
+            studentsToCreate:
+              type: integer
+            sectionsToCreate:
+              type: integer
+            totalSectionsAfter:
+              type: integer
+            sectionCapacity:
+              type: integer
+            genderBreakdown:
+              type: object
+            sectionAllocation:
+              type: array
+            students:
+              type: array
+        data:
+          type: object
+          description: Only present when actually creating students
+          properties:
+            created:
+              type: integer
+            total:
+              type: integer
+            sectionsCreated:
+              type: integer
+            totalSections:
+              type: integer
+            sectionCapacity:
+              type: integer
+            genderBreakdown:
+              type: object
+            sectionSummary:
+              type: array
+            students:
+              type: array
+
+    ProtectedRouteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+                organizationId:
+                  type: string
+                collegeId:
+                  type: string
+            timestamp:
+              type: string
+              format: date-time
+            endpoint:
+              type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error or invalid input
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/ErrorResponse'
+              - type: object
+                properties:
+                  status:
+                    type: string
+                    example: "fail"
+                  message:
+                    type: string
+                    example: "Validation failed"
+                  totalErrors:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path:
+                          type: string
+                        message:
+                          type: string
+                        field:
+                          type: string
+                        expectedType:
+                          type: string
+          examples:
+            validationError:
+              value:
+                status: "fail"
+                message: "Validation failed"
+                totalErrors: 2
+                errors:
+                  - path: "email"
+                    message: "Invalid email address"
+                    field: "email"
+                    expectedType: "string"
+                  - path: "password"
+                    message: "Password must be at least 8 characters"
+                    field: "password"
+                    expectedType: "string"
+
+    Unauthorized:
+      description: Unauthorized - invalid credentials, missing token, or expired session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidCredentials:
+              value:
+                success: false
+                message: "Invalid email or password"
+                error: "Invalid credentials"
+            missingToken:
+              value:
+                success: false
+                message: "Authentication required"
+                error: "Missing authorization header"
+            invalidToken:
+              value:
+                success: false
+                message: "Token must be a valid PASETO v4 public token"
+                error: "Invalid token format"
+
+    Forbidden:
+      description: Forbidden - user doesn't have permission to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "You are not authorized to perform this action"
+            error: "Forbidden"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Resource not found"
+            error: "Not Found"
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Organization with this email or phone already exists"
+            error: "Conflict"
+
+    TooManyRequests:
+      description: Too many requests - rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Too many requests. Please wait before trying again."
+            error: "Rate limit exceeded"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Internal server error"
+            error: "An unexpected error occurred"

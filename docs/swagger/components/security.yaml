@@ -1,0 +1,25 @@
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PASETO
+      description: |
+        PASETO v4 public token authentication.
+        
+        Include the token in the Authorization header:
+        ```
+        Authorization: Bearer v4.public.eyJ...
+        ```
+        
+        Tokens are automatically set as HTTP-only cookies on login,
+        but you can also use the Authorization header for API calls.
+
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: accessToken
+      description: |
+        Access token stored in HTTP-only cookie.
+        Automatically set on successful login.
+

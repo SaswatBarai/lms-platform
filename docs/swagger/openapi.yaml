@@ -1,0 +1,425 @@
+openapi: 3.0.0
+info:
+  title: LMS Auth Service API
+  version: 1.0.0
+  description: |
+    Authentication and Authorization microservice for the LMS Platform.
+    
+    This service handles:
+    - Organization and College registration and authentication
+    - Student, HOD, and Non-Teaching Staff authentication
+    - Password reset and recovery flows
+    - Session management with single-device login enforcement
+    - Token generation and refresh using PASETO v4
+    
+  contact:
+    name: LMS Platform Team
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:8000/auth/api
+    description: Kong Gateway (Production/Local)
+  - url: http://localhost:4001/auth/api
+    description: Direct Service (Internal/Development)
+
+tags:
+  - name: Organization
+    description: Organization account management
+  - name: College
+    description: College account management
+  - name: Student
+    description: Student authentication and management
+  - name: HOD
+    description: Head of Department authentication
+  - name: Non-Teaching Staff
+    description: Non-teaching staff management
+  - name: Health
+    description: Service health checks
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check endpoint
+      description: Returns the health status of the auth service
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /create-organization:
+    post:
+      tags:
+        - Organization
+      summary: Create organization account
+      description: Initiates organization registration by sending an OTP to the provided email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /verify-organization-otp:
+    post:
+      tags:
+        - Organization
+      summary: Verify organization OTP
+      description: Verifies the OTP sent during organization registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOTPRequest'
+      responses:
+        '200':
+          description: OTP verified and organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /login-organization:
+    post:
+      tags:
+        - Organization
+      summary: Organization login
+      description: Authenticates an organization and returns access tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /login-student:
+    post:
+      tags:
+        - Student
+      summary: Student login
+      description: Authenticates a student using email or registration number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StudentLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /test-protected:
+    get:
+      tags:
+        - Organization
+        - College
+        - Student
+        - HOD
+        - Non-Teaching Staff
+      summary: Test protected route
+      description: Tests authentication and returns user information from token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedRouteResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PASETO
+      description: PASETO v4 public token
+
+  schemas:
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - recoveryEmail
+        - phone
+        - address
+      properties:
+        name:
+          type: string
+          example: "Tech University"
+        email:
+          type: string
+          format: email
+          example: "admin@tech.edu"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: "SecurePass123!"
+        recoveryEmail:
+          type: string
+          format: email
+          example: "recovery@tech.edu"
+        phone:
+          type: string
+          example: "+1234567890"
+        address:
+          type: string
+          example: "123 University Street"
+
+    VerifyOTPRequest:
+      type: object
+      required:
+        - email
+        - otp
+        - sessionToken
+      properties:
+        email:
+          type: string
+          format: email
+        otp:
+          type: string
+          pattern: '^[0-9]{6}$'
+          example: "123456"
+        sessionToken:
+          type: string
+          example: "abc123def456..."
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@tech.edu"
+        password:
+          type: string
+          format: password
+          example: "SecurePass123!"
+
+    StudentLoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Email or registration number
+          example: "student@college.edu"
+        password:
+          type: string
+          format: password
+          example: "StudentPass123!"
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            organization:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+
+    StudentLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            student:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                regNo:
+                  type: string
+                department:
+                  type: string
+                batch:
+                  type: string
+                course:
+                  type: string
+                section:
+                  type: string
+                college:
+                  type: string
+
+    ProtectedRouteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+                organizationId:
+                  type: string
+                collegeId:
+                  type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        error:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Validation failed"
+            error: "Invalid email format"
+
+    Unauthorized:
+      description: Unauthorized - invalid credentials or token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Authentication required"
+            error: "Invalid or missing authorization header"
+
+    Conflict:
+      description: Conflict - resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Organization with this email or phone already exists"
+            error: "Conflict"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Resource not found"
+            error: "Not Found"
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            message: "Internal server error"
+            error: "An unexpected error occurred"
+

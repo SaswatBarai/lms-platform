@@ -1,0 +1,98 @@
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        role:
+          type: string
+          enum: [org-admin, college-admin, student, hod, non-teaching-staff]
+        createdAt:
+          type: string
+          format: date-time
+
+    Organization:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            phone:
+              type: string
+            address:
+              type: string
+            recoveryEmail:
+              type: string
+              format: email
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        regNo:
+          type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+        department:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+        batch:
+          type: object
+          properties:
+            id:
+              type: string
+            batchYear:
+              type: string
+        section:
+          type: object
+          properties:
+            id:
+              type: string
+            sectionNo:
+              type: string
+        college:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+
+    TokenPayload:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        type:
+          type: string
+        sessionId:
+          type: string
+        organizationId:
+          type: string
+        collegeId:
+          type: string
+

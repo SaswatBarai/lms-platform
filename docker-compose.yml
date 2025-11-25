@@ -244,6 +244,9 @@ services:
       - PASETO_REFRESH_TOKEN_EXPIRES_IN=7 days
       - PASETO_ISSUER=lms-auth-service
       - PASETO_AUDIENCE=lms-platform
+      - SWAGGER_PATH=/app/swagger
+    volumes:
+      - ./services/auth-service/docs/swagger:/app/swagger:ro
     expose:
       - "4001"
     depends_on:
