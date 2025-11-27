@@ -222,8 +222,8 @@ export const setupSwagger = (app: Application) => {
       }
     `;
 
-    // Setup Swagger UI middleware
-    const swaggerUiHandler = swaggerUi.setup(swaggerDocument, {
+    // Swagger UI options
+    const swaggerOptions = {
       explorer: true,
       customCss: orangeTheme,
       customSiteTitle: "LMS Auth Service API",
@@ -240,14 +240,15 @@ export const setupSwagger = (app: Application) => {
         },
         tryItOutEnabled: true
       }
-    });
+    };
 
-    // Serve Swagger UI - handle both direct and Kong proxied paths
-    app.use('/api-docs', swaggerUi.serve);
-    app.get('/api-docs', swaggerUiHandler);
+    // Serve Swagger UI - swaggerUi.serve and swaggerUi.setup must be used together
+    // Handle both direct access and Kong Gateway paths, with and without trailing slashes
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerOptions));
+    app.use('/api-docs/', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerOptions));
     
-    app.use('/auth/api/api-docs', swaggerUi.serve);
-    app.get('/auth/api/api-docs', swaggerUiHandler);
+    app.use('/auth/api/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerOptions));
+    app.use('/auth/api/api-docs/', swaggerUi.serve, swaggerUi.setup(swaggerDocument, swaggerOptions));
 
     console.log('📄 Swagger Docs available at:');
     console.log('   - Direct: http://localhost:4001/api-docs');

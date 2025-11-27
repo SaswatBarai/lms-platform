@@ -60,8 +60,11 @@ if (process.env.NODE_ENV !== 'production') {
 //All routes
 app.use("/auth/api",organizationRoutes)
 
-//health check
+//health check - support both paths for compatibility
 app.get("/health",(req,res)=>{
+    res.status(200).json({status:"ok"});
+})
+app.get("/auth/api/health",(req,res)=>{
     res.status(200).json({status:"ok"});
 })
 
