@@ -38,6 +38,15 @@ import {
     forgotPasswordStudentController,
     resetForgotPasswordStudentController
 } from "../controller/students/auth.controller.js"
+import {
+    createBulkTeacherController,
+    loginTeacherController,
+    logoutTeacherController,
+    regenerateAccessTokenTeacherController,
+    raiseUpdatePasswordTeacherController,
+    forgotPasswordTeacherController,
+    resetForgotPasswordTeacherController
+} from "../controller/teacher/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
@@ -58,7 +67,12 @@ import {
     loginStudentSchema,
     resetPasswordStudentSchema,
     forgotPasswordStudentSchema,
-    resetForgotPasswordStudentSchema
+    resetForgotPasswordStudentSchema,
+    createTeacherBulkSchema,
+    loginTeacherSchema,
+    forgotPasswordTeacherSchema,
+    resetForgotPasswordTeacherSchema,
+    updatePasswordTeacherSchema
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
 import { regenerateAccessTokenHod } from "@controller/hod/auth.controller.js";
@@ -131,6 +145,15 @@ router.post("/regenerate-access-token-student", AuthenticatedUser.refreshTokenSt
 router.post("/reset-password-student", AuthenticatedUser.checkStudent, validate({ body: resetPasswordStudentSchema }), resetPasswordStudentController);
 router.post("/forgot-password-student", validate({ body: forgotPasswordStudentSchema }), forgotPasswordStudentController);
 router.post("/forgot-reset-password-student", validate({ body: resetForgotPasswordStudentSchema }), resetForgotPasswordStudentController);
+
+//Teacher Routes
+router.post("/create-teacher-bulk", AuthenticatedUser.checkNonTeachingStaff, validate({ body: createTeacherBulkSchema }), createBulkTeacherController);
+router.post("/login-teacher", validate({ body: loginTeacherSchema }), loginTeacherController);
+router.post("/logout-teacher", AuthenticatedUser.checkTeacher, logoutTeacherController);
+router.post("/regenerate-access-token-teacher", AuthenticatedUser.refreshTokenTeacher, regenerateAccessTokenTeacherController);
+router.post("/reset-password-teacher", AuthenticatedUser.checkTeacher, validate({ body: updatePasswordTeacherSchema }), raiseUpdatePasswordTeacherController);
+router.post("/forgot-password-teacher", validate({ body: forgotPasswordTeacherSchema }), forgotPasswordTeacherController);
+router.post("/forgot-reset-password-teacher", validate({ body: resetForgotPasswordTeacherSchema }), resetForgotPasswordTeacherController);
 
 
 

@@ -467,3 +467,91 @@ export const resetForgotPasswordStudentSchema = z.object({
         .length(64, { message: "Invalid reset token" })
         .trim()
 })
+
+export const teacherDetailsSchema = z.object({
+    name: z.string({ message: "Name is required" })
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    email: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    phone: z.string({ message: "Phone number is required" })
+        .min(1, { message: "Phone number is required" })
+        .regex(/^\+?[\d\s\-\(\)]{10,20}$/, { message: "Invalid phone number format" })
+        .max(20, { message: "Phone number must be at most 20 characters" })
+        .trim(),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .trim(),
+    departmentId: z.string({ message: "Department ID is required" })
+        .min(1, { message: "Department ID is required" })
+        .trim()
+        .nonempty({ message: "Department ID is required" }),
+    gender: z.enum(["MALE", "FEMALE", "OTHER"], {
+        message: "Gender must be one of: MALE, FEMALE, OTHER"
+    }),
+    employeeNo: z.string({ message: "Employee number is required" })
+        .min(1, { message: "Employee number is required" })
+        .trim()
+        .nonempty({ message: "Employee number is required" })
+})
+
+export const createTeacherBulkSchema = z.object({
+    teachers: z.array(teacherDetailsSchema).min(1, {
+        message: "Must provide at least one teacher."
+    })
+    .max(500,{
+        message: "Cannot create more than 500 teachers at once."
+    }),
+    collegeId: z.string({ message: "College ID is required" })
+        .min(1, { message: "College ID is required" })
+        .trim()
+        .nonempty({ message: "College ID is required" })
+})
+
+
+export const loginTeacherSchema = z.object({
+    identifier: z.string({ message: "Email or Registration number is required" })
+        .min(1, { message: "Email or Registration number is required" })
+        .trim()
+        .nonempty({ message: "Email or Registration number is required" }),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .trim()
+})
+
+
+export const updatePasswordTeacherSchema = z.object({
+    oldPassword: z.string({ message: "Old password is required" })
+        .min(1, { message: "Old password is required" })
+        .trim(),
+    newPassword: z.string({ message: "New password is required" })
+        .min(8, { message: "New password must be at least 8 characters" })
+        .refine((val) => /[A-Z]/.test(val), { message: "Must include at least one uppercase letter" })
+        .refine((val) => /[a-z]/.test(val), { message: "Must include at least one lowercase letter" })
+        .refine((val) => /[0-9]/.test(val), { message: "Must include at least one number" })
+        .refine((val) => /[!@#$%^&*]/.test(val), { message: "Must include at least one special character" })
+})
+
+
+export const forgotPasswordTeacherSchema = z.object({
+    email: z.email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim()
+})
+
+export const resetForgotPasswordTeacherSchema = z.object({
+    email: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .toLowerCase()
+        .trim(),
+    sessionToken: z.string({ message: "Session token is required" })
+        .min(1, { message: "Session token is required" }),
+    newPassword: z.string({ message: "New password is required" })
+        .min(8, { message: "New password must be at least 8 characters" })
+})

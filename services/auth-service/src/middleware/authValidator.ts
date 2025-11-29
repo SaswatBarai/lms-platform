@@ -1,7 +1,7 @@
 import { prisma } from "@lib/prisma.js";
 import { AppError } from "@utils/AppError.js";
 import {Request,Response,NextFunction} from "express"
-import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext} from "../types/express.js"
+import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext, TeacherContext} from "../types/express.js"
 import { PasetoRefreshPayload, PasetoTokenPayload, PasetoV4SecurityManager } from "@utils/security.js";
 
 
@@ -219,6 +219,69 @@ export class AuthenticatedUser {
         req.hod = hodContext;
         return next();  
     }
+
+    public static async checkTeacher(req:Request, res:Response, next:NextFunction){
+        // SECURITY: Verify request came through Kong
+        AuthenticatedUser.verifyKongHeaders(req);
+
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
+        const departmentId = req.headers['x-user-department-id'] as string;
+        const employeeNo = req.headers['x-user-employee-no'] as string;
+
+        if(!userId || !userEmail || !userRole || !organizationId || !collegeId || !departmentId || !employeeNo){
+            throw new AppError("Missing required authentication headers", 401);
+        }
+
+        const teacher = await prisma.teacher.findUnique({
+            where:{
+                id:userId
+            },
+            include: {
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        if(!teacher){
+            throw new AppError("Teacher not found", 404);
+        }
+        
+
+        // SECURITY: Verify teacher belongs to the college in the token
+        if(teacher.departmentId !== departmentId){
+            throw new AppError("Unauthorized - Teacher does not belong to this department", 403);
+        }
+
+        // SECURITY: Verify the college belongs to the organization in the token
+        if(organizationId && teacher.department.college.organizationId !== organizationId){
+            throw new AppError("Unauthorized - Teacher's college does not belong to this organization", 403);
+        }
+
+        const teacherContext:TeacherContext = {
+            id:teacher.id, 
+            email:teacher.email,
+            role:userRole,
+            organizationId: organizationId,
+            collegeId: collegeId,
+            departmentId: departmentId,
+            employeeNo: employeeNo,
+        }
+        req.teacher = teacherContext;
+        return next();
+    }
+    
 
 
 
@@ -485,6 +548,53 @@ export class AuthenticatedUser {
             sectionId: student.sectionId
         }
         req.student = studentContext;
+        return next();
+    }
+
+    public static async refreshTokenTeacher(req:Request, res:Response, next:NextFunction) {
+        const refreshToken = req.cookies.refreshToken;
+        if(!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const payload:PasetoRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        if(!payload){
+            throw new AppError("Invalid refresh token", 401);
+        }
+
+        const teacher = await prisma.teacher.findUnique({
+            where:{
+                id: payload.userId
+            },
+            include:{
+                department: {
+                    include: {
+                        college: {
+                            select: {
+                                id: true,
+                                organizationId: true
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        if(!teacher){
+            throw new AppError("Teacher not found", 404);
+        }
+        
+        const teacherContext: TeacherContext = {
+            id: teacher.id,
+            email: teacher.email,
+            role: "teacher",
+            organizationId: teacher.department.college.organizationId,
+            collegeId: teacher.department.collegeId,
+            departmentId: teacher.departmentId,
+            employeeNo: teacher.employeeNo
+        }
+        req.teacher = teacherContext;
         return next();
     }
     

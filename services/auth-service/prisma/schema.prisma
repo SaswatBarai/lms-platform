@@ -78,6 +78,7 @@ model Department {
   students  Student[]
   teachers  Teacher[]
   sections  Section[]
+  subjects  Subject[]
 }
 
 model NonTeachingStaff {
@@ -124,11 +125,14 @@ model Teacher {
   name         String     @db.VarChar(255)
   gender       Gender     
   email        String     @unique @db.VarChar(255)
+  phone        String     @unique @db.VarChar(20)
   password     String     @db.VarChar(255)
   employeeNo   String     @unique @db.VarChar(100)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sections     TeacherSection[]
+  subjects     TeacherSubject[]
 }
 
 enum CourseShortName {
@@ -214,6 +218,59 @@ model Section {
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
   students     Student[]
+  teachers     TeacherSection[]
+  teacherSubjects TeacherSubject[]
   
 }
 
+model TeacherSection {
+  id        String   @id @default(cuid())
+  teacherId String
+  sectionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, sectionId])
+  @@index([teacherId])
+  @@index([sectionId])
+}
+
+
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(255)
+  code      String   @db.VarChar(50)
+  shortName String   @db.VarChar(50)
+  departmentId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  teachers   TeacherSubject[]
+  @@unique([name, code])
+  @@index([name])
+  @@index([code])
+}
+
+
+model TeacherSubject {
+  id        String   @id @default(cuid())
+  teacherId String
+  subjectId String
+  sectionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  section Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId, sectionId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([sectionId])
+}

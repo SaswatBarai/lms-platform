@@ -34,6 +34,10 @@ services:
           - "/auth/api/regenerate-access-token-student"
           - "/auth/api/forgot-password-student"
           - "/auth/api/forgot-reset-password-student"
+          - "/auth/api/login-teacher"
+          - "/auth/api/regenerate-access-token-teacher"
+          - "/auth/api/forgot-password-teacher"
+          - "/auth/api/forgot-reset-password-teacher"
         strip_path: false
 
       - name: auth-service-swagger
@@ -66,6 +70,9 @@ services:
           - "/auth/api/reset-password-hod"
           - "/auth/api/logout-student"
           - "/auth/api/reset-password-student"
+          - "/auth/api/create-teacher-bulk"
+          - "/auth/api/logout-teacher"
+          - "/auth/api/reset-password-teacher"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua

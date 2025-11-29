@@ -1,65 +1,23 @@
-import { z } from "zod"
-import {
-  createOrganizationSchema,
-  verifyOrganizationOtpSchema,
-  loginOrganizationSchema,
-  createCollegeSchema,
-  loginCollegeSchema,
-  createNonTeachingStaffSchema,
-  loginNonTeachingStaffSchema,
-  resetPasswordScehma,
-  addDepartmentSchema,
-  addCourseSchema,
-  addBatchSchema,
-  createHodSchema,
-  loginHodSchema,
-  forgotResetPasswordSchema,
-  addSectionSchema
-} from "@schemas/organization.js"
+// Barrel export file - Re-exports all types from modular files
+// This maintains backward compatibility while providing a modular structure
 
+// Organization types
+export * from "./organization.types.js"
 
+// College types
+export * from "./college.types.js"
 
+// Staff types
+export * from "./staff.types.js"
 
-export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
-export type verifyOrganizationOtpInput = z.infer<typeof verifyOrganizationOtpSchema>
-export type LoginOrganizationInput = z.infer<typeof loginOrganizationSchema>
-export type CreateCollegeInput = z.infer<typeof createCollegeSchema>
-export type LoginCollegeInput = z.infer<typeof loginCollegeSchema>
-export type CreateNonTeachingStaffInput = z.infer<typeof createNonTeachingStaffSchema>
-export type LoginNonTeachingStaffInput = z.infer<typeof loginNonTeachingStaffSchema>
-export type ResetPasswordInput = z.infer<typeof resetPasswordScehma>
-export type ForgotResetPasswordInput = z.infer<typeof forgotResetPasswordSchema>
-export type AddDepartmentInput = z.infer<typeof addDepartmentSchema>
-export type AddCourseInput = z.infer<typeof addCourseSchema>
-export type AddBatchInput = z.infer<typeof addBatchSchema>
-export type CreateHodInput = z.infer<typeof createHodSchema>
-export type LoginHodInput = z.infer<typeof loginHodSchema>
-export type AddSectionInput = z.infer<typeof addSectionSchema>
+// HOD types
+export * from "./hod.types.js"
 
-export interface ServiceResult<T> {
-  success: boolean;
-  data?: T;
-  message: string;
-  errors?: string[];
-}
+// Teacher types
+export * from "./teacher.types.js"
 
+// Student types
+export * from "./student.types.js"
 
-
-
-export interface TokenPlayload {
-  accessToken: string;
-  refreshToken?: string;
-}
-
-//role enum
-export enum OrganizationRole {
-  ORG_ADMIN = "org-admin",
-}
-
-export enum NonTeachingStaffRole {
-  "STUDENT_SECTION" = "studentsection",
-  "REGISTRAR" = "regestral",
-  "ADMINISTRATOR" = "adminstractor",
-}
-
-
+// Common/Shared types
+export * from "./common.types.js"

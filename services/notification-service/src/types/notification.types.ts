@@ -8,6 +8,7 @@ export enum NotificationType {
   ORG_OTP = "org-otp",
   WELCOME_EMAIL = "welcome-email",
   STAFF_WELCOME_EMAIL = "staff-welcome-email",
+  TEACHER_WELCOME_EMAIL = "teacher-welcome-email",
   STUDENT_WELCOME_EMAIL = "student-welcome-email",
   DEAN_WELCOME_EMAIL = "dean-welcome-email",
   HOD_WELCOME_EMAIL = "hod-welcome-email",
@@ -15,7 +16,8 @@ export enum NotificationType {
   ORG_FORGOT_PASSWORD = "org-forgot-password",
   NON_TEACHING_STAFF_FORGOT_PASSWORD = "non-teaching-staff-forgot-password",
   HOD_FORGOT_PASSWORD = "hod-forgot-password",
-  STUDENT_FORGOT_PASSWORD = "student-forgot-password"
+  STUDENT_FORGOT_PASSWORD = "student-forgot-password",
+  TEACHER_FORGOT_PASSWORD = "teacher-forgot-password"
 }
 export enum NotificationSubType {
   CREATE_ACCOUNT = "create-account"
@@ -56,6 +58,15 @@ export interface HodWelcomeEmailData {
   loginUrl: string;
 }
 
+export interface TeacherWelcomeEmailData {
+  email: string;
+  name: string;
+  tempPassword: string;
+  employeeNo: string;
+  collegeName: string;
+  loginUrl: string;
+}
+
 export interface StudentWelcomeEmailData {
   email: string;
   name: string;
@@ -76,6 +87,15 @@ export interface StudentForgotPasswordData {
   sessionToken: string;
   name: string;
   regNo: string;
+  collegeName: string;
+  departmentName: string;
+}
+
+export interface TeacherForgotPasswordData {
+  email: string;
+  sessionToken: string;
+  name: string;
+  employeeNo: string;
   collegeName: string;
   departmentName: string;
 }

@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate } from "../templates/index.js";
-import { ForgotPasswordData, StudentForgotPasswordData } from "../types/notification.types.js";
+import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate, teacherPasswordResetEmailTemplate } from "../templates/index.js";
+import { ForgotPasswordData, StudentForgotPasswordData, TeacherForgotPasswordData } from "../types/notification.types.js";
 
 interface ExtendedForgotPasswordData extends ForgotPasswordData {
   collegeName?: string;
@@ -166,6 +166,45 @@ export class PasswordResetHandler {
     }
 
     console.error(`[PasswordResetHandler] ❌ Failed to send student password reset email to ${email}`);
+    return false;
+  }
+
+  /**
+   * Handle password reset email for teacher
+   */
+  public static async handleTeacherPasswordReset(data: TeacherForgotPasswordData): Promise<boolean> {
+    const { email, sessionToken, name, employeeNo, collegeName, departmentName } = data;
+
+    if (!email || !sessionToken || !name || !employeeNo || !collegeName || !departmentName) {
+      console.error("[PasswordResetHandler] Missing required fields for teacher password reset");
+      return false;
+    }
+
+    console.log(`[PasswordResetHandler] Processing teacher password reset for ${email} (${employeeNo})`);
+
+    const resetUrl = "http://localhost:8000/auth/api/forgot-reset-password-teacher";
+    const html = teacherPasswordResetEmailTemplate(
+      email,
+      name,
+      employeeNo,
+      sessionToken,
+      collegeName,
+      departmentName,
+      resetUrl
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Password Reset Request - ${collegeName} Faculty Portal`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[PasswordResetHandler] ✅ Teacher password reset email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[PasswordResetHandler] ❌ Failed to send teacher password reset email to ${email}`);
     return false;
   }
 }

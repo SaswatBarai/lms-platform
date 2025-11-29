@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { welcomeEmailTemplate, staffWelcomeEmailTemplate, studentWelcomeEmailTemplate } from "../templates/index.js";
-import { WelcomeEmailData, StaffWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData } from "../types/notification.types.js";
+import { welcomeEmailTemplate, staffWelcomeEmailTemplate, teacherWelcomeEmailTemplate, studentWelcomeEmailTemplate } from "../templates/index.js";
+import { WelcomeEmailData, StaffWelcomeEmailData, TeacherWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData } from "../types/notification.types.js";
 import { hodWelcomeEmailTemplate } from "templates/hod-welcome.template.js";
 
 export class WelcomeEmailHandler {
@@ -103,6 +103,43 @@ export class WelcomeEmailHandler {
     }
 
     console.error(`[WelcomeEmailHandler] ❌ Failed to send hod welcome email to ${email}`);
+    return false;
+  }
+
+  /**
+   * Handle welcome email for teacher account
+   */
+  public static async handleTeacherWelcome(data: TeacherWelcomeEmailData): Promise<boolean> {
+    const { email, name, tempPassword, employeeNo, collegeName, loginUrl } = data;
+
+    if (!email || !name || !tempPassword || !employeeNo || !collegeName) {
+      console.error("[WelcomeEmailHandler] Missing required data for teacher welcome");
+      return false;
+    }
+
+    console.log(`[WelcomeEmailHandler] Processing teacher welcome email for ${email} (EmployeeNo: ${employeeNo})`);
+
+    const html = teacherWelcomeEmailTemplate(
+      email,
+      name,
+      tempPassword,
+      employeeNo,
+      collegeName,
+      loginUrl || "http://localhost:8000/auth/api/login-teacher"
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Welcome ${name}! Your Teacher Account at ${collegeName} is Ready`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[WelcomeEmailHandler] ✅ Teacher welcome email sent to ${email} (EmployeeNo: ${employeeNo})`);
+      return true;
+    }
+
+    console.error(`[WelcomeEmailHandler] ❌ Failed to send teacher welcome email to ${email}`);
     return false;
   }
 

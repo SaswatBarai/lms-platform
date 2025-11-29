@@ -130,6 +130,12 @@ export class NotificationConsumer {
         console.log(`[NotificationConsumer] ✅ Staff welcome email sent successfully`);
         break;
 
+      case NotificationType.TEACHER_WELCOME_EMAIL:
+        console.log(`[NotificationConsumer] 👨‍🏫 Sending teacher welcome email to: ${data.email} (EmployeeNo: ${data.employeeNo})`);
+        await WelcomeEmailHandler.handleTeacherWelcome(data);
+        console.log(`[NotificationConsumer] ✅ Teacher welcome email sent successfully`);
+        break;
+
       case NotificationType.HOD_WELCOME_EMAIL:
         console.log(`[NotificationConsumer] 👋 Sending HOD welcome email to: ${data.email}`);
         await WelcomeEmailHandler.handleHodWelcome(data);
@@ -180,6 +186,12 @@ export class NotificationConsumer {
         console.log(`[NotificationConsumer] 🎓 Sending student password reset email to: ${data.email} (RegNo: ${data.regNo})`);
         await PasswordResetHandler.handleStudentPasswordReset(data);
         console.log(`[NotificationConsumer] ✅ Student password reset email sent successfully`);
+        break;
+
+      case NotificationType.TEACHER_FORGOT_PASSWORD:
+        console.log(`[NotificationConsumer] 👨‍🏫 Sending teacher password reset email to: ${data.email} (EmployeeNo: ${data.employeeNo})`);
+        await PasswordResetHandler.handleTeacherPasswordReset(data);
+        console.log(`[NotificationConsumer] ✅ Teacher password reset email sent successfully`);
         break;
 
       default:

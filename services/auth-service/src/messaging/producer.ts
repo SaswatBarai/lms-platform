@@ -130,6 +130,27 @@ export class KafkaProducer {
     return this.sendMessage("welcome-messages",payload);
   }
 
+  /**
+   * Send teacher welcome email
+   */
+  public async sendTeacherWelcomeEmail(
+    email: string,
+    name: string,
+    tempPassword: string,
+    employeeNo: string,
+    collegeName: string,
+    loginUrl: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.EMAIL_NOTIFICATION,
+      type: NotificationType.TEACHER_WELCOME_EMAIL,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, name, tempPassword, employeeNo, collegeName, loginUrl }
+    };
+
+    return this.sendMessage("welcome-messages", payload);
+  }
+
 
 
 
@@ -227,6 +248,26 @@ export class KafkaProducer {
       action: NotificationAction.FORGOT_PASSWORD,
       type: NotificationType.STUDENT_FORGOT_PASSWORD,
       data: { email, sessionToken, name, regNo, collegeName, departmentName }
+    };
+
+    return this.sendMessage("forgot-password-messages", payload);
+  }
+
+  /**
+   * Send teacher forgot password email
+   */
+  public async sendTeacherForgotPassword(
+    email: string,
+    sessionToken: string,
+    name: string,
+    employeeNo: string,
+    collegeName: string,
+    departmentName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.FORGOT_PASSWORD,
+      type: NotificationType.TEACHER_FORGOT_PASSWORD,
+      data: { email, sessionToken, name, employeeNo, collegeName, departmentName }
     };
 
     return this.sendMessage("forgot-password-messages", payload);
