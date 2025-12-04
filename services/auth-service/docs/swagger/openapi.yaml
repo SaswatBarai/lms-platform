@@ -7,7 +7,7 @@ info:
     
     This service handles:
     - Organization and College registration and authentication
-    - Student, HOD, and Non-Teaching Staff authentication
+    - Student, Teacher, HOD, Dean, and Non-Teaching Staff authentication
     - Password reset and recovery flows
     - Session management with single-device login enforcement
     - Token generation and refresh using PASETO v4
@@ -32,6 +32,10 @@ tags:
     description: Student authentication and management
   - name: HOD
     description: Head of Department authentication and management
+  - name: Teacher
+    description: Teacher authentication and management
+  - name: Dean
+    description: Dean authentication and management
   - name: Non-Teaching Staff
     description: Non-teaching staff management and operations
   - name: Health
@@ -1187,13 +1191,414 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /create-teacher-bulk:
+    post:
+      tags:
+        - Teacher
+      summary: Create teachers (bulk)
+      description: |
+        Creates multiple teachers in bulk. Requires non-teaching staff with STUDENT_SECTION role authentication.
+        Each teacher gets a unique employee number and temporary password.
+        Returns validation errors with indices if any teachers have duplicate emails or phones.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeacherBulkRequest'
+            examples:
+              example1:
+                value:
+                  collegeId: "college-uuid-here"
+                  teachers:
+                    - name: "Dr. Alice Johnson"
+                      email: "alice.johnson@college.edu"
+                      phone: "+1234567890"
+                      gender: "FEMALE"
+                      departmentId: "dept-uuid-here"
+                    - name: "Prof. Bob Smith"
+                      email: "bob.smith@college.edu"
+                      phone: "+1234567891"
+                      gender: "MALE"
+                      departmentId: "dept-uuid-here"
+      responses:
+        '201':
+          description: Teachers created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTeacherBulkResponse'
+        '400':
+          description: Validation errors or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTeacherBulkErrorResponse'
+              examples:
+                validationError:
+                  value:
+                    success: false
+                    message: "Some teachers could not be created due to validation errors"
+                    errors:
+                      - index: 0
+                        field: "email"
+                        value: "teacher@college.edu"
+                        message: "Email 'teacher@college.edu' already exists in database"
+                      - index: 1
+                        field: "phone"
+                        value: "+1234567890"
+                        message: "Phone '+1234567890' already exists in database"
+                    invalidCount: 2
+                    validCount: 3
+                    totalSubmitted: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /login-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Teacher login
+      description: Authenticates a teacher using email or employee number. Enforces single-device login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeacherLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Teacher logout
+      description: Logs out the teacher and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Regenerate teacher access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Reset teacher password (authenticated)
+      description: Changes the teacher password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Request teacher password reset
+      description: Initiates password recovery by sending a reset link to the teacher's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "teacher@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent (or generic message for security)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /forgot-reset-password-teacher:
+    post:
+      tags:
+        - Teacher
+      summary: Reset teacher password (forgot password flow)
+      description: Resets the teacher password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TeacherForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /create-dean:
+    post:
+      tags:
+        - Dean
+      summary: Create dean account
+      description: Creates a new dean account for a college. Requires college authentication. Only one dean per college.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeanRequest'
+            examples:
+              example1:
+                value:
+                  mailId: "dean@college.edu"
+      responses:
+        '201':
+          description: Dean created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /login-dean:
+    post:
+      tags:
+        - Dean
+      summary: Dean login
+      description: Authenticates a dean and returns access tokens. Enforces single-device login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeanLoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeanLoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /logout-dean:
+    post:
+      tags:
+        - Dean
+      summary: Dean logout
+      description: Logs out the dean and invalidates the current session
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /regenerate-access-token-dean:
+    post:
+      tags:
+        - Dean
+      summary: Regenerate dean access token
+      description: Generates a new access token using the refresh token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Access token regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reset-password-dean:
+    post:
+      tags:
+        - Dean
+      summary: Reset dean password (authenticated)
+      description: Changes the dean password while logged in (requires current password)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /forgot-password-dean:
+    post:
+      tags:
+        - Dean
+      summary: Request dean password reset
+      description: Initiates password recovery by sending a reset link to the dean's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mailId
+              properties:
+                mailId:
+                  type: string
+                  format: email
+                  example: "dean@college.edu"
+      responses:
+        '200':
+          description: Password reset email sent (or generic message for security)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /forgot-reset-password-dean:
+    post:
+      tags:
+        - Dean
+      summary: Reset dean password (forgot password flow)
+      description: Resets the dean password using the token from the forgot password email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeanForgotResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /test-protected:
     get:
       tags:
         - Organization
         - College
         - Student
+        - Teacher
         - HOD
+        - Dean
         - Non-Teaching Staff
       summary: Test protected route
       description: Tests authentication and returns user information extracted from the PASETO token
@@ -1627,6 +2032,153 @@ components:
           description: Must contain uppercase, lowercase, number, and special character
           example: "NewPass123!"
 
+    CreateTeacherBulkRequest:
+      type: object
+      required:
+        - collegeId
+        - teachers
+      properties:
+        collegeId:
+          type: string
+          example: "college-uuid-here"
+        teachers:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required:
+              - name
+              - email
+              - phone
+              - gender
+              - departmentId
+            properties:
+              name:
+                type: string
+                minLength: 3
+                maxLength: 255
+                example: "Dr. Alice Johnson"
+              email:
+                type: string
+                format: email
+                maxLength: 255
+                example: "alice.johnson@college.edu"
+              phone:
+                type: string
+                pattern: '^\+?[\d\s\-\(\)]{10,20}$'
+                maxLength: 20
+                example: "+1234567890"
+              gender:
+                type: string
+                enum: [MALE, FEMALE, OTHER]
+                example: "FEMALE"
+              departmentId:
+                type: string
+                example: "dept-uuid-here"
+
+    TeacherLoginRequest:
+      type: object
+      required:
+        - identifier
+        - password
+      properties:
+        identifier:
+          type: string
+          description: Email or employee number
+          example: "teacher@college.edu"
+        password:
+          type: string
+          format: password
+          example: "TeacherPass123!"
+
+    TeacherResetPasswordRequest:
+      type: object
+      required:
+        - oldPassword
+        - newPassword
+      properties:
+        oldPassword:
+          type: string
+          format: password
+          example: "OldPass123!"
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    TeacherForgotResetPasswordRequest:
+      type: object
+      required:
+        - email
+        - sessionToken
+        - newPassword
+      properties:
+        email:
+          type: string
+          format: email
+          example: "teacher@college.edu"
+        sessionToken:
+          type: string
+          description: Reset token from forgot password email
+          example: "abc123def456..."
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
+    CreateDeanRequest:
+      type: object
+      required:
+        - mailId
+      properties:
+        mailId:
+          type: string
+          format: email
+          maxLength: 255
+          example: "dean@college.edu"
+
+    DeanLoginRequest:
+      type: object
+      required:
+        - mailId
+        - password
+      properties:
+        mailId:
+          type: string
+          format: email
+          example: "dean@college.edu"
+        password:
+          type: string
+          format: password
+          example: "DeanPass123!"
+
+    DeanForgotResetPasswordRequest:
+      type: object
+      required:
+        - mailId
+        - sessionToken
+        - newPassword
+      properties:
+        mailId:
+          type: string
+          format: email
+          example: "dean@college.edu"
+        sessionToken:
+          type: string
+          description: Reset token from forgot password email
+          example: "abc123def456..."
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain uppercase, lowercase, number, and special character
+          example: "NewPass123!"
+
     OTPResponse:
       type: object
       properties:
@@ -1850,6 +2402,125 @@ components:
               type: array
             students:
               type: array
+
+    TeacherLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            teacher:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                employeeNo:
+                  type: string
+                department:
+                  type: string
+                college:
+                  type: string
+
+    CreateTeacherBulkResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "5 teacher(s) created successfully. Welcome emails will be sent shortly."
+        created:
+          type: integer
+          example: 5
+        total:
+          type: integer
+          example: 5
+
+    CreateTeacherBulkErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: "Some teachers could not be created due to validation errors"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+                description: Index of the teacher in the input array
+                example: 0
+              field:
+                type: string
+                enum: [email, phone]
+                example: "email"
+              value:
+                type: string
+                example: "teacher@college.edu"
+              message:
+                type: string
+                example: "Email 'teacher@college.edu' already exists in database"
+        invalidCount:
+          type: integer
+          example: 2
+        validCount:
+          type: integer
+          example: 3
+        totalSubmitted:
+          type: integer
+          example: 5
+
+    DeanLoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Login successful"
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+              example: "v4.public.eyJ..."
+            dean:
+              type: object
+              properties:
+                id:
+                  type: string
+                mailId:
+                  type: string
+                collegeId:
+                  type: string
+                college:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    organizationId:
+                      type: string
 
     ProtectedRouteResponse:
       type: object
