@@ -148,6 +148,12 @@ export class NotificationConsumer {
         console.log(`[NotificationConsumer] ✅ Student welcome email sent successfully`);
         break;
 
+      case NotificationType.DEAN_WELCOME_EMAIL:
+        console.log(`[NotificationConsumer] 🎓 Sending dean welcome email to: ${data.email}`);
+        await WelcomeEmailHandler.handleDeanWelcome(data);
+        console.log(`[NotificationConsumer] ✅ Dean welcome email sent successfully`);
+        break;
+
       default:
         console.log(`[NotificationConsumer] ❓ Unknown email notification type: ${type}`);
     }
@@ -192,6 +198,12 @@ export class NotificationConsumer {
         console.log(`[NotificationConsumer] 👨‍🏫 Sending teacher password reset email to: ${data.email} (EmployeeNo: ${data.employeeNo})`);
         await PasswordResetHandler.handleTeacherPasswordReset(data);
         console.log(`[NotificationConsumer] ✅ Teacher password reset email sent successfully`);
+        break;
+
+      case NotificationType.DEAN_FORGOT_PASSWORD:
+        console.log(`[NotificationConsumer] 🎓 Sending dean password reset email to: ${data.email}`);
+        await PasswordResetHandler.handleDeanPasswordReset(data);
+        console.log(`[NotificationConsumer] ✅ Dean password reset email sent successfully`);
         break;
 
       default:

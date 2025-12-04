@@ -1,7 +1,7 @@
 import { prisma } from "@lib/prisma.js";
 import { AppError } from "@utils/AppError.js";
 import {Request,Response,NextFunction} from "express"
-import { CollegeContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext, TeacherContext} from "../types/express.js"
+import { CollegeContext, DeanContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext, TeacherContext} from "../types/express.js"
 import { PasetoRefreshPayload, PasetoTokenPayload, PasetoV4SecurityManager } from "@utils/security.js";
 
 
@@ -551,6 +551,59 @@ export class AuthenticatedUser {
         return next();
     }
 
+    public static async checkDean(req:Request, res:Response, next:NextFunction) {
+        // SECURITY: Verify request came through Kong
+        AuthenticatedUser.verifyKongHeaders(req);
+
+        const userId = req.headers['x-user-id'] as string;
+        const userEmail = req.headers['x-user-email'] as string;
+        const userRole = req.headers['x-user-role'] as string;
+        const organizationId = req.headers['x-user-organization-id'] as string;
+        const collegeId = req.headers['x-user-college-id'] as string;
+
+        if(!userId || !userEmail || !userRole || !organizationId || !collegeId){
+            throw new AppError("Missing required authentication headers", 401);
+        }
+
+        const dean = await prisma.dean.findUnique({
+            where:{
+                id:userId
+            },
+            include: {
+                college: {
+                    select: {
+                        id: true,
+                        organizationId: true
+                    }
+                }
+            }
+        })
+
+        if(!dean){
+            throw new AppError("Dean not found", 404);
+        }
+
+        // SECURITY: Verify dean belongs to the college in the token
+        if(dean.collegeId !== collegeId){
+            throw new AppError("Unauthorized - Dean does not belong to this college", 403);
+        }
+
+        // SECURITY: Verify the college belongs to the organization in the token
+        if(organizationId && dean.college.organizationId !== organizationId){
+            throw new AppError("Unauthorized - Dean's college does not belong to this organization", 403);
+        }
+
+        const deanContext:DeanContext = {
+            id:dean.id, 
+            mailId:dean.mailId,
+            role:userRole,
+            organizationId: organizationId,
+            collegeId: collegeId,
+        }
+        req.dean = deanContext;
+        return next();
+    }
+
     public static async refreshTokenTeacher(req:Request, res:Response, next:NextFunction) {
         const refreshToken = req.cookies.refreshToken;
         if(!refreshToken) {
@@ -595,6 +648,47 @@ export class AuthenticatedUser {
             employeeNo: teacher.employeeNo
         }
         req.teacher = teacherContext;
+        return next();
+    }
+
+    public static async refreshTokenDean(req:Request, res:Response, next:NextFunction) {
+        const refreshToken = req.cookies.refreshToken;
+        if(!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const payload:PasetoRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        if(!payload){
+            throw new AppError("Invalid refresh token", 401);
+        }
+
+        const dean = await prisma.dean.findUnique({
+            where:{
+                id: payload.userId
+            },
+            include:{
+                college: {
+                    select: {
+                        id: true,
+                        organizationId: true
+                    }
+                }
+            }
+        })
+
+        if(!dean){
+            throw new AppError("Dean not found", 404);
+        }
+        
+        const deanContext: DeanContext = {
+            id: dean.id,
+            mailId: dean.mailId,
+            role: "dean",
+            organizationId: dean.college.organizationId,
+            collegeId: dean.collegeId
+        }
+        req.dean = deanContext;
         return next();
     }
     

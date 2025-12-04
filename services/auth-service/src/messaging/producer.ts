@@ -274,6 +274,43 @@ export class KafkaProducer {
   }
 
   /**
+   * Send dean welcome email
+   */
+  public async sendDeanWelcomeEmail(
+    email: string,
+    name: string,
+    tempPassword: string,
+    collegeName: string,
+    loginUrl: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.EMAIL_NOTIFICATION,
+      type: NotificationType.DEAN_WELCOME_EMAIL,
+      subType: NotificationSubType.CREATE_ACCOUNT,
+      data: { email, name, tempPassword, collegeName, loginUrl }
+    };
+
+    return this.sendMessage("welcome-messages", payload);
+  }
+
+  /**
+   * Send dean forgot password email
+   */
+  public async sendDeanForgotPassword(
+    email: string,
+    sessionToken: string,
+    collegeName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.FORGOT_PASSWORD,
+      type: NotificationType.DEAN_FORGOT_PASSWORD,
+      data: { email, sessionToken, collegeName }
+    };
+
+    return this.sendMessage("forgot-password-messages", payload);
+  }
+
+  /**
    * Disconnect producer
    */
   public async disconnect(): Promise<void> {

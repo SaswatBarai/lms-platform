@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate, teacherPasswordResetEmailTemplate } from "../templates/index.js";
-import { ForgotPasswordData, StudentForgotPasswordData, TeacherForgotPasswordData } from "../types/notification.types.js";
+import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate, teacherPasswordResetEmailTemplate, deanPasswordResetEmailTemplate } from "../templates/index.js";
+import { ForgotPasswordData, StudentForgotPasswordData, TeacherForgotPasswordData, DeanForgotPasswordData } from "../types/notification.types.js";
 
 interface ExtendedForgotPasswordData extends ForgotPasswordData {
   collegeName?: string;
@@ -205,6 +205,42 @@ export class PasswordResetHandler {
     }
 
     console.error(`[PasswordResetHandler] ❌ Failed to send teacher password reset email to ${email}`);
+    return false;
+  }
+
+  /**
+   * Handle password reset email for dean
+   */
+  public static async handleDeanPasswordReset(data: DeanForgotPasswordData): Promise<boolean> {
+    const { email, sessionToken, collegeName } = data;
+
+    if (!email || !sessionToken || !collegeName) {
+      console.error("[PasswordResetHandler] Missing required fields for dean password reset");
+      return false;
+    }
+
+    console.log(`[PasswordResetHandler] Processing dean password reset for ${email}`);
+
+    const resetUrl = "http://localhost:8000/auth/api/forgot-reset-password-dean";
+    const html = deanPasswordResetEmailTemplate(
+      email,
+      sessionToken,
+      collegeName,
+      resetUrl
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Password Reset Request - ${collegeName} Dean Portal`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[PasswordResetHandler] ✅ Dean password reset email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[PasswordResetHandler] ❌ Failed to send dean password reset email to ${email}`);
     return false;
   }
 }

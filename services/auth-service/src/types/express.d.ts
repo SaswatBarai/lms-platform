@@ -9,6 +9,7 @@ declare global {
             hod: HodContext;
             student: StudentContext;
             teacher: TeacherContext;
+            dean: DeanContext;
         }
     }
 }
@@ -65,6 +66,14 @@ export interface TeacherContext{
     collegeId?: string;
     departmentId?: string;
     employeeNo?: string;
+}
+
+export interface DeanContext {
+    id: string;
+    mailId: string;
+    role: string;
+    organizationId?: string;
+    collegeId?: string;
 }
 
 export type AsyncHandler = (req:Request,res:Response,next:NextFunction) => Promise<any>;

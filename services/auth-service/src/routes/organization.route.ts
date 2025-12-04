@@ -27,7 +27,9 @@ import {
     createNonTeachingStaffBulkController,
     login as loginNonTeachingStaff,
     logoutNonTeachingStaffController,
-    resetPasswordNonTeachingStaffController
+    resetPasswordNonTeachingStaffController,
+    forgotPasswordNonTeachingStaffController,
+    resetForgotPasswordNonTeachingStaffController
 } from "../controller/nonTeachingStaff/staff.controller.js"
 import {
     createStudentBulkController,
@@ -47,6 +49,15 @@ import {
     forgotPasswordTeacherController,
     resetForgotPasswordTeacherController
 } from "../controller/teacher/auth.controller.js"
+import {
+    createDeanController,
+    loginDeanController,
+    logoutDeanController,
+    regenerateAccessTokenDeanController,
+    resetPasswordDeanController,
+    forgotPasswordDeanController,
+    resetForgotPasswordDeanController
+} from "../controller/dean/auth.controller.js"
 import { validate } from "@middleware/validate.js"
 import {
     createOrganizationSchema,
@@ -72,10 +83,22 @@ import {
     loginTeacherSchema,
     forgotPasswordTeacherSchema,
     resetForgotPasswordTeacherSchema,
-    updatePasswordTeacherSchema
+    updatePasswordTeacherSchema,
+    createDeanSchema,
+    loginDeanSchema,
+    forgotPasswordDeanSchema,
+    resetForgotPasswordDeanSchema
 } from "@schemas/organization.js"
 import {AuthenticatedUser} from "../middleware/authValidator.js"
-import { regenerateAccessTokenHod } from "@controller/hod/auth.controller.js";
+import { 
+    createHodController,
+    loginHodCOntroller,
+    logoutHodController,
+    regenerateAccessTokenHod,
+    forgotPasswordConotroller as forgotPasswordHodController,
+    resetForgotPasswordHodController,
+    resetPasswordHodController
+} from "@controller/hod/auth.controller.js";
 
 const router: Router = Router();
 
@@ -117,8 +140,8 @@ router.post("/add-department",AuthenticatedUser.checkNonTeachingStaff,validate({
 router.post("/add-course",AuthenticatedUser.checkNonTeachingStaff,validate({body:addCourseBulkSchema}), addCourseNonTeachingStaffController);
 router.post("/add-batch",AuthenticatedUser.checkNonTeachingStaff,validate({body:addBatchSchema}), addBatchNonTeachingStaffController);
 router.post("/add-section",AuthenticatedUser.checkNonTeachingStaff,validate({body:addSectionSchema}), addSectionNonTeachingStaffController);
-router.post("/forgot-password-non-teaching-staff", forgotPasswordCollege);
-router.post("/forgot-reset-password-non-teaching-staff",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
+router.post("/forgot-password-non-teaching-staff", forgotPasswordNonTeachingStaffController);
+router.post("/forgot-reset-password-non-teaching-staff", validate({body: forgotResetPasswordSchema }), resetForgotPasswordNonTeachingStaffController);
 router.post("/regenerate-access-token-non-teaching-staff", AuthenticatedUser.refreshTokenNonTeachingStaff, regenerateAccessTokenCollege);
 router.post("/logout-non-teaching-staff", AuthenticatedUser.checkNonTeachingStaff, logoutNonTeachingStaffController);
 
@@ -128,13 +151,13 @@ router.post("/logout-non-teaching-staff", AuthenticatedUser.checkNonTeachingStaf
 
 
 // Hod Routes
-router.post("/create-hod",AuthenticatedUser.checkNonTeachingStaff,createCollegeController);
-router.post("/login-hod", validate({ body: loginHodSchema }), loginCollegeController);
-router.post("/logout-hod", AuthenticatedUser.checkCollege, logoutCollege);
+router.post("/create-hod", AuthenticatedUser.checkNonTeachingStaff, createHodController);
+router.post("/login-hod", validate({ body: loginHodSchema }), loginHodCOntroller);
+router.post("/logout-hod", AuthenticatedUser.checkHod, logoutHodController);
 router.post("/regenerate-access-token-hod", AuthenticatedUser.refreshTokenHod, regenerateAccessTokenHod);
-router.post("/forgot-password-hod", forgotPasswordCollege);
-router.post("/forgot-reset-password-hod",validate({body:forgotResetPasswordSchema}),resetForgotPasswordCollegeController)
-router.post("/reset-password-hod",AuthenticatedUser.checkHod,validate({body:resetPasswordScehma}), resetPasswordCollegeController);
+router.post("/forgot-password-hod", forgotPasswordHodController);
+router.post("/forgot-reset-password-hod", validate({body: forgotResetPasswordSchema }), resetForgotPasswordHodController);
+router.post("/reset-password-hod", AuthenticatedUser.checkHod, validate({body: resetPasswordScehma }), resetPasswordHodController);
 
 
 //Student Routes
@@ -154,6 +177,15 @@ router.post("/regenerate-access-token-teacher", AuthenticatedUser.refreshTokenTe
 router.post("/reset-password-teacher", AuthenticatedUser.checkTeacher, validate({ body: updatePasswordTeacherSchema }), raiseUpdatePasswordTeacherController);
 router.post("/forgot-password-teacher", validate({ body: forgotPasswordTeacherSchema }), forgotPasswordTeacherController);
 router.post("/forgot-reset-password-teacher", validate({ body: resetForgotPasswordTeacherSchema }), resetForgotPasswordTeacherController);
+
+//Dean Routes
+router.post("/create-dean", AuthenticatedUser.checkCollege, validate({ body: createDeanSchema }), createDeanController);
+router.post("/login-dean", validate({ body: loginDeanSchema }), loginDeanController);
+router.post("/logout-dean", AuthenticatedUser.checkDean, logoutDeanController);
+router.post("/regenerate-access-token-dean", AuthenticatedUser.refreshTokenDean, regenerateAccessTokenDeanController);
+router.post("/reset-password-dean", AuthenticatedUser.checkDean, validate({ body: resetPasswordScehma }), resetPasswordDeanController);
+router.post("/forgot-password-dean", validate({ body: forgotPasswordDeanSchema }), forgotPasswordDeanController);
+router.post("/forgot-reset-password-dean", validate({ body: resetForgotPasswordDeanSchema }), resetForgotPasswordDeanController);
 
 
 

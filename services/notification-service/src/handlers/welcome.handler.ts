@@ -1,6 +1,6 @@
 import { EmailService } from "@services/email.service.js";
-import { welcomeEmailTemplate, staffWelcomeEmailTemplate, teacherWelcomeEmailTemplate, studentWelcomeEmailTemplate } from "../templates/index.js";
-import { WelcomeEmailData, StaffWelcomeEmailData, TeacherWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData } from "../types/notification.types.js";
+import { welcomeEmailTemplate, staffWelcomeEmailTemplate, teacherWelcomeEmailTemplate, studentWelcomeEmailTemplate, deanWelcomeEmailTemplate } from "../templates/index.js";
+import { WelcomeEmailData, StaffWelcomeEmailData, TeacherWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData, DeanWelcomeEmailData } from "../types/notification.types.js";
 import { hodWelcomeEmailTemplate } from "templates/hod-welcome.template.js";
 
 export class WelcomeEmailHandler {
@@ -178,6 +178,42 @@ export class WelcomeEmailHandler {
     }
 
     console.error(`[WelcomeEmailHandler] ❌ Failed to send student welcome email to ${email}`);
+    return false;
+  }
+
+  /**
+   * Handle welcome email for dean account
+   */
+  public static async handleDeanWelcome(data: DeanWelcomeEmailData): Promise<boolean> {
+    const { email, name, tempPassword, collegeName, loginUrl } = data;
+
+    if (!email || !name || !tempPassword || !collegeName) {
+      console.error("[WelcomeEmailHandler] Missing required data for dean welcome");
+      return false;
+    }
+
+    console.log(`[WelcomeEmailHandler] Processing dean welcome email for ${email}`);
+
+    const html = deanWelcomeEmailTemplate(
+      email,
+      name,
+      tempPassword,
+      collegeName,
+      loginUrl || "http://localhost:8000/auth/api/login-dean"
+    );
+
+    const result = await EmailService.sendEmail({
+      to: email,
+      subject: `Welcome ${name}! Your Dean Account at ${collegeName} is Ready`,
+      html
+    });
+
+    if (result.success) {
+      console.log(`[WelcomeEmailHandler] ✅ Dean welcome email sent to ${email}`);
+      return true;
+    }
+
+    console.error(`[WelcomeEmailHandler] ❌ Failed to send dean welcome email to ${email}`);
     return false;
   }
 }

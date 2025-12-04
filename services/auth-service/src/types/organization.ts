@@ -19,5 +19,8 @@ export * from "./teacher.types.js"
 // Student types
 export * from "./student.types.js"
 
+// Dean types
+export * from "./dean.types.js"
+
 // Common/Shared types
 export * from "./common.types.js"

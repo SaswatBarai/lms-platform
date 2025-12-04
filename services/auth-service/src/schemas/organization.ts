@@ -555,3 +555,40 @@ export const resetForgotPasswordTeacherSchema = z.object({
     newPassword: z.string({ message: "New password is required" })
         .min(8, { message: "New password must be at least 8 characters" })
 })
+
+
+export const createDeanSchema = z.object({
+    mailId: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+});
+
+export const loginDeanSchema = z.object({
+    mailId: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .toLowerCase()
+        .trim(),
+    password: z.string({ message: "Password is required" })
+        .min(1, { message: "Password is required" })
+        .trim()
+});
+
+export const forgotPasswordDeanSchema = z.object({
+    mailId: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .toLowerCase()
+        .trim()
+});
+
+export const resetForgotPasswordDeanSchema = z.object({
+    mailId: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .toLowerCase()
+        .trim(),
+    sessionToken: z.string({ message: "Session token is required" })
+        .min(1, { message: "Session token is required" }),
+    newPassword: z.string({ message: "New password is required" })
+        .min(8, { message: "New password must be at least 8 characters" })
+});
