@@ -51,10 +51,10 @@ export const createDeanController = asyncHandler(
             select: { name: true }
         });
 
-        if (!college) {
+        if (!college || !college.name) {
             throw new AppError("College not found", 404);
         }
-
+        
         const collegeName: string = college.name;
 
         // Create dean
@@ -68,7 +68,7 @@ export const createDeanController = asyncHandler(
 
         // Send welcome email via Kafka
         const kafkaProducer = KafkaProducer.getInstance();
-        const deanName = dean.mailId.split('@')[0];
+        const deanName = dean.mailId.split('@')[0] || dean.mailId;
         try {
             await kafkaProducer.sendDeanWelcomeEmail(
                 dean.mailId,

@@ -33,7 +33,8 @@ function generateSectionCode(deptShortName: string, batchYear: string, sectionNu
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let suffix = "";
     
-    for (let i = 0; i < 3; i++) {bee dom() * chars.length)];
+    for (let i = 0; i < 3; i++) {
+        suffix += chars[Math.floor(Math.random() * chars.length)];
     }
     
     const year = batchYear.split("-")[0]?.slice(-2) || "XX";
