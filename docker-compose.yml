@@ -223,6 +223,9 @@ services:
   auth-service:
     build: ./services/auth-service
     container_name: auth_service
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - PORT=4001
       - NODE_ENV=development
@@ -286,7 +289,7 @@ services:
       - MAIL_PORT=587
       # Set to 'console' to disable email and use console logging for development
       # Set to 'email' to enable actual email sending (requires proper Gmail setup)
-      - EMAIL_MODE=email
+      - EMAIL_MODE=console
     expose:
       - "4002"
     depends_on:
@@ -308,6 +311,9 @@ services:
   infrastructure-service:
     build: ./services/infrastructure-service
     container_name: infrastructure_service
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - PORT=4003
       - NODE_ENV=development

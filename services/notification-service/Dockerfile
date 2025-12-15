@@ -2,7 +2,10 @@
 # 1️⃣ Base image for dependencies
 # -----------------------------
 FROM node:20-alpine AS base
-RUN corepack enable
+
+# Install pnpm directly (avoids corepack network/DNS issues during build)
+RUN npm install -g pnpm@latest
+
 WORKDIR /app
 COPY package*.json pnpm-lock.yaml ./
 RUN pnpm install --force
@@ -19,7 +22,10 @@ RUN pnpm run build
 # -----------------------------
 FROM node:20-alpine AS production
 WORKDIR /app
-RUN corepack enable
+
+# Install pnpm for production stage
+RUN npm install -g pnpm@latest
+
 RUN apk add --no-cache curl
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
