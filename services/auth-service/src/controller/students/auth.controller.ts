@@ -1190,23 +1190,57 @@ export const resetForgotPasswordStudentController = asyncHandler(
             throw new AppError("Student not found", 404);
         }
 
-        await redisClient.del(redisKey);
+        try {
+            // Phase 1: Password Policy & History
+            PasswordService.validatePolicy(password);
+            await PasswordService.checkHistory(student.id, "student", password);
+            
+            const hashedPassword = await hashPassword(password);
+            
+            // Phase 1: Transaction to save history and update password
+            await prisma.$transaction(async (tx) => {
+                await tx.student.update({
+                    where: { id: student.id },
+                    data: {
+                        password: hashedPassword,
+                        passwordChangedAt: new Date(),
+                        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                    }
+                });
 
-        const hashedPassword = await hashPassword(password);
-        await prisma.student.update({
-            where: { id: student.id },
-            data: { password: hashedPassword }
-        });
+                await tx.passwordHistory.create({
+                    data: {
+                        userId: student.id,
+                        userType: "student",
+                        passwordHash: hashedPassword
+                    }
+                });
+            });
 
-        const sessionKey = `activeSession:student:${student.id}`;
-        await redisClient.del(sessionKey);
+            // Phase 1: Revoke all sessions on password change
+            const sessionKey = `activeSession:student:${student.id}`;
+            await redisClient.del(sessionKey).catch(err => {
+                console.error(`[Redis] Failed to delete session key ${sessionKey}:`, err);
+            });
 
-        return res.status(200).json({
-            success: true,
-            message: "Password has been reset successfully. Please login with your new password.",
-            data: {
-                email: student.email
-            }
-        });
+            // Delete forgot password Redis key only after successful password update
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password has been reset successfully. Please login with your new password.",
+                data: {
+                    email: student.email
+                }
+            });
+        } catch (error) {
+            // Even if password update fails, delete the Redis key to prevent reuse
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+            });
+            throw error;
+        }
     }
 );

@@ -9,6 +9,7 @@ import process from "node:process";
 import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
 import { resetPasswordService, ResetPasswordType } from "@services/organization.service.js";
+import { PasswordService } from "../../services/password.service.js";
 
 // The controller function for bulk staff creation
 export const createNonTeachingStaffBulkController = asyncHandler(async (req: Request, res: Response) => {
@@ -577,30 +578,76 @@ export const resetForgotPasswordNonTeachingStaffController = asyncHandler(
         if(token.length !== 64){
             throw new AppError("Invalid token", 400);
         }
-        const sessionToken = await redisClient.get(`non-teaching-staff-auth-${email}`);
+        const redisKey = `non-teaching-staff-auth-${email}`;
+        const sessionToken = await redisClient.get(redisKey);
         if(!sessionToken){
             throw new AppError("Invalid token", 400);
         }
-        if(sessionToken != token){
+        if(sessionToken !== token){
             throw new AppError("Invalid token", 400);
         }
-        await redisClient.del(`non-teaching-staff-auth-${email}`);
-        const hashedPassword = await hashPassword(password);
-        await prisma.nonTeachingStaff.update({
-            where:{
-                email
-            },
-            data:{
-                password:hashedPassword
+        
+        try {
+            // Phase 1: Password Policy & History
+            PasswordService.validatePolicy(password);
+            
+            const staff = await prisma.nonTeachingStaff.findUnique({
+                where: { email }
+            });
+            
+            if (!staff) {
+                throw new AppError("Non-teaching staff not found", 404);
             }
-        })
-        return res.status(200).json({
-            success: true,
-            message: "Password reset successfully",
-            data: {
-                email
-            }
-        })
+
+            await PasswordService.checkHistory(staff.id, "nonTeachingStaff", password);
+            
+            const hashedPassword = await hashPassword(password);
+            
+            // Phase 1: Transaction to save history and update password
+            await prisma.$transaction(async (tx) => {
+                await tx.nonTeachingStaff.update({
+                    where: { id: staff.id },
+                    data: {
+                        password: hashedPassword,
+                        passwordChangedAt: new Date(),
+                        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                    }
+                });
+
+                await tx.passwordHistory.create({
+                    data: {
+                        userId: staff.id,
+                        userType: "nonTeachingStaff",
+                        passwordHash: hashedPassword
+                    }
+                });
+            });
+
+            // Phase 1: Revoke all sessions on password change
+            const sessionKey = `activeSession:nonTeachingStaff:${staff.id}`;
+            await redisClient.del(sessionKey).catch(err => {
+                console.error(`[Redis] Failed to delete session key ${sessionKey}:`, err);
+            });
+
+            // Delete forgot password Redis key only after successful password update
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully",
+                data: {
+                    email
+                }
+            });
+        } catch (error) {
+            // Even if password update fails, delete the Redis key to prevent reuse
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+            });
+            throw error;
+        }
 
     }
 )

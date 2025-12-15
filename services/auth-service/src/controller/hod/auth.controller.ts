@@ -437,27 +437,67 @@ export const resetForgotPasswordHodController = asyncHandler(
         if(!validateEmail(email)){
             throw new AppError("Invalid email", 400);
         }
-        const sessionToken = await redisClient.get(`hod-auth-${email}`);
+        const redisKey = `hod-auth-${email}`;
+        const sessionToken = await redisClient.get(redisKey);
         if(!sessionToken){
             throw new AppError("Session token not found", 404);
         }
         if(sessionToken !== token){
             throw new AppError("Invalid session token", 400);
         }
-        const hashedPassword = await hashPassword(password);
-        await redisClient.del(`hod-auth-${email}`);
-        await prisma.hod.update({
-            where:{
-                email
-            },
-            data:{
-                password: hashedPassword
+        
+        try {
+            // Phase 1: Password Policy & History
+            PasswordService.validatePolicy(password);
+            
+            const hod = await prisma.hod.findUnique({
+                where: { email }
+            });
+            
+            if (!hod) {
+                throw new AppError("HOD not found", 404);
             }
-        })
-        return res.status(200).json({
-            success: true,
-            message: "Password reset successfully",
-        })
+
+            await PasswordService.checkHistory(hod.id, "hod", password);
+            
+            const hashedPassword = await hashPassword(password);
+            
+            // Phase 1: Transaction to save history and update password
+            await prisma.$transaction(async (tx) => {
+                await tx.hod.update({
+                    where: { id: hod.id },
+                    data: {
+                        password: hashedPassword,
+                        passwordChangedAt: new Date(),
+                        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                    }
+                });
+
+                await tx.passwordHistory.create({
+                    data: {
+                        userId: hod.id,
+                        userType: "hod",
+                        passwordHash: hashedPassword
+                    }
+                });
+            });
+
+            // Delete Redis key only after successful password update
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully",
+            });
+        } catch (error) {
+            // Even if password update fails, delete the Redis key to prevent reuse
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+            });
+            throw error;
+        }
     }
 )
 

@@ -90,7 +90,8 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
     }
     //delete the hashed otp from redis
     await redisClient.del(`org-auth-otp-${email}`);
-    //create organization account'
+    
+    //create organization account
     const orgData = await redisClient.hgetall(`org-auth-${email}`);
     if (!orgData || Object.keys(orgData).length === 0) {
         throw new AppError("Organization data not found. Please register again.", 400);
@@ -104,25 +105,53 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
         }
     }
 
-    const createOrgResult = await createOrganizationService({
-        name: orgData.name!,
-        email: orgData.email!,
-        password: orgData.password!,
-        phone: orgData.phone!,
-        recoveryEmail: orgData.recoveryEmail!,
-        address: orgData.address || '' // address is optional
-    })
-    if (!createOrgResult.success) {
-        throw new AppError(createOrgResult.message, 500);
-    }
-    //delete the org data from redis
-    await redisClient.del(`org-auth-${email}`);
+    try {
+        const createOrgResult = await createOrganizationService({
+            name: orgData.name!,
+            email: orgData.email!,
+            password: orgData.password!,
+            phone: orgData.phone!,
+            recoveryEmail: orgData.recoveryEmail!,
+            address: orgData.address || '' // address is optional
+        })
+        
+        if (!createOrgResult.success) {
+            throw new AppError(createOrgResult.message, 500);
+        }
 
-    return res.status(200).json({
-        success: true,
-        message: createOrgResult?.message,
-        data: createOrgResult.data
-    })
+        // Clean up all Redis keys after successful creation
+        const keysToDelete = [
+            `org-auth-${email}`,
+            `org-auth-otp-cooldown-${email}`
+        ];
+        
+        // Delete all keys in parallel
+        await Promise.all(keysToDelete.map(key => redisClient.del(key).catch(err => {
+            console.error(`[Redis] Failed to delete key ${key}:`, err);
+        })));
+
+        return res.status(200).json({
+            success: true,
+            message: createOrgResult?.message,
+            data: createOrgResult.data
+        });
+    } catch (error) {
+        // Even if creation fails, clean up Redis keys to prevent stale data
+        const keysToDelete = [
+            `org-auth-${email}`,
+            `org-auth-otp-cooldown-${email}`
+        ];
+        
+        // Delete all keys in parallel (don't wait for errors)
+        Promise.all(keysToDelete.map(key => redisClient.del(key).catch(err => {
+            console.error(`[Redis] Failed to delete key ${key} during error cleanup:`, err);
+        }))).catch(() => {
+            // Ignore cleanup errors
+        });
+        
+        // Re-throw the original error
+        throw error;
+    }
 })
 
 
@@ -457,27 +486,67 @@ export const resetForgotPasswordOrganization = asyncHandler(async (req:Request, 
     if(token.length !== 64){
         throw new AppError("Invalid token", 400);
     }
-    const sessionToken = await redisClient.get(`org-auth-${email}`);
+    const redisKey = `org-auth-${email}`;
+    const sessionToken = await redisClient.get(redisKey);
     if(!sessionToken){
         throw new AppError("Invalid token", 400);
     }
     if(sessionToken !== token){
         throw new AppError("Invalid token", 400);
     }
-    await redisClient.del(`org-auth-${email}`);
-    const hashedPassword = await hashPassword(password);
-    await prisma.organization.update({
-        where:{
-            email
-        },
-        data:{
-            password:hashedPassword
+    
+    try {
+        // Phase 1: Password Policy & History
+        PasswordService.validatePolicy(password);
+        
+        const organization = await prisma.organization.findUnique({
+            where: { email }
+        });
+        
+        if (!organization) {
+            throw new AppError("Organization not found", 404);
         }
-    })
-    return res.status(200).json({
-        success: true,
-        message: "Password reset successfully"
-    })
+
+        await PasswordService.checkHistory(organization.id, "organization", password);
+        
+        const hashedPassword = await hashPassword(password);
+        
+        // Phase 1: Transaction to save history and update password
+        await prisma.$transaction(async (tx) => {
+            await tx.organization.update({
+                where: { id: organization.id },
+                data: {
+                    password: hashedPassword,
+                    passwordChangedAt: new Date(),
+                    passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                }
+            });
+
+            await tx.passwordHistory.create({
+                data: {
+                    userId: organization.id,
+                    userType: "organization",
+                    passwordHash: hashedPassword
+                }
+            });
+        });
+
+        // Delete Redis key only after successful password update
+        await redisClient.del(redisKey).catch(err => {
+            console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully"
+        });
+    } catch (error) {
+        // Even if password update fails, delete the Redis key to prevent reuse
+        await redisClient.del(redisKey).catch(err => {
+            console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+        });
+        throw error;
+    }
 })
 
 
