@@ -5,7 +5,6 @@ import cookieParser from "cookie-parser";
 import organizationRoutes from "@routes/organization.route.js";
 import errorHandler from "@middleware/errorHandler.js";
 import { setupSwagger } from "@config/swagger.js";
-import { globalLimiter } from "@middleware/rateLimiter.js";
 
 const app:Application = express();
 
@@ -13,9 +12,6 @@ app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
 app.use(morgan("dev"));
-
-// Rate limiting middleware - applies to all routes
-app.use(globalLimiter);
 
 // CORS for Swagger UI
 app.use((req, res, next) => {
@@ -64,10 +60,7 @@ if (process.env.NODE_ENV !== 'production') {
 //All routes
 app.use("/auth/api",organizationRoutes)
 
-//health check - support both paths for compatibility
-app.get("/health",(req,res)=>{
-    res.status(200).json({status:"ok"});
-})
+//health check
 app.get("/auth/api/health",(req,res)=>{
     res.status(200).json({status:"ok"});
 })
