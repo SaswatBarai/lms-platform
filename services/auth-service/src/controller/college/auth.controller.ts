@@ -361,7 +361,6 @@ export const forgotPasswordCollege = asyncHandler(
 export const resetForgotPasswordCollegeController = asyncHandler(
     async(req:Request, res:Response) => {
         const {email, token, password}:ForgotResetPasswordInput = req.body;
-        console.log(email, token, password);
         if(!email || !token || !password){
             throw new AppError("Email and token are required", 400);
         }
@@ -372,27 +371,67 @@ export const resetForgotPasswordCollegeController = asyncHandler(
             throw new AppError("Invalid token", 400);
         }
 
-        const sessionToken = await redisClient.get(`college-auth-${email}`);
+        const redisKey = `college-auth-${email}`;
+        const sessionToken = await redisClient.get(redisKey);
         if(!sessionToken){
             throw new AppError("Invalid token", 400);
         }
         if(sessionToken !== token){
             throw new AppError("Invalid token", 400);
         }
-        await redisClient.del(`college-auth-${email}`);
-        const hashedPassword = await hashPassword(password);
-        await prisma.college.update({
-            where:{
-                email
-            },
-            data:{
-                password:hashedPassword
+        
+        try {
+            // Phase 1: Password Policy & History
+            PasswordService.validatePolicy(password);
+            
+            const college = await prisma.college.findUnique({
+                where: { email }
+            });
+            
+            if (!college) {
+                throw new AppError("College not found", 404);
             }
-        })
-        return res.status(200).json({
-            success: true,
-            message: "Password reset successfully"
-        })
+
+            await PasswordService.checkHistory(college.id, "college", password);
+            
+            const hashedPassword = await hashPassword(password);
+            
+            // Phase 1: Transaction to save history and update password
+            await prisma.$transaction(async (tx) => {
+                await tx.college.update({
+                    where: { id: college.id },
+                    data: {
+                        password: hashedPassword,
+                        passwordChangedAt: new Date(),
+                        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                    }
+                });
+
+                await tx.passwordHistory.create({
+                    data: {
+                        userId: college.id,
+                        userType: "college",
+                        passwordHash: hashedPassword
+                    }
+                });
+            });
+
+            // Delete Redis key only after successful password update
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully"
+            });
+        } catch (error) {
+            // Even if password update fails, delete the Redis key to prevent reuse
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+            });
+            throw error;
+        }
     }
 )
 

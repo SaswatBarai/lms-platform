@@ -403,7 +403,8 @@ export const resetForgotPasswordDeanController = asyncHandler(
             throw new AppError("Password must be at least 8 characters", 400);
         }
 
-        const storedToken = await redisClient.get(`dean-forgot-password-${mailId.toLowerCase()}`);
+        const redisKey = `dean-forgot-password-${mailId.toLowerCase()}`;
+        const storedToken = await redisClient.get(redisKey);
         if (!storedToken || storedToken !== sessionToken) {
             throw new AppError("Invalid or expired session token", 400);
         }
@@ -416,19 +417,55 @@ export const resetForgotPasswordDeanController = asyncHandler(
             throw new AppError("Dean not found", 404);
         }
 
-        const hashedPassword = await hashPassword(newPassword);
-        await prisma.dean.update({
-            where: { id: dean.id },
-            data: { password: hashedPassword }
-        });
+        try {
+            // Phase 1: Password Policy & History
+            PasswordService.validatePolicy(newPassword);
+            await PasswordService.checkHistory(dean.id, "dean", newPassword);
+            
+            const hashedPassword = await hashPassword(newPassword);
+            
+            // Phase 1: Transaction to save history and update password
+            await prisma.$transaction(async (tx) => {
+                await tx.dean.update({
+                    where: { id: dean.id },
+                    data: {
+                        password: hashedPassword,
+                        passwordChangedAt: new Date(),
+                        passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                    }
+                });
 
-        // Clear the session token
-        await redisClient.del(`dean-forgot-password-${mailId.toLowerCase()}`);
+                await tx.passwordHistory.create({
+                    data: {
+                        userId: dean.id,
+                        userType: "dean",
+                        passwordHash: hashedPassword
+                    }
+                });
+            });
 
-        return res.status(200).json({
-            success: true,
-            message: "Password reset successfully. You can now login with your new password."
-        });
+            // Phase 1: Revoke all sessions on password change
+            const sessionKey = `activeSession:dean:${dean.id}`;
+            await redisClient.del(sessionKey).catch(err => {
+                console.error(`[Redis] Failed to delete session key ${sessionKey}:`, err);
+            });
+
+            // Delete forgot password Redis key only after successful password update
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey}:`, err);
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully. You can now login with your new password."
+            });
+        } catch (error) {
+            // Even if password update fails, delete the Redis key to prevent reuse
+            await redisClient.del(redisKey).catch(err => {
+                console.error(`[Redis] Failed to delete key ${redisKey} during error cleanup:`, err);
+            });
+            throw error;
+        }
     }
 )
 
