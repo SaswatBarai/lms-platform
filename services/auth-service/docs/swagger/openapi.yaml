@@ -10,7 +10,21 @@ info:
     - Student, Teacher, HOD, Dean, and Non-Teaching Staff authentication
     - Password reset and recovery flows
     - Session management with single-device login enforcement
-    - Token generation and refresh using PASETO v4
+    - Token generation and refresh using PASETO v4 with token rotation
+    - Account lockout protection (brute-force prevention)
+    - Password policy enforcement (12+ characters, complexity requirements)
+    - Password history (prevents reusing last 5 passwords)
+    - Rate limiting (global and per-endpoint)
+    
+    **Rate Limiting:**
+    - Global rate limit: 100 requests per 15 minutes per IP
+    - Login endpoints: 5 attempts per minute per IP
+    - Rate limit exceeded returns HTTP 429
+    
+    **Account Lockout:**
+    - After 5 failed login attempts, account is locked for 15 minutes
+    - Locked accounts return HTTP 423
+    - Lockout is tracked in Redis and database
     
   contact:
     name: LMS Platform Team
@@ -151,7 +165,14 @@ paths:
       tags:
         - Organization
       summary: Organization login
-      description: Authenticates an organization and returns access tokens. Enforces single-device login.
+      description: |
+        Authenticates an organization and returns access tokens. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -172,6 +193,10 @@ paths:
                 type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-organization:
     post:
@@ -195,13 +220,18 @@ paths:
     post:
       tags:
         - Organization
-      summary: Regenerate organization access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate organization access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -212,13 +242,18 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: "Access token regenerated successfully"
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
                         example: "v4.public.eyJ..."
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -282,7 +317,22 @@ paths:
       tags:
         - Organization
       summary: Reset organization password (authenticated)
-      description: Changes the organization password while logged in (requires current password)
+      description: |
+        Changes the organization password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter
+        - At least one lowercase letter
+        - At least one number
+        - At least one special character (!@#$%^&*)
+        - Password strength score must be ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -293,7 +343,7 @@ paths:
               $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -336,7 +386,14 @@ paths:
       tags:
         - College
       summary: College login
-      description: Authenticates a college and returns access tokens. Enforces single-device login.
+      description: |
+        Authenticates a college and returns access tokens. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -350,8 +407,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CollegeLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-college:
     post:
@@ -375,13 +441,18 @@ paths:
     post:
       tags:
         - College
-      summary: Regenerate college access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate college access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -392,13 +463,21 @@ paths:
                     example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /forgot-password-college:
     post:
@@ -460,7 +539,19 @@ paths:
       tags:
         - College
       summary: Reset college password (authenticated)
-      description: Changes the college password while logged in (requires current password)
+      description: |
+        Changes the college password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -471,7 +562,7 @@ paths:
               $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -525,7 +616,14 @@ paths:
       tags:
         - Non-Teaching Staff
       summary: Non-teaching staff login
-      description: Authenticates a non-teaching staff member and returns access tokens
+      description: |
+        Authenticates a non-teaching staff member and returns access tokens. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -539,8 +637,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StaffLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-non-teaching-staff:
     post:
@@ -564,13 +671,18 @@ paths:
     post:
       tags:
         - Non-Teaching Staff
-      summary: Regenerate non-teaching staff access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate non-teaching staff access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -578,22 +690,43 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /reset-password-non-teaching-staff:
     post:
       tags:
         - Non-Teaching Staff
       summary: Reset non-teaching staff password (authenticated)
-      description: Changes the staff member's password while logged in
+      description: |
+        Changes the staff member's password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -604,7 +737,7 @@ paths:
               $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -846,7 +979,14 @@ paths:
       tags:
         - HOD
       summary: HOD login
-      description: Authenticates a Head of Department and returns access tokens
+      description: |
+        Authenticates a Head of Department and returns access tokens. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -860,8 +1000,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HODLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-hod:
     post:
@@ -885,13 +1034,18 @@ paths:
     post:
       tags:
         - HOD
-      summary: Regenerate HOD access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate HOD access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -899,15 +1053,24 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /forgot-password-hod:
     post:
@@ -969,7 +1132,19 @@ paths:
       tags:
         - HOD
       summary: Reset HOD password (authenticated)
-      description: Changes the HOD password while logged in (requires current password)
+      description: |
+        Changes the HOD password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -980,7 +1155,7 @@ paths:
               $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -1047,7 +1222,14 @@ paths:
       tags:
         - Student
       summary: Student login
-      description: Authenticates a student using email or registration number. Enforces single-device login.
+      description: |
+        Authenticates a student using email or registration number. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -1061,8 +1243,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StudentLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-student:
     post:
@@ -1086,13 +1277,18 @@ paths:
     post:
       tags:
         - Student
-      summary: Regenerate student access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate student access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -1100,13 +1296,20 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1117,7 +1320,19 @@ paths:
       tags:
         - Student
       summary: Reset student password (authenticated)
-      description: Changes the student password while logged in (requires current password)
+      description: |
+        Changes the student password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -1128,7 +1343,7 @@ paths:
               $ref: '#/components/schemas/StudentResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -1263,7 +1478,14 @@ paths:
       tags:
         - Teacher
       summary: Teacher login
-      description: Authenticates a teacher using email or employee number. Enforces single-device login.
+      description: |
+        Authenticates a teacher using email or employee number. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -1277,8 +1499,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeacherLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-teacher:
     post:
@@ -1302,13 +1533,18 @@ paths:
     post:
       tags:
         - Teacher
-      summary: Regenerate teacher access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate teacher access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -1316,13 +1552,20 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1333,7 +1576,19 @@ paths:
       tags:
         - Teacher
       summary: Reset teacher password (authenticated)
-      description: Changes the teacher password while logged in (requires current password)
+      description: |
+        Changes the teacher password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -1344,7 +1599,7 @@ paths:
               $ref: '#/components/schemas/TeacherResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -1446,7 +1701,14 @@ paths:
       tags:
         - Dean
       summary: Dean login
-      description: Authenticates a dean and returns access tokens. Enforces single-device login.
+      description: |
+        Authenticates a dean and returns access tokens. Enforces single-device login.
+        
+        **Security Features:**
+        - Account lockout check before authentication
+        - Failed login attempts tracked (max 5 attempts)
+        - Account locked after 5 failed attempts (15-minute lockout)
+        - Rate limited (5 attempts per minute)
       requestBody:
         required: true
         content:
@@ -1460,8 +1722,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeanLoginResponse'
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/Locked'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /logout-dean:
     post:
@@ -1485,13 +1756,18 @@ paths:
     post:
       tags:
         - Dean
-      summary: Regenerate dean access token
-      description: Generates a new access token using the refresh token
+      summary: Regenerate dean access token (Token Rotation)
+      description: |
+        Generates a new access token using the refresh token. Implements token rotation:
+        - Old refresh token is invalidated
+        - New access and refresh tokens are issued
+        - Token reuse detection prevents replay attacks
+        - Session ID and token family are rotated
       security:
         - bearerAuth: []
       responses:
         '200':
-          description: Access token regenerated successfully
+          description: Access token regenerated successfully (tokens rotated)
           content:
             application/json:
               schema:
@@ -1499,13 +1775,20 @@ paths:
                 properties:
                   success:
                     type: boolean
+                    example: true
                   message:
                     type: string
+                    example: "Tokens rotated successfully"
                   data:
                     type: object
                     properties:
                       accessToken:
                         type: string
+          headers:
+            Set-Cookie:
+              description: HTTP-only cookies containing new access and refresh tokens
+              schema:
+                type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1516,7 +1799,19 @@ paths:
       tags:
         - Dean
       summary: Reset dean password (authenticated)
-      description: Changes the dean password while logged in (requires current password)
+      description: |
+        Changes the dean password while logged in (requires current password).
+        
+        **Password Requirements:**
+        - Minimum 12 characters
+        - At least one uppercase letter, lowercase letter, number, and special character (!@#$%^&*)
+        - Password strength score ≥ 3 (zxcvbn)
+        - Cannot reuse any of the last 5 passwords
+        
+        **Security:**
+        - All active sessions are revoked on password change
+        - Password history is updated
+        - User must login again after password change
       security:
         - bearerAuth: []
       requestBody:
@@ -1527,7 +1822,7 @@ paths:
               $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
         '200':
-          description: Password reset successfully
+          description: Password reset successfully. All sessions revoked.
           content:
             application/json:
               schema:
@@ -1654,9 +1949,15 @@ components:
         password:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "SecurePass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3 (avoid common phrases)
+          example: "SecurePassword123!"
         recoveryEmail:
           type: string
           format: email
@@ -1744,9 +2045,15 @@ components:
         password:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "CollegePass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+          example: "CollegePassword123!"
         organizationId:
           type: string
           example: "org-uuid-here"
@@ -1966,9 +2273,16 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     StudentResetPasswordRequest:
       type: object
@@ -1983,9 +2297,16 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     ForgotResetPasswordRequest:
       type: object
@@ -2005,9 +2326,16 @@ components:
         password:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     StudentForgotResetPasswordRequest:
       type: object
@@ -2028,9 +2356,16 @@ components:
         password:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     CreateTeacherBulkRequest:
       type: object
@@ -2105,9 +2440,16 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     TeacherForgotResetPasswordRequest:
       type: object
@@ -2127,9 +2469,16 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     CreateDeanRequest:
       type: object
@@ -2175,9 +2524,16 @@ components:
         newPassword:
           type: string
           format: password
-          minLength: 8
-          description: Must contain uppercase, lowercase, number, and special character
-          example: "NewPass123!"
+          minLength: 12
+          description: |
+            Must be at least 12 characters and contain:
+            - At least one uppercase letter
+            - At least one lowercase letter
+            - At least one number
+            - At least one special character (!@#$%^&*)
+            - Password strength score ≥ 3
+            - Cannot reuse any of the last 5 passwords
+          example: "NewSecurePassword123!"
 
     OTPResponse:
       type: object
@@ -2678,6 +3034,24 @@ components:
             success: false
             message: "Too many requests. Please wait before trying again."
             error: "Rate limit exceeded"
+
+    Locked:
+      description: Account is locked - too many failed login attempts
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            temporaryLock:
+              value:
+                success: false
+                message: "Account is temporarily locked due to multiple failed login attempts. Please try again later."
+                error: "Account Locked"
+            permanentLock:
+              value:
+                success: false
+                message: "Account is locked. Please contact support."
+                error: "Account Locked"
 
     InternalServerError:
       description: Internal server error
