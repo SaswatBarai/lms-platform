@@ -14,6 +14,7 @@ export class OTPHandler {
       return false;
     }
 
+    // Log without exposing OTP for security
     console.log(`[OTPHandler] Processing OTP request for ${email}`);
 
     const html = otpEmailTemplate(otp);

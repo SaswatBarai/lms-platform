@@ -116,64 +116,71 @@ export class EmailService {
   }
 
   /**
+   * Extract OTP from HTML content (for console mode testing only)
+   */
+  private static extractOTP(html: string): string | null {
+    // Look for OTP in common patterns used in email templates
+    const patterns = [
+      /<div[^>]*class[^>]*otp[^>]*>(\d{4,8})<\/div>/i,
+      /<div[^>]*class[^>]*otp-display[^>]*>(\d{4,8})<\/div>/i,
+      /otp[^>]*>(\d{4,8})</i,
+      /(?:OTP|Code|Verification Code)[\s:]*(\d{4,8})/i,
+      /<strong[^>]*>(\d{4,8})<\/strong>/i,
+      /<span[^>]*>(\d{4,8})<\/span>/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Mask sensitive information in text (tokens, passwords - but NOT OTPs in console mode)
+   */
+  private static maskSensitive(text: string): string {
+    // Only mask tokens and passwords, not OTPs (OTPs will be shown separately in console mode)
+    return text
+      .replace(/token[=:]\s*[\w-]+/gi, 'token=****')  // Mask tokens
+      .replace(/password[=:]\s*[\w!@#$%^&*]+/gi, 'password=****');  // Mask passwords
+  }
+
+  /**
    * Log email details to console for development/fallback
+   * OTPs are shown ONLY in console mode for testing purposes
    */
   private static logToConsole(to: string, subject: string, html: string, reason: string): void {
     const timestamp = new Date().toLocaleString();
-    const maxWidth = 80;
+    const sanitizedSubject = this.maskSensitive(subject);
+    const otp = this.extractOTP(html);
+    const isOTPEmail = subject.toLowerCase().includes('otp') || subject.toLowerCase().includes('verification');
     
-    // Extract text preview from HTML (remove tags, limit length)
-    const textPreview = html
-      .replace(/<[^>]*>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 200);
-    
-    console.log(`
+    let output = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                        📧 EMAIL CONSOLE MODE                                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  To:       ${to.padEnd(68)} ║
-║  Subject:  ${subject.substring(0, 65).padEnd(65)} ║
+║  Subject:  ${sanitizedSubject.substring(0, 65).padEnd(65)} ║
 ║  Time:     ${timestamp.padEnd(68)} ║
-║  Mode:     ${this.getEmailMode().toUpperCase().padEnd(68)} ║
-║  Reason:   ${reason.substring(0, 65).padEnd(65)} ║
+║  Mode:     ${this.getEmailMode().toUpperCase().padEnd(68)} ║`;
+    
+    // Show OTP only in console mode for testing (development only)
+    if (otp && isOTPEmail && this.getEmailMode() === 'console') {
+      output += `
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  HTML Preview:                                                               ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-${this.formatHTMLPreview(textPreview, maxWidth)}
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  Full HTML Content:                                                          ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-${html.split('\n').map(line => `║  ${line.substring(0, 72).padEnd(72)} ║`).join('\n')}
+║  🔐 OTP (Development Only): ${otp.padEnd(52)} ║
+║  ⚠️  This OTP is only visible in console mode for testing                    ║`;
+    }
+    
+    output += `
 ╚══════════════════════════════════════════════════════════════════════════════╝
-    `);
-  }
-
-  /**
-   * Format HTML preview text for console display
-   */
-  private static formatHTMLPreview(text: string, maxWidth: number): string {
-    const lines: string[] = [];
-    let currentLine = '';
+    `;
     
-    const words = text.split(' ');
-    for (const word of words) {
-      if ((currentLine + word).length <= maxWidth - 4) {
-        currentLine += (currentLine ? ' ' : '') + word;
-      } else {
-        if (currentLine) {
-          lines.push(`║  ${currentLine.padEnd(maxWidth - 4)} ║`);
-        }
-        currentLine = word;
-      }
-    }
-    
-    if (currentLine) {
-      lines.push(`║  ${currentLine.padEnd(maxWidth - 4)} ║`);
-    }
-    
-    return lines.length > 0 ? lines.join('\n') : `║  ${' '.padEnd(maxWidth - 4)} ║`;
+    console.log(output);
   }
 
   /**
