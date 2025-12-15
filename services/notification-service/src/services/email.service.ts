@@ -18,6 +18,13 @@ export class EmailService {
   private static readonly RETRY_DELAY_MS = 2000;
 
   /**
+   * Get current email mode
+   */
+  private static getEmailMode(): 'email' | 'console' {
+    return env.EMAIL_MODE || 'email';
+  }
+
+  /**
    * Send email with retry logic and console fallback for development
    */
   public static async sendEmail(
@@ -25,17 +32,26 @@ export class EmailService {
     retries: number = this.MAX_RETRIES
   ): Promise<SendEmailResult> {
     const { to, subject, html } = options;
+    const emailMode = this.getEmailMode();
 
-    // Console mode for development
-    if (process.env.EMAIL_MODE === 'console') {
-      this.logToConsole(to, subject, "Console mode enabled");
+    // Console mode - log to console instead of sending emails
+    if (emailMode === 'console') {
+      this.logToConsole(to, subject, html, "Console mode enabled");
       return { success: true };
     }
 
-    // Check if transporter is verified
+    // Email mode - send actual emails
+    // Check if transporter is available and verified
+    if (!transporter) {
+      console.warn(`[EmailService] ⚠️  Transporter not initialized. Falling back to console mode.`);
+      this.logToConsole(to, subject, html, "Transporter not initialized, using console fallback");
+      return { success: true };
+    }
+
     const isVerified = getTransporterStatus();
-    if (!isVerified && env.NODE_ENV === 'development') {
-      this.logToConsole(to, subject, "Gmail not connected, using console fallback");
+    if (!isVerified) {
+      console.warn(`[EmailService] ⚠️  Transporter not verified. Falling back to console mode.`);
+      this.logToConsole(to, subject, html, "Transporter not verified, using console fallback");
       return { success: true };
     }
 
@@ -50,7 +66,7 @@ export class EmailService {
         console.log(`[EmailService] 📤 Sending email to ${to}: ${subject}`);
         
         const result = await transporter.sendMail({
-          from: `LMS Platform <${env.MAIL_USER}>`,
+          from: `LMS Platform <${env.MAIL_USER || 'noreply@lms-platform.com'}>`,
           to,
           subject,
           html
@@ -60,7 +76,7 @@ export class EmailService {
           console.error(`[EmailService] ❌ Email rejected for ${to}:`, result.rejected);
           
           if (attempt === retries) {
-            this.logToConsole(to, subject, "Email rejected by server");
+            this.logToConsole(to, subject, html, "Email rejected by server");
             return { success: false, error: "Email rejected by server" };
           }
           continue;
@@ -76,7 +92,7 @@ export class EmailService {
         this.handleError(error);
 
         if (attempt === retries) {
-          this.logToConsole(to, subject, error.message);
+          this.logToConsole(to, subject, html, error.message);
           return { success: false, error: error.message };
         }
       }
@@ -102,17 +118,62 @@ export class EmailService {
   /**
    * Log email details to console for development/fallback
    */
-  private static logToConsole(to: string, subject: string, reason: string): void {
+  private static logToConsole(to: string, subject: string, html: string, reason: string): void {
+    const timestamp = new Date().toLocaleString();
+    const maxWidth = 80;
+    
+    // Extract text preview from HTML (remove tags, limit length)
+    const textPreview = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 200);
+    
     console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║                    📧 EMAIL CONSOLE LOG                      ║
-╠══════════════════════════════════════════════════════════════╣
-║  To: ${to.padEnd(55)} ║
-║  Subject: ${subject.substring(0, 50).padEnd(50)} ║
-║  Time: ${new Date().toLocaleString().padEnd(53)} ║
-║  Reason: ${reason.substring(0, 51).padEnd(51)} ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                        📧 EMAIL CONSOLE MODE                                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  To:       ${to.padEnd(68)} ║
+║  Subject:  ${subject.substring(0, 65).padEnd(65)} ║
+║  Time:     ${timestamp.padEnd(68)} ║
+║  Mode:     ${this.getEmailMode().toUpperCase().padEnd(68)} ║
+║  Reason:   ${reason.substring(0, 65).padEnd(65)} ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  HTML Preview:                                                               ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+${this.formatHTMLPreview(textPreview, maxWidth)}
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Full HTML Content:                                                          ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+${html.split('\n').map(line => `║  ${line.substring(0, 72).padEnd(72)} ║`).join('\n')}
+╚══════════════════════════════════════════════════════════════════════════════╝
     `);
+  }
+
+  /**
+   * Format HTML preview text for console display
+   */
+  private static formatHTMLPreview(text: string, maxWidth: number): string {
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    const words = text.split(' ');
+    for (const word of words) {
+      if ((currentLine + word).length <= maxWidth - 4) {
+        currentLine += (currentLine ? ' ' : '') + word;
+      } else {
+        if (currentLine) {
+          lines.push(`║  ${currentLine.padEnd(maxWidth - 4)} ║`);
+        }
+        currentLine = word;
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(`║  ${currentLine.padEnd(maxWidth - 4)} ║`);
+    }
+    
+    return lines.length > 0 ? lines.join('\n') : `║  ${' '.padEnd(maxWidth - 4)} ║`;
   }
 
   /**

@@ -8,6 +8,7 @@ async function startNotificationService() {
 ╔══════════════════════════════════════════════════════════════╗
 ║         🔔 NOTIFICATION SERVICE STARTING                     ║
 ║         Environment: ${env.NODE_ENV?.padEnd(43)} ║
+║         Email Mode:  ${env.EMAIL_MODE?.toUpperCase().padEnd(43)} ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
