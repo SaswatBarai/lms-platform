@@ -311,6 +311,34 @@ export class KafkaProducer {
   }
 
   /**
+   * Send audit log event
+   */
+  public async sendAuditLog(event: any): Promise<boolean> {
+    try {
+      await this.ensureConnected();
+      
+      const result = await this.producer!.send({
+        topic: 'auth.audit.events',
+        messages: [{
+          value: JSON.stringify({ ...event, timestamp: new Date().toISOString() })
+        }]
+      });
+
+      if (result && result.length > 0) {
+        console.log(`[KafkaProducer] ✅ Audit log sent: ${event.action || 'unknown'}`);
+        return true;
+      }
+
+      console.error(`[KafkaProducer] ❌ Failed to send audit log`);
+      return false;
+
+    } catch (error) {
+      console.error(`[KafkaProducer] ❌ Error sending audit log:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Disconnect producer
    */
   public async disconnect(): Promise<void> {

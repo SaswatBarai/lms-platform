@@ -8,6 +8,9 @@ import { hashPassword, verifyPassword, PasetoV4SecurityManager, validateEmail } 
 import { KafkaProducer } from "@messaging/producer.js";
 import redisClient from "@config/redis.js";
 import process from "node:process";
+import { LockoutService } from "../../services/lockout.service.js";
+import { PasswordService } from "../../services/password.service.js";
+import * as requestIp from "request-ip";
 
 export const createDeanController = asyncHandler(
     async(req:Request, res:Response) => {
@@ -96,6 +99,8 @@ export const createDeanController = asyncHandler(
 export const loginDeanController = asyncHandler(
     async(req:Request, res:Response) => {
         const {mailId, password}: LoginDeanInput = req.body;
+        const ip = requestIp.getClientIp(req) || "unknown";
+        const userAgent = req.headers['user-agent'] || "unknown";
 
         if (!mailId || !password) {
             throw new AppError("Email and password are required", 400);
@@ -118,10 +123,23 @@ export const loginDeanController = asyncHandler(
             throw new AppError("Invalid credentials. Please check your email and password.", 401);
         }
 
+        // Phase 1: Lockout Check
+        await LockoutService.checkLockout(dean.id, "dean");
+
         const isPasswordValid = await verifyPassword(dean.password, password);
         if (!isPasswordValid) {
+            // Phase 1: Handle Failed Attempt
+            await LockoutService.handleFailedAttempt(dean.id, "dean", dean.mailId);
+            
+            // Phase 1: Audit Log Failure
+            const kafka = KafkaProducer.getInstance();
+            // await kafka.sendAuditLog({ userId: dean.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
+
             throw new AppError("Invalid credentials. Please check your email and password.", 401);
         }
+
+        // Phase 1: Reset Lockout on Success
+        await LockoutService.resetAttempts(dean.id, "dean");
 
         // Single device login: Handle session management
         const sessionKey = `activeSession:dean:${dean.id}`;
@@ -131,6 +149,9 @@ export const loginDeanController = asyncHandler(
         }
 
         const accessSessionId = crypto.randomBytes(16).toString('hex');
+        
+        // Phase 1: Token Family for Rotation
+        const tokenFamily = crypto.randomUUID();
 
         // Create token payload
         const tokenPayload = {
@@ -159,6 +180,10 @@ export const loginDeanController = asyncHandler(
         const accessToken = await securityManager.generateAccessToken(tokenPayload);
         const refreshSessionId = crypto.randomBytes(16).toString('hex');
         const refreshToken = await securityManager.generateRefreshToken(dean.id, refreshSessionId);
+
+        // Phase 1: Audit Log Success
+        const kafka = KafkaProducer.getInstance();
+        // await kafka.sendAuditLog({ userId: dean.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
 
         // Set cookies
         const isProduction = process?.env?.NODE_ENV === "production";
@@ -205,15 +230,48 @@ export const logoutDeanController = asyncHandler(
     }
 )
 
+// [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenDeanController = asyncHandler(
     async(req: Request, res: Response) => {
-        const { id } = req.dean;
+        const { id } = req.dean; // This comes from authValidator validating the OLD refresh token
+
+        // [ADDED] Extract the old refresh token payload to get the tokenFamily
+        const refreshToken = req.cookies.refreshToken;
+        if (!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        
+        // [ADDED] Phase 1: Token Rotation Logic
+        // 1. Check for Reuse: If this token was already used, lock the user!
+        const usedTokenKey = `usedRefreshToken:dean:${oldRefreshPayload.sessionId}`;
+        const isTokenUsed = await redisClient.exists(usedTokenKey);
+        
+        if (isTokenUsed) {
+            // Token reuse detected - potential attack!
+            const dean = await prisma.dean.findUnique({ where: { id }, select: { mailId: true } });
+            await LockoutService.handleFailedAttempt(id, "dean", dean?.mailId || "");
+            throw new AppError("Security violation: Token reuse detected. Account has been locked for security.", 401);
+        }
+
+        // 2. Mark the OLD refresh token as used (invalidate it)
+        const tokenExpiry = oldRefreshPayload.exp - Math.floor(Date.now() / 1000);
+        if (tokenExpiry > 0) {
+            await redisClient.setex(usedTokenKey, tokenExpiry, "true");
+        }
 
         const sessionKey = `activeSession:dean:${id}`;
         const sessionId = await redisClient.hget(sessionKey, 'sessionId');
         
         if (!sessionId) {
             throw new AppError("Session not found. Please login again.", 404);
+        }
+
+        // Verify the session ID matches the refresh token session ID
+        if (sessionId !== oldRefreshPayload.sessionId) {
+            throw new AppError("Session mismatch. Please login again.", 401);
         }
 
         const dean = await prisma.dean.findUnique({
@@ -232,7 +290,21 @@ export const regenerateAccessTokenDeanController = asyncHandler(
             throw new AppError("Dean not found", 404);
         }
 
-        const securityManager = PasetoV4SecurityManager.getInstance();
+        // [ADDED] Generate NEW Session ID and Token Family for the ROTATED pair
+        const newSessionId = crypto.randomBytes(16).toString('hex');
+        const newTokenFamily = crypto.randomUUID();
+
+        // Update Redis with NEW session
+        await redisClient.hset(sessionKey, {
+            sessionId: newSessionId,
+            deanId: dean.id,
+            organizationId: dean.college.organizationId,
+            collegeId: dean.collegeId,
+            active: 'true',
+        });
+        await redisClient.expire(sessionKey, 1 * 24 * 60 * 60);
+
+        // Issue NEW Access Token
         const accessToken = await securityManager.generateAccessToken({
             id: dean.id,
             email: dean.mailId,
@@ -241,18 +313,28 @@ export const regenerateAccessTokenDeanController = asyncHandler(
             type: "dean",
             collegeId: dean.collegeId,
             organizationId: dean.college.organizationId,
-            sessionId: sessionId
+            sessionId: newSessionId
         });
 
+        // [ADDED] Issue NEW Refresh Token (Rotation)
+        const newRefreshToken = await securityManager.generateRefreshToken(id, newSessionId);
+
+        // Send BOTH new tokens
+        const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: process?.env?.NODE_ENV === "production",
+            secure: isProduction,
             maxAge: 1 * 24 * 60 * 60 * 1000
+        });
+        res.cookie("refreshToken", newRefreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
         return res.status(200).json({
             success: true,
-            message: "Access token regenerated successfully",
+            message: "Tokens rotated successfully",
             data: {
                 accessToken
             }
@@ -357,15 +439,16 @@ export const resetPasswordDeanController = asyncHandler(
         if (!oldPassword || !newPassword) {
             throw new AppError("Old password and new password are required", 400);
         }
-        
-        if (newPassword.length < 8) {
-            throw new AppError("New password must be at least 8 characters", 400);
-        }
+
+        // Phase 1: Password Policy & History
+        PasswordService.validatePolicy(newPassword);
 
         const {id} = req.dean;
         if(!id){
             throw new AppError("Dean not found", 404);
         }
+
+        await PasswordService.checkHistory(id, "dean", newPassword);
         
         const dean = await prisma.dean.findUnique({
             where: { id },
@@ -382,16 +465,34 @@ export const resetPasswordDeanController = asyncHandler(
         }
         
         const hashedNewPassword = await hashPassword(newPassword);
-        await prisma.dean.update({
-            where:{id},
-            data:{
-                password:hashedNewPassword
-            }
-        })
+        
+        // Phase 1: Transaction to save history and update password
+        await prisma.$transaction(async (tx) => {
+            await tx.dean.update({
+                where: { id },
+                data: {
+                    password: hashedNewPassword,
+                    passwordChangedAt: new Date(),
+                    passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                }
+            });
+
+            await tx.passwordHistory.create({
+                data: {
+                    userId: id,
+                    userType: "dean",
+                    passwordHash: hashedNewPassword
+                }
+            });
+        });
+
+        // Phase 1: Revoke all sessions on password change
+        const sessionKey = `activeSession:dean:${id}`;
+        await redisClient.del(sessionKey);
         
         return res.status(200).json({
             success: true,
-            message: "Password updated successfully"
+            message: "Password updated successfully. Please login again with your new password."
         });
     }
 )

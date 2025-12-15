@@ -7,6 +7,9 @@ import crypto from "crypto";
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js";
 import { KafkaProducer } from "@messaging/producer.js";
 import redisClient from "@config/redis.js";
+import { LockoutService } from "../../services/lockout.service.js";
+import { PasswordService } from "../../services/password.service.js";
+import * as requestIp from "request-ip";
 
 export const createHodController = asyncHandler(
     async (req: Request, res: Response) => {
@@ -132,6 +135,9 @@ export const createHodController = asyncHandler(
 export const loginHodCOntroller = asyncHandler(
     async (req: Request, res: Response) => {
         const { email, password }: LoginHodInput = req.body;
+        const ip = requestIp.getClientIp(req) || "unknown";
+        const userAgent = req.headers['user-agent'] || "unknown";
+
         if (!email || !password) {
             throw new AppError("Missing required fields", 400);
         }
@@ -154,10 +160,23 @@ export const loginHodCOntroller = asyncHandler(
             throw new AppError("Invalid email or password", 401);
         }
 
+        // Phase 1: Lockout Check
+        await LockoutService.checkLockout(hod.id, "hod");
+
         const isPasswordValid = await verifyPassword(hod.password, password);
         if (!isPasswordValid) {
+            // Phase 1: Handle Failed Attempt
+            await LockoutService.handleFailedAttempt(hod.id, "hod", hod.email);
+            
+            // Phase 1: Audit Log Failure
+            const kafka = KafkaProducer.getInstance();
+            // await kafka.sendAuditLog({ userId: hod.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
+
             throw new AppError("Invalid email or password", 401);
         }
+
+        // Phase 1: Reset Lockout on Success
+        await LockoutService.resetAttempts(hod.id, "hod");
 
         const key = `activeSession:hod:${hod.id}`;
         const existingSessionId = await redisClient.hget(key, 'sessionId');
@@ -166,6 +185,10 @@ export const loginHodCOntroller = asyncHandler(
         }
 
         const accessSessionId = crypto.randomBytes(16).toString("hex");
+        
+        // Phase 1: Token Family for Rotation
+        const tokenFamily = crypto.randomUUID();
+
         const tokenPayload = {
             id: hod.id,
             email: hod.email,
@@ -185,9 +208,13 @@ export const loginHodCOntroller = asyncHandler(
         })
         await redisClient.expire(key, 1 * 24 * 60 * 60); // 1 day
         const securityManager = PasetoV4SecurityManager.getInstance();
-        const accessToken = securityManager.generateAccessToken(tokenPayload);
+        const accessToken = await securityManager.generateAccessToken(tokenPayload);
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
-        const refreshToken = securityManager.generateRefreshToken(hod.id, sessionId);
+        const refreshToken = await securityManager.generateRefreshToken(hod.id, sessionId);
+
+        // Phase 1: Audit Log Success
+        const kafka = KafkaProducer.getInstance();
+        // await kafka.sendAuditLog({ userId: hod.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
 
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
@@ -209,14 +236,49 @@ export const loginHodCOntroller = asyncHandler(
     }
 )
 
+// [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenHod = asyncHandler(
     async(req:Request, res:Response) => {
-        const {id} = req.hod;
-        const ket = `activeSession:hod:${id}`;
-        const sessionId = await redisClient.hget(ket, 'sessionId');
+        const {id} = req.hod; // This comes from authValidator validating the OLD refresh token
+
+        // [ADDED] Extract the old refresh token payload to get the tokenFamily
+        const refreshToken = req.cookies.refreshToken;
+        if (!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        
+        // [ADDED] Phase 1: Token Rotation Logic
+        // 1. Check for Reuse: If this token was already used, lock the user!
+        const usedTokenKey = `usedRefreshToken:hod:${oldRefreshPayload.sessionId}`;
+        const isTokenUsed = await redisClient.exists(usedTokenKey);
+        
+        if (isTokenUsed) {
+            // Token reuse detected - potential attack!
+            const hod = await prisma.hod.findUnique({ where: { id }, select: { email: true } });
+            await LockoutService.handleFailedAttempt(id, "hod", hod?.email || "");
+            throw new AppError("Security violation: Token reuse detected. Account has been locked for security.", 401);
+        }
+
+        // 2. Mark the OLD refresh token as used (invalidate it)
+        const tokenExpiry = oldRefreshPayload.exp - Math.floor(Date.now() / 1000);
+        if (tokenExpiry > 0) {
+            await redisClient.setex(usedTokenKey, tokenExpiry, "true");
+        }
+
+        const key = `activeSession:hod:${id}`;
+        const sessionId = await redisClient.hget(key, 'sessionId');
         if(!sessionId){
             throw new AppError("Session not found", 404);
         }
+
+        // Verify the session ID matches the refresh token session ID
+        if (sessionId !== oldRefreshPayload.sessionId) {
+            throw new AppError("Session mismatch. Please login again.", 401);
+        }
+
         const hod = await prisma.hod.findUnique({
             where:{
                 id
@@ -234,7 +296,21 @@ export const regenerateAccessTokenHod = asyncHandler(
         if(!hod){
             throw new AppError("Hod not found", 404);
         }
-        const securityManager = PasetoV4SecurityManager.getInstance();
+
+        // [ADDED] Generate NEW Session ID and Token Family for the ROTATED pair
+        const newSessionId = crypto.randomBytes(16).toString('hex');
+        const newTokenFamily = crypto.randomUUID();
+
+        // Update Redis with NEW session
+        await redisClient.hset(key, {
+            sessionId: newSessionId,
+            hodId: hod.id,
+            organizationId: hod.college.organizationId,
+            active: 'true',
+        });
+        await redisClient.expire(key, 1 * 24 * 60 * 60);
+
+        // Issue NEW Access Token
         const accessToken = await securityManager.generateAccessToken({
             id: hod.id,
             email: hod.email,
@@ -243,16 +319,28 @@ export const regenerateAccessTokenHod = asyncHandler(
             type: "hod",
             collegeId: hod.college.id,
             organizationId: hod.college.organizationId,
-            sessionId
-        })
+            sessionId: newSessionId
+        });
+
+        // [ADDED] Issue NEW Refresh Token (Rotation)
+        const newRefreshToken = await securityManager.generateRefreshToken(id, newSessionId);
+
+        // Send BOTH new tokens
+        const isProduction = process.env.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
+            secure: isProduction,
             maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
         });
+        res.cookie("refreshToken", newRefreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
         res.status(200).json({
             success: true,
-            message: "Access token regenerated successfully",
+            message: "Tokens rotated successfully",
             data: {
                 accessToken
             }
@@ -382,6 +470,10 @@ export const resetPasswordHodController = asyncHandler(
         if(!validateEmail(email)){
             throw new AppError("Invalid email", 400);
         }
+
+        // Phase 1: Password Policy & History
+        PasswordService.validatePolicy(newPassword);
+
         const hod = await prisma.hod.findUnique({
             where:{
                 email
@@ -390,22 +482,42 @@ export const resetPasswordHodController = asyncHandler(
         if(!hod){
             throw new AppError("Hod not found", 404);
         }
+
+        await PasswordService.checkHistory(hod.id, "hod", newPassword);
+
         const isPasswordValid = await verifyPassword(hod.password, oldPassword);
         if(!isPasswordValid){
             throw new AppError("Invalid old password", 400);
         }
         const hashedPassword = await hashPassword(newPassword);
-        await prisma.hod.update({
-            where:{
-                email
-            },
-            data:{
-                password: hashedPassword
-            }
-        })
+        
+        // Phase 1: Transaction to save history and update password
+        await prisma.$transaction(async (tx) => {
+            await tx.hod.update({
+                where: { id: hod.id },
+                data: {
+                    password: hashedPassword,
+                    passwordChangedAt: new Date(),
+                    passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                }
+            });
+
+            await tx.passwordHistory.create({
+                data: {
+                    userId: hod.id,
+                    userType: "hod",
+                    passwordHash: hashedPassword
+                }
+            });
+        });
+
+        // Phase 1: Revoke all sessions on password change
+        const sessionKey = `activeSession:hod:${hod.id}`;
+        await redisClient.del(sessionKey);
+
         return res.status(200).json({
             success: true,
-            message: "Password reset successfully",
+            message: "Password reset successfully. Please login again with your new password.",
         })
     }
 )

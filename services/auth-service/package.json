@@ -27,8 +27,11 @@
     "@types/ms": "^2.1.0",
     "@types/node": "^24.7.2",
     "@types/node-vault-client": "^1.0.1",
+    "@types/request-ip": "^0.0.41",
     "@types/swagger-ui-express": "^4.1.6",
+    "@types/uuid": "^9.0.7",
     "@types/yamljs": "^0.2.34",
+    "@types/zxcvbn": "^4.4.1",
     "tsc-alias": "^1.8.16",
     "tsc-watch": "^7.2.0",
     "typescript": "^5.9.3"
@@ -40,6 +43,7 @@
     "crypto": "^1.0.1",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^8.1.0",
     "ioredis": "^5.8.1",
     "jsonwebtoken": "^9.0.2",
@@ -49,8 +53,12 @@
     "node-vault-client": "^1.0.2",
     "paseto": "^3.1.4",
     "prisma": "6.17.1",
+    "rate-limit-redis": "^3.0.1",
+    "request-ip": "^3.3.0",
     "swagger-ui-express": "^5.0.1",
+    "uuid": "^9.0.1",
     "yamljs": "^0.3.0",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "zxcvbn": "^4.4.2"
   }
 }

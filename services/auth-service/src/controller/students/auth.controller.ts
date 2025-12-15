@@ -9,6 +9,10 @@ import * as crypto from "node:crypto";
 import redisClient from "@config/redis.js";
 import process from "node:process";
 
+import { LockoutService } from "../../services/lockout.service.js";
+import { PasswordService } from "../../services/password.service.js";
+import * as requestIp from "request-ip";
+
 const MAX_SECTION_CAPACITY = 70;
 const MIN_STUDENTS_PER_SECTION = 5;
 const MAX_BATCH_SIZE = 500;
@@ -751,6 +755,8 @@ export const createStudentBulkController = asyncHandler(
 export const loginStudentController = asyncHandler(
     async(req: Request, res: Response) => {
         const { identifier, password }: { identifier: string; password: string } = req.body;
+        const ip = requestIp.getClientIp(req) || "unknown";
+        const userAgent = req.headers['user-agent'] || "unknown";
 
         const student = await prisma.student.findFirst({
             where: {
@@ -785,9 +791,20 @@ export const loginStudentController = asyncHandler(
         }
 
         const isPasswordValid = await verifyPassword(student.password, password);
+        
         if (!isPasswordValid) {
+            // Phase 1: Handle Failed Attempt
+            await LockoutService.handleFailedAttempt(student.id, "student", student.email);
+            
+            // Phase 1: Audit Log Failure
+            const kafka = KafkaProducer.getInstance();
+            // await kafka.sendAuditLog({ userId: student.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
+
             throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
         }
+
+        // Phase 1: Reset Lockout on Success
+        await LockoutService.resetAttempts(student.id, "student");
 
         const sessionKey = `activeSession:student:${student.id}`;
         const existingSessionId = await redisClient.hget(sessionKey, 'sessionId');
@@ -796,6 +813,9 @@ export const loginStudentController = asyncHandler(
         }
 
         const accessSessionId = crypto.randomBytes(16).toString('hex');
+        
+        // Phase 1: Token Family for Rotation
+        const tokenFamily = crypto.randomUUID();
 
         const tokenPayload = {
             id: student.id,
@@ -825,6 +845,10 @@ export const loginStudentController = asyncHandler(
         const accessToken = await securityManager.generateAccessToken(tokenPayload);
         const refreshSessionId = crypto.randomBytes(16).toString('hex');
         const refreshToken = await securityManager.generateRefreshToken(student.id, refreshSessionId);
+
+        // Phase 1: Audit Log Success
+        const kafka = KafkaProducer.getInstance();
+        // await kafka.sendAuditLog({ userId: student.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
 
         const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
@@ -882,15 +906,47 @@ export const logoutStudentController = asyncHandler(
 );
 
 
+// [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenStudentController = asyncHandler(
     async(req: Request, res: Response) => {
-        const { id } = req.student;
+        const { id } = req.student; // This comes from authValidator validating the OLD refresh token
+        
+        // [ADDED] Extract the old refresh token payload to get the tokenFamily
+        const refreshToken = req.cookies.refreshToken;
+        if (!refreshToken) {
+            throw new AppError("Refresh token not found", 401);
+        }
+
+        const securityManager = PasetoV4SecurityManager.getInstance();
+        const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
+        
+        // [ADDED] Phase 1: Token Rotation Logic
+        // 1. Check for Reuse: If this token was already used, lock the user!
+        const usedTokenKey = `usedRefreshToken:student:${oldRefreshPayload.sessionId}`;
+        const isTokenUsed = await redisClient.exists(usedTokenKey);
+        
+        if (isTokenUsed) {
+            // Token reuse detected - potential attack!
+            await LockoutService.handleFailedAttempt(id, "student", req.student.email || "");
+            throw new AppError("Security violation: Token reuse detected. Account has been locked for security.", 401);
+        }
+
+        // 2. Mark the OLD refresh token as used (invalidate it)
+        const tokenExpiry = oldRefreshPayload.exp - Math.floor(Date.now() / 1000);
+        if (tokenExpiry > 0) {
+            await redisClient.setex(usedTokenKey, tokenExpiry, "true");
+        }
 
         const sessionKey = `activeSession:student:${id}`;
         const sessionId = await redisClient.hget(sessionKey, 'sessionId');
         
         if (!sessionId) {
             throw new AppError("Session not found. Please login again.", 404);
+        }
+
+        // Verify the session ID matches the refresh token session ID
+        if (sessionId !== oldRefreshPayload.sessionId) {
+            throw new AppError("Session mismatch. Please login again.", 401);
         }
 
         const student = await prisma.student.findUnique({
@@ -905,7 +961,13 @@ export const regenerateAccessTokenStudentController = asyncHandler(
                             }
                         }
                     }
-                }
+                },
+                batch: {
+                    include: {
+                        course: true
+                    }
+                },
+                section: true
             }
         });
 
@@ -913,7 +975,21 @@ export const regenerateAccessTokenStudentController = asyncHandler(
             throw new AppError("Student not found", 404);
         }
 
-        const securityManager = PasetoV4SecurityManager.getInstance();
+        // [ADDED] Generate NEW Session ID and Token Family for the ROTATED pair
+        const newSessionId = crypto.randomBytes(16).toString('hex');
+        const newTokenFamily = crypto.randomUUID();
+
+        // Update Redis with NEW session
+        await redisClient.hset(sessionKey, {
+            sessionId: newSessionId,
+            studentId: student.id,
+            organizationId: student.department.college.organizationId,
+            collegeId: student.department.collegeId,
+            active: 'true',
+        });
+        await redisClient.expire(sessionKey, 1 * 24 * 60 * 60);
+
+        // Issue NEW Access Token
         const accessToken = await securityManager.generateAccessToken({
             id: student.id,
             email: student.email,
@@ -926,18 +1002,28 @@ export const regenerateAccessTokenStudentController = asyncHandler(
             sectionId: student.sectionId,
             collegeId: student.department.collegeId,
             organizationId: student.department.college.organizationId,
-            sessionId: sessionId
+            sessionId: newSessionId
         });
 
+        // [ADDED] Issue NEW Refresh Token (Rotation)
+        const newRefreshToken = await securityManager.generateRefreshToken(id, newSessionId);
+
+        // Send BOTH new tokens
+        const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            secure: process?.env?.NODE_ENV === "production",
+            secure: isProduction,
             maxAge: 1 * 24 * 60 * 60 * 1000
+        });
+        res.cookie("refreshToken", newRefreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
         return res.status(200).json({
             success: true,
-            message: "Access token regenerated successfully",
+            message: "Tokens rotated successfully",
             data: {
                 accessToken
             }
@@ -951,10 +1037,11 @@ export const resetPasswordStudentController = asyncHandler(
         const { oldPassword, newPassword }: { oldPassword: string; newPassword: string } = req.body;
         const { id } = req.student;
 
-        const student = await prisma.student.findUnique({
-            where: { id }
-        });
+        // [ADDED] Phase 1: Password Policy & History
+        PasswordService.validatePolicy(newPassword);
+        await PasswordService.checkHistory(id, "student", newPassword);
 
+        const student = await prisma.student.findUnique({ where: { id } });
         if (!student) {
             throw new AppError("Student not found", 404);
         }
@@ -965,10 +1052,30 @@ export const resetPasswordStudentController = asyncHandler(
         }
 
         const hashedPassword = await hashPassword(newPassword);
-        await prisma.student.update({
-            where: { id },
-            data: { password: hashedPassword }
+        
+        // [ADDED] Phase 1: Transaction to save history and update password
+        await prisma.$transaction(async (tx) => {
+            await tx.student.update({
+                where: { id },
+                data: { 
+                    password: hashedPassword,
+                    passwordChangedAt: new Date(),
+                    passwordExpiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000) // 90 days expiry
+                }
+            });
+
+            await tx.passwordHistory.create({
+                data: {
+                    userId: id,
+                    userType: "student",
+                    passwordHash: hashedPassword
+                }
+            });
         });
+
+        // [ADDED] Phase 1: Revoke all sessions on password change
+        const sessionKey = `activeSession:student:${id}`;
+        await redisClient.del(sessionKey);
 
         return res.status(200).json({
             success: true,
