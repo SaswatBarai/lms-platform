@@ -328,3 +328,25 @@ model AccountLockout {
   
   @@index([userId, userType])
 }
+
+
+
+model UserSession {
+  id            String   @id @default(uuid())
+  userId        String
+  userType      String   // "student", "teacher", "organization", etc.
+  sessionToken  String   @unique // The Access Token JTI or Session ID
+  deviceId      String   // SHA-256 hash of device fingerprint
+  deviceType    String?  // "mobile", "desktop", "tablet"
+  browser       String?
+  os            String?
+  ipAddress     String
+  location      String?  // "Mumbai, India"
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  invalidatedAt DateTime? // If set, this session is dead
+  isActive      Boolean  @default(true)
+  
+  @@index([userId, userType, isActive])
+  @@index([sessionToken])
+}
