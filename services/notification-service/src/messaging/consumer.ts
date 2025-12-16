@@ -1,6 +1,6 @@
 import { kafka } from "./kafka.js";
 import { NotificationPayload, NotificationAction, NotificationType } from "../types/notification.types.js";
-import { OTPHandler, WelcomeEmailHandler, PasswordResetHandler } from "../handlers/index.js";
+import { OTPHandler, WelcomeEmailHandler, PasswordResetHandler, NewDeviceHandler } from "../handlers/index.js";
 
 export class NotificationConsumer {
   private static consumerInstance: any = null;
@@ -25,6 +25,7 @@ export class NotificationConsumer {
       await consumer.subscribe({ topic: "otp-messages", fromBeginning: false });
       await consumer.subscribe({ topic: "forgot-password-messages", fromBeginning: false });
       await consumer.subscribe({ topic: "welcome-messages", fromBeginning: false });
+      await consumer.subscribe({ topic: "new-device-login-messages", fromBeginning: false });
       console.log("[NotificationConsumer] 📥 Subscribed to notification topics");
       
       await consumer.run({
@@ -84,6 +85,14 @@ export class NotificationConsumer {
             await this.handleForgotPassword(type, data);
           } else {
             console.warn(`[NotificationConsumer] ⚠️  FORGOT_PASSWORD action received from unexpected topic: ${topic}`);
+          }
+          break;
+
+        case NotificationAction.NEW_DEVICE_LOGIN:
+          if (topic === "new-device-login-messages") {
+            await this.handleNewDeviceLogin(type, data);
+          } else {
+            console.warn(`[NotificationConsumer] ⚠️  NEW_DEVICE_LOGIN action received from unexpected topic: ${topic}`);
           }
           break;
 
@@ -211,7 +220,29 @@ export class NotificationConsumer {
     }
   }
 
-  
+  /**
+   * Handle new device login messages from new-device-login-messages topic
+   */
+  private static async handleNewDeviceLogin(type: NotificationType, data: any): Promise<void> {
+    console.log(`[NotificationConsumer] 🔒 Processing new device login notification: ${type}`);
+    
+    switch (type) {
+      case NotificationType.ORG_NEW_DEVICE_LOGIN:
+      case NotificationType.COLLEGE_NEW_DEVICE_LOGIN:
+      case NotificationType.STUDENT_NEW_DEVICE_LOGIN:
+      case NotificationType.TEACHER_NEW_DEVICE_LOGIN:
+      case NotificationType.HOD_NEW_DEVICE_LOGIN:
+      case NotificationType.DEAN_NEW_DEVICE_LOGIN:
+      case NotificationType.NON_TEACHING_STAFF_NEW_DEVICE_LOGIN:
+        console.log(`[NotificationConsumer] 📧 Sending new device login email to: ${data.email}`);
+        await NewDeviceHandler.handleNewDeviceLogin(data);
+        console.log(`[NotificationConsumer] ✅ New device login email sent successfully`);
+        break;
+
+      default:
+        console.log(`[NotificationConsumer] ❓ Unknown new device login type: ${type}`);
+    }
+  }
 
   /**
    * Gracefully shutdown the consumer

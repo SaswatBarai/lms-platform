@@ -311,6 +311,252 @@ export class KafkaProducer {
   }
 
   /**
+   * Send new device login notification for organization
+   */
+  public async sendNewDeviceLoginOrganization(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.ORG_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "organization",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login"
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for college
+   */
+  public async sendNewDeviceLoginCollege(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.COLLEGE_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "college",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for student
+   */
+  public async sendNewDeviceLoginStudent(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string,
+    departmentName: string,
+    regNo: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.STUDENT_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "student",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName,
+        departmentName,
+        regNo
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for teacher
+   */
+  public async sendNewDeviceLoginTeacher(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string,
+    departmentName: string,
+    employeeNo: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.TEACHER_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "teacher",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName,
+        departmentName,
+        employeeNo
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for HOD
+   */
+  public async sendNewDeviceLoginHod(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string,
+    departmentName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.HOD_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "hod",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName,
+        departmentName
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for dean
+   */
+  public async sendNewDeviceLoginDean(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.DEAN_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "dean",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
+   * Send new device login notification for non-teaching staff
+   */
+  public async sendNewDeviceLoginNonTeachingStaff(
+    email: string,
+    name: string,
+    deviceType: string,
+    browser: string,
+    os: string,
+    ipAddress: string,
+    location: string,
+    collegeName: string
+  ): Promise<boolean> {
+    const payload: NotificationPayload = {
+      action: NotificationAction.NEW_DEVICE_LOGIN,
+      type: NotificationType.NON_TEACHING_STAFF_NEW_DEVICE_LOGIN,
+      data: {
+        email,
+        name,
+        userType: "non-teaching-staff",
+        deviceType,
+        browser,
+        os,
+        ipAddress,
+        location,
+        loginTime: new Date().toISOString(),
+        loginUrl: process.env.FRONTEND_URL || "https://lms.example.com/login",
+        collegeName
+      }
+    };
+
+    return this.sendMessage("new-device-login-messages", payload);
+  }
+
+  /**
    * Send audit log event
    */
   public async sendAuditLog(event: any): Promise<boolean> {

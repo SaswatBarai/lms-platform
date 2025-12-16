@@ -10,4 +10,5 @@ export { hodPasswordResetEmailTemplate } from "./hod-reset-temp.js";
 export { studentPasswordResetEmailTemplate } from "./student-password-reset.template.js";
 export { teacherPasswordResetEmailTemplate } from "./teacher-password-reset.template.js";
 export { deanPasswordResetEmailTemplate } from "./dean-password-reset.template.js";
+export { newDeviceLoginTemplate } from "./new-device-login.template.js";
 
