@@ -66,6 +66,9 @@ services:
           - "/auth/api/reset-password-hod"
           - "/auth/api/logout-student"
           - "/auth/api/reset-password-student"
+          - "/auth/api/student/me/session"
+          - "/auth/api/student/me/logout-all"
+          - "/auth/api/admin/force-logout"
         strip_path: false
         plugins:
           - name: paseto-vault-auth-lua
