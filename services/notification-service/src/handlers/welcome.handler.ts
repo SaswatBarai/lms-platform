@@ -61,7 +61,8 @@ export class WelcomeEmailHandler {
     const result = await EmailService.sendEmail({
       to: email,
       subject: `Welcome ${name}! Your Staff Account is Ready`,
-      html
+      html,
+      tempPassword // Pass password directly for console mode display
     });
 
     if (result.success) {
@@ -94,7 +95,8 @@ export class WelcomeEmailHandler {
     const result = await EmailService.sendEmail({
       to: email,
       subject: `Welcome ${name}! Your HOD Account is Ready`,
-      html
+      html,
+      tempPassword // Pass password directly for console mode display
     });
 
     if (result.success) {
@@ -131,7 +133,8 @@ export class WelcomeEmailHandler {
     const result = await EmailService.sendEmail({
       to: email,
       subject: `Welcome ${name}! Your Teacher Account at ${collegeName} is Ready`,
-      html
+      html,
+      tempPassword // Pass password directly for console mode display
     });
 
     if (result.success) {
@@ -169,7 +172,8 @@ export class WelcomeEmailHandler {
     const result = await EmailService.sendEmail({
       to: email,
       subject: `Welcome ${name}! Your Student Account at ${collegeName} is Ready`,
-      html
+      html,
+      tempPassword // Pass password directly for console mode display
     });
 
     if (result.success) {
@@ -205,7 +209,8 @@ export class WelcomeEmailHandler {
     const result = await EmailService.sendEmail({
       to: email,
       subject: `Welcome ${name}! Your Dean Account at ${collegeName} is Ready`,
-      html
+      html,
+      tempPassword // Pass password directly for console mode display
     });
 
     if (result.success) {

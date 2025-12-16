@@ -5,6 +5,7 @@ interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  tempPassword?: string; // For console mode display (welcome emails)
 }
 
 interface SendEmailResult {
@@ -31,12 +32,12 @@ export class EmailService {
     options: EmailOptions,
     retries: number = this.MAX_RETRIES
   ): Promise<SendEmailResult> {
-    const { to, subject, html } = options;
+    const { to, subject, html, tempPassword } = options;
     const emailMode = this.getEmailMode();
 
     // Console mode - log to console instead of sending emails
     if (emailMode === 'console') {
-      this.logToConsole(to, subject, html, "Console mode enabled");
+      this.logToConsole(to, subject, html, "Console mode enabled", tempPassword);
       return { success: true };
     }
 
@@ -44,14 +45,14 @@ export class EmailService {
     // Check if transporter is available and verified
     if (!transporter) {
       console.warn(`[EmailService] ⚠️  Transporter not initialized. Falling back to console mode.`);
-      this.logToConsole(to, subject, html, "Transporter not initialized, using console fallback");
+      this.logToConsole(to, subject, html, "Transporter not initialized, using console fallback", tempPassword);
       return { success: true };
     }
 
     const isVerified = getTransporterStatus();
     if (!isVerified) {
       console.warn(`[EmailService] ⚠️  Transporter not verified. Falling back to console mode.`);
-      this.logToConsole(to, subject, html, "Transporter not verified, using console fallback");
+      this.logToConsole(to, subject, html, "Transporter not verified, using console fallback", tempPassword);
       return { success: true };
     }
 
@@ -76,7 +77,7 @@ export class EmailService {
           console.error(`[EmailService] ❌ Email rejected for ${to}:`, result.rejected);
           
           if (attempt === retries) {
-            this.logToConsole(to, subject, html, "Email rejected by server");
+            this.logToConsole(to, subject, html, "Email rejected by server", tempPassword);
             return { success: false, error: "Email rejected by server" };
           }
           continue;
@@ -92,7 +93,7 @@ export class EmailService {
         this.handleError(error);
 
         if (attempt === retries) {
-          this.logToConsole(to, subject, html, error.message);
+          this.logToConsole(to, subject, html, error.message, tempPassword);
           return { success: false, error: error.message };
         }
       }
@@ -185,6 +186,7 @@ export class EmailService {
     return null;
   }
 
+
   /**
    * Mask sensitive information in text (tokens, passwords - but NOT OTPs in console mode)
    */
@@ -197,16 +199,17 @@ export class EmailService {
 
   /**
    * Log email details to console for development/fallback
-   * OTPs and reset tokens are shown ONLY in console mode for testing purposes
+   * OTPs, reset tokens, and temporary passwords are shown ONLY in console mode for testing purposes
    */
-  private static logToConsole(to: string, subject: string, html: string, reason: string): void {
+  private static logToConsole(to: string, subject: string, html: string, reason: string, tempPassword?: string): void {
     const timestamp = new Date().toLocaleString();
     const sanitizedSubject = this.maskSensitive(subject);
     const otp = this.extractOTP(html);
     const resetToken = this.extractResetToken(html);
     const resetLink = this.extractResetLink(html);
     const isOTPEmail = subject.toLowerCase().includes('otp') || subject.toLowerCase().includes('verification');
-    const isPasswordResetEmail = subject.toLowerCase().includes('password') || subject.toLowerCase().includes('reset');
+    const isPasswordResetEmail = subject.toLowerCase().includes('password') && subject.toLowerCase().includes('reset');
+    const isWelcomeEmail = subject.toLowerCase().includes('welcome') || subject.toLowerCase().includes('account is ready');
     
     let output = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -223,6 +226,15 @@ export class EmailService {
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  🔐 OTP (Development Only): ${otp.padEnd(52)} ║
 ║  ⚠️  This OTP is only visible in console mode for testing                    ║`;
+    }
+    
+    // Show temporary password only in console mode for testing (development only)
+    // Use the password passed directly from handler, not extracted from HTML
+    if (tempPassword && isWelcomeEmail && this.getEmailMode() === 'console') {
+      output += `
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  🔑 Temporary Password (Development Only): ${tempPassword.padEnd(40)} ║
+║  ⚠️  This password is only visible in console mode for testing                ║`;
     }
     
     // Show reset token only in console mode for testing (development only)
