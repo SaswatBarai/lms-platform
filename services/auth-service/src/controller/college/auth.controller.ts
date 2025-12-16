@@ -114,7 +114,12 @@ export const loginCollegeController = asyncHandler(
             "college",
             accessSessionId,
             deviceInfo,
-            accessTokenExpires
+            accessTokenExpires,
+            {
+                email: college.email,
+                name: college.name,
+                collegeName: college.name
+            }
         );
         
         // Generate PASETO tokens

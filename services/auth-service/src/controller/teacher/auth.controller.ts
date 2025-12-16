@@ -330,7 +330,14 @@ export const loginTeacherController = asyncHandler(
             "teacher",
             accessSessionId,
             deviceInfo,
-            accessTokenExpires
+            accessTokenExpires,
+            {
+                email: teacher.email,
+                name: teacher.name,
+                collegeName: teacher.department.college.name,
+                departmentName: teacher.department.name,
+                employeeNo: teacher.employeeNo
+            }
         );
         
         // Phase 1: Token Family for Rotation

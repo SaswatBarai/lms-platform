@@ -150,6 +150,7 @@ export const loginHodCOntroller = asyncHandler(
                 college: {
                     select: {
                         id: true,
+                        name: true,
                         organizationId: true
                     }
                 }
@@ -193,7 +194,13 @@ export const loginHodCOntroller = asyncHandler(
             "hod",
             accessSessionId,
             deviceInfo,
-            accessTokenExpires
+            accessTokenExpires,
+            {
+                email: hod.email,
+                name: hod.name,
+                collegeName: hod.college.name,
+                departmentName: "" // HOD doesn't have direct department relation in this query
+            }
         );
         
         // Phase 1: Token Family for Rotation

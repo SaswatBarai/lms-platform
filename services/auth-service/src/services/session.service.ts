@@ -25,7 +25,15 @@ export class SessionService {
         userType: string, 
         sessionId: string, 
         device: DeviceInfo,
-        expiresAt: Date
+        expiresAt: Date,
+        userInfo?: {
+            email: string;
+            name: string;
+            collegeName?: string;
+            departmentName?: string;
+            regNo?: string;
+            employeeNo?: string;
+        }
     ) {
         const lockKey = `lock:session:${userType}:${userId}`;
         let lock;
@@ -43,11 +51,107 @@ export class SessionService {
                 // 3. Invalidate Old Session
                 await this.invalidateSession(activeSession.id, activeSession.sessionToken);
 
-                // Notify User of logout (if device is different)
-                if (activeSession.deviceId !== device.deviceId) {
+                // Notify User of new device login (if device is different)
+                if (activeSession.deviceId !== device.deviceId && userInfo) {
                     const kafka = KafkaProducer.getInstance();
-                    // Implement sendNewDeviceLogin in producer...
-                    // await kafka.sendNewDeviceLogin({ userId, userType, device });
+                    try {
+                        // Send new device login notification based on user type
+                        switch (userType) {
+                            case "organization":
+                                await kafka.sendNewDeviceLoginOrganization(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location
+                                );
+                                break;
+                            case "college":
+                                await kafka.sendNewDeviceLoginCollege(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || ""
+                                );
+                                break;
+                            case "student":
+                                await kafka.sendNewDeviceLoginStudent(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || "",
+                                    userInfo.departmentName || "",
+                                    userInfo.regNo || ""
+                                );
+                                break;
+                            case "teacher":
+                                await kafka.sendNewDeviceLoginTeacher(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || "",
+                                    userInfo.departmentName || "",
+                                    userInfo.employeeNo || ""
+                                );
+                                break;
+                            case "hod":
+                                await kafka.sendNewDeviceLoginHod(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || "",
+                                    userInfo.departmentName || ""
+                                );
+                                break;
+                            case "dean":
+                                await kafka.sendNewDeviceLoginDean(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || ""
+                                );
+                                break;
+                            case "nonTeachingStaff":
+                                await kafka.sendNewDeviceLoginNonTeachingStaff(
+                                    userInfo.email,
+                                    userInfo.name,
+                                    device.deviceType,
+                                    device.browser,
+                                    device.os,
+                                    device.ipAddress,
+                                    device.location,
+                                    userInfo.collegeName || ""
+                                );
+                                break;
+                            default:
+                                console.log(`[SessionService] Unknown user type for new device notification: ${userType}`);
+                        }
+                    } catch (error) {
+                        console.error(`[SessionService] Failed to send new device login notification:`, error);
+                        // Don't throw - notification failure shouldn't break login
+                    }
                 }
             }
 

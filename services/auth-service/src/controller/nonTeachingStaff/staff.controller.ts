@@ -161,6 +161,7 @@ export const login= asyncHandler(
                 college: {
                     select: {
                         id: true,
+                        name: true,
                         organizationId: true
                     }
                 }
@@ -191,7 +192,12 @@ export const login= asyncHandler(
             "nonTeachingStaff",
             accessSessionId,
             deviceInfo,
-            accessTokenExpires
+            accessTokenExpires,
+            {
+                email: existingStaff.email,
+                name: existingStaff.name,
+                collegeName: existingStaff.college.name
+            }
         );
         
         const tokenPaylaod = {

@@ -245,7 +245,11 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         "organization",
         accesssSessionId,
         deviceInfo,
-        accessTokenExpires
+        accessTokenExpires,
+        {
+            email: organization.email,
+            name: organization.name
+        }
     );
     
     // Generate PASETO tokens

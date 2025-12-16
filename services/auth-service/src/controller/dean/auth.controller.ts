@@ -156,7 +156,12 @@ export const loginDeanController = asyncHandler(
             "dean",
             accessSessionId,
             deviceInfo,
-            accessTokenExpires
+            accessTokenExpires,
+            {
+                email: dean.mailId,
+                name: dean.mailId, // Dean doesn't have name field, using email
+                collegeName: dean.college.name
+            }
         );
         
         // Phase 1: Token Family for Rotation
