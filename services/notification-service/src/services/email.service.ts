@@ -140,6 +140,52 @@ export class EmailService {
   }
 
   /**
+   * Extract reset token from HTML content (for console mode testing only)
+   */
+  private static extractResetToken(html: string): string | null {
+    // Look for token in URL query parameters
+    const patterns = [
+      /[?&]token=([a-f0-9]+)/i,                    // ?token=xxx or &token=xxx
+      /token=([a-f0-9]{16,})/i,                    // token=xxx (16+ hex chars)
+      /class="token-value"[^>]*>([a-f0-9]+)</i,    // <div class="token-value">xxx</div>
+      /<code[^>]*>([a-f0-9]{32,})<\/code>/i,       // <code>xxx</code>
+      /<strong[^>]*>([a-f0-9]{32,})<\/strong>/i    // <strong>xxx</strong>
+    ];
+    
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Extract reset link from HTML content (for console mode testing only)
+   */
+  private static extractResetLink(html: string): string | null {
+    // Look for href containing reset/password URLs with token parameter
+    const patterns = [
+      /href="(https?:\/\/[^"]*\?token=[^"]*)"/i,           // href="http...?token=..."
+      /href="(https?:\/\/[^"]*reset-password[^"]*)"/i,     // href="http...reset-password..."
+      /href="(https?:\/\/[^"]*forgot[^"]*)"/i,             // href="http...forgot..."
+      /href='(https?:\/\/[^']*\?token=[^']*)'/i,           // href='http...?token=...'
+      /(https?:\/\/localhost[^\s<>"']*token=[^\s<>"']*)/i  // Plain URL with token
+    ];
+    
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
    * Mask sensitive information in text (tokens, passwords - but NOT OTPs in console mode)
    */
   private static maskSensitive(text: string): string {
@@ -151,13 +197,16 @@ export class EmailService {
 
   /**
    * Log email details to console for development/fallback
-   * OTPs are shown ONLY in console mode for testing purposes
+   * OTPs and reset tokens are shown ONLY in console mode for testing purposes
    */
   private static logToConsole(to: string, subject: string, html: string, reason: string): void {
     const timestamp = new Date().toLocaleString();
     const sanitizedSubject = this.maskSensitive(subject);
     const otp = this.extractOTP(html);
+    const resetToken = this.extractResetToken(html);
+    const resetLink = this.extractResetLink(html);
     const isOTPEmail = subject.toLowerCase().includes('otp') || subject.toLowerCase().includes('verification');
+    const isPasswordResetEmail = subject.toLowerCase().includes('password') || subject.toLowerCase().includes('reset');
     
     let output = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
@@ -174,6 +223,23 @@ export class EmailService {
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  🔐 OTP (Development Only): ${otp.padEnd(52)} ║
 ║  ⚠️  This OTP is only visible in console mode for testing                    ║`;
+    }
+    
+    // Show reset token only in console mode for testing (development only)
+    if (resetToken && isPasswordResetEmail && this.getEmailMode() === 'console') {
+      output += `
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  🔑 Reset Token (Development Only):                                          ║
+║  ${resetToken.substring(0, 76).padEnd(76)} ║
+║  ⚠️  This token is only visible in console mode for testing                  ║`;
+    }
+    
+    // Show reset link only in console mode for testing (development only)
+    if (resetLink && isPasswordResetEmail && this.getEmailMode() === 'console') {
+      output += `
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  🔗 Reset Link (Development Only):                                           ║
+║  ${resetLink.substring(0, 76).padEnd(76)} ║`;
     }
     
     output += `

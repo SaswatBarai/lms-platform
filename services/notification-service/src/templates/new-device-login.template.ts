@@ -5,17 +5,17 @@
 export function newDeviceLoginTemplate(data: {
   name: string;
   userType: string;
-  deviceType?: string;
-  browser?: string;
-  os?: string;
-  ipAddress?: string;
-  location?: string;
+  deviceType?: string | undefined;
+  browser?: string | undefined;
+  os?: string | undefined;
+  ipAddress?: string | undefined;
+  location?: string | undefined;
   loginTime: string;
-  loginUrl?: string;
-  collegeName?: string;
-  departmentName?: string;
-  regNo?: string;
-  employeeNo?: string;
+  loginUrl?: string | undefined;
+  collegeName?: string | undefined;
+  departmentName?: string | undefined;
+  regNo?: string | undefined;
+  employeeNo?: string | undefined;
 }): string {
   const {
     name,

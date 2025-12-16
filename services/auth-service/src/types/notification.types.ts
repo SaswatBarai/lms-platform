@@ -1,7 +1,8 @@
 export enum NotificationAction {
   AUTH_OTP = "auth-otp",
   EMAIL_NOTIFICATION = "email-notification",
-  FORGOT_PASSWORD = "forgot-password"
+  FORGOT_PASSWORD = "forgot-password",
+  NEW_DEVICE_LOGIN = "new-device-login"
 }
 
 export enum NotificationType {
@@ -18,7 +19,14 @@ export enum NotificationType {
   HOD_FORGOT_PASSWORD = "hod-forgot-password",
   STUDENT_FORGOT_PASSWORD = "student-forgot-password",
   TEACHER_FORGOT_PASSWORD = "teacher-forgot-password",
-  DEAN_FORGOT_PASSWORD = "dean-forgot-password"
+  DEAN_FORGOT_PASSWORD = "dean-forgot-password",
+  ORG_NEW_DEVICE_LOGIN = "org-new-device-login",
+  COLLEGE_NEW_DEVICE_LOGIN = "college-new-device-login",
+  STUDENT_NEW_DEVICE_LOGIN = "student-new-device-login",
+  TEACHER_NEW_DEVICE_LOGIN = "teacher-new-device-login",
+  HOD_NEW_DEVICE_LOGIN = "hod-new-device-login",
+  DEAN_NEW_DEVICE_LOGIN = "dean-new-device-login",
+  NON_TEACHING_STAFF_NEW_DEVICE_LOGIN = "non-teaching-staff-new-device-login"
 }
 
 export enum NotificationSubType {
