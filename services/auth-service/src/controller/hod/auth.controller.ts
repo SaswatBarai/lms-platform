@@ -179,6 +179,16 @@ export const loginHodCOntroller = asyncHandler(
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(hod.id, "hod");
 
+        // Get department name (HOD -> Department relation is via department.hodId)
+        const department = await prisma.department.findFirst({
+            where: {
+                hodId: hod.id
+            },
+            select: {
+                name: true
+            }
+        });
+
         // Get Device Info
         const { DeviceService } = await import("../../services/device.service.js");
         const { SessionService } = await import("../../services/session.service.js");
@@ -199,7 +209,7 @@ export const loginHodCOntroller = asyncHandler(
                 email: hod.email,
                 name: hod.name,
                 collegeName: hod.college.name,
-                departmentName: "" // HOD doesn't have direct department relation in this query
+                departmentName: department?.name || ""
             }
         );
         
