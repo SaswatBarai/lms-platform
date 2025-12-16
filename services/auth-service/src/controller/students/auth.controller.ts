@@ -1114,6 +1114,15 @@ export const forgotPasswordStudentController = asyncHandler(
 
         const isEmail = identifier.includes('@');
         
+        // Email-based rate limiting: 3 requests per 15 minutes per identifier
+        const rateLimitKey = isEmail 
+            ? `forgot-password:email:student:${identifier.toLowerCase()}`
+            : `forgot-password:regno:student:${identifier.toUpperCase()}`;
+        const rateLimitCount = await redisClient.get(rateLimitKey);
+        if (rateLimitCount && parseInt(rateLimitCount) >= 3) {
+            throw new AppError("Too many password reset requests. Please wait 15 minutes before trying again.", 429);
+        }
+        
         const student = await prisma.student.findFirst({
             where: isEmail 
                 ? { email: identifier.toLowerCase() }
@@ -1132,11 +1141,18 @@ export const forgotPasswordStudentController = asyncHandler(
         });
 
         if (!student) {
+            // Increment rate limit even for non-existent accounts to prevent enumeration
+            await redisClient.incr(rateLimitKey);
+            await redisClient.expire(rateLimitKey, 15 * 60);
             return res.status(200).json({
                 success: true,
                 message: "If an account with that email/registration number exists, a password reset link has been sent."
             });
         }
+
+        // Increment email rate limit
+        await redisClient.incr(rateLimitKey);
+        await redisClient.expire(rateLimitKey, 15 * 60);
 
         const redisKey = `student-forgot-password-${student.email}`;
         const existingToken = await redisClient.exists(redisKey);

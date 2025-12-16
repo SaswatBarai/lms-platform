@@ -336,14 +336,36 @@ export const forgotPasswordCollege = asyncHandler(
         if(!validateEmail(email)){
             throw new AppError("Invalid email", 400);
         }
+        
+        // Email-based rate limiting: 3 requests per 15 minutes per email
+        const emailRateLimitKey = `forgot-password:email:college:${email.toLowerCase()}`;
+        const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
+        if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
+            throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
+        }
+        
+        // Check if a reset request is already pending
+        const existingToken = await redisClient.exists(`college-auth-${email}`);
+        if (existingToken) {
+            throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
+        }
+        
         const college = await prisma.college.findUnique({
             where:{
                 email
             }
         })
         if(!college){
+            // Increment rate limit even for non-existent emails to prevent enumeration
+            await redisClient.incr(emailRateLimitKey);
+            await redisClient.expire(emailRateLimitKey, 15 * 60);
             throw new AppError("College not found", 404);
         }
+        
+        // Increment email rate limit
+        await redisClient.incr(emailRateLimitKey);
+        await redisClient.expire(emailRateLimitKey, 15 * 60);
+        
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`college-auth-${email}`, 10 * 60, sessionToken);
 

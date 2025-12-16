@@ -395,8 +395,17 @@ export const forgotPasswordConotroller = asyncHandler(
         if(!validateEmail(email)){
             throw new AppError("Invalid email", 400);
         }
+        
+        // Email-based rate limiting: 3 requests per 15 minutes per email
+        const emailRateLimitKey = `forgot-password:email:hod:${email.toLowerCase()}`;
+        const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
+        if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
+            throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
+        }
+        
+        // Check if a reset request is already pending
         if(await redisClient.exists(`hod-auth-${email}`)){
-            throw new AppError("Already details are present", 400);
+            throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
         }
 
         //let us check the hod is already present or not 
@@ -414,8 +423,15 @@ export const forgotPasswordConotroller = asyncHandler(
             }
         });
         if(!hod){
+            // Increment rate limit even for non-existent emails to prevent enumeration
+            await redisClient.incr(emailRateLimitKey);
+            await redisClient.expire(emailRateLimitKey, 15 * 60);
             throw new AppError("Hod not found", 404);
         }
+        
+        // Increment email rate limit
+        await redisClient.incr(emailRateLimitKey);
+        await redisClient.expire(emailRateLimitKey, 15 * 60);
         //department name
         const department = await prisma.department.findFirst({
             where:{

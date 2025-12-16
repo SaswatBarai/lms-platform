@@ -365,6 +365,19 @@ export const forgotPasswordDeanController = asyncHandler(
             throw new AppError("Valid email is required", 400);
         }
 
+        // Email-based rate limiting: 3 requests per 15 minutes per email
+        const emailRateLimitKey = `forgot-password:email:dean:${mailId.toLowerCase()}`;
+        const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
+        if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
+            throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
+        }
+        
+        // Check if a reset request is already pending
+        const existingToken = await redisClient.exists(`dean-forgot-password-${mailId.toLowerCase()}`);
+        if (existingToken) {
+            throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
+        }
+
         const dean = await prisma.dean.findUnique({
             where: { mailId: mailId.toLowerCase() },
             include: {
@@ -377,12 +390,19 @@ export const forgotPasswordDeanController = asyncHandler(
         });
 
         if (!dean) {
+            // Increment rate limit even for non-existent emails to prevent enumeration
+            await redisClient.incr(emailRateLimitKey);
+            await redisClient.expire(emailRateLimitKey, 15 * 60);
             // Don't reveal if email exists or not for security
             return res.status(200).json({
                 success: true,
                 message: "If an account with this email exists, a password reset link has been sent."
             });
         }
+
+        // Increment email rate limit
+        await redisClient.incr(emailRateLimitKey);
+        await redisClient.expire(emailRateLimitKey, 15 * 60);
 
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`dean-forgot-password-${mailId.toLowerCase()}`, 10 * 60, sessionToken);

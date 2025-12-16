@@ -543,9 +543,18 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
             throw new AppError("Invalid email", 400);
         }
 
-        if(await redisClient.exists(`non-teaching-staff-auth-${email}`)){
-            throw new AppError("Already details are present", 400);
+        // Email-based rate limiting: 3 requests per 15 minutes per email
+        const emailRateLimitKey = `forgot-password:email:non-teaching-staff:${email.toLowerCase()}`;
+        const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
+        if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
+            throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
         }
+        
+        // Check if a reset request is already pending
+        if(await redisClient.exists(`non-teaching-staff-auth-${email}`)){
+            throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
+        }
+        
         const staff = await prisma.nonTeachingStaff.findUnique({
             where:{
                 email
@@ -559,11 +568,18 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
             }
         })
         if(!staff){
+            // Increment rate limit even for non-existent emails to prevent enumeration
+            await redisClient.incr(emailRateLimitKey);
+            await redisClient.expire(emailRateLimitKey, 15 * 60);
             return res.status(404).json({
                 success: false,
                 message: "Non-teaching staff not found",
             })
         }
+
+        // Increment email rate limit
+        await redisClient.incr(emailRateLimitKey);
+        await redisClient.expire(emailRateLimitKey, 15 * 60);
 
         //let us create the session token 
         const sessionToken = crypto.randomBytes(32).toString("hex");

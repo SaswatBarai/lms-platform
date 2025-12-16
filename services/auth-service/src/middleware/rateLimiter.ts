@@ -38,3 +38,35 @@ export const authLimiter = rateLimit({
 
 // Alias for backward compatibility
 export const authRateLimiter = authLimiter;
+
+/**
+ * Rate limiter for forgot password endpoints
+ * Limits: 3 requests per 15 minutes per IP
+ * This prevents email spam and DoS attacks
+ */
+export const forgotPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    limit: 3, // 3 requests per 15 minutes per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new RedisStore({
+        sendCommand: (command: string, ...args: (string | number)[]) => {
+            return (redisClient.call as any)(command, ...args) as Promise<string | number | (string | number)[]>;
+        },
+    }),
+    keyGenerator: (req) => {
+        // Rate limit by IP address
+        return `forgot-password:ip:${req.ip}`;
+    },
+    handler: (req, res, next, options) => {
+        next(new AppError(
+            "Too many password reset requests. Please wait 15 minutes before trying again.",
+            429,
+            "Rate Limit Exceeded"
+        ));
+    },
+    skip: (req) => {
+        // Skip rate limiting for health checks
+        return req.path === '/health' || req.path === '/auth/api/health';
+    }
+});
