@@ -806,14 +806,24 @@ export const loginStudentController = asyncHandler(
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(student.id, "student");
 
-        const sessionKey = `activeSession:student:${student.id}`;
-        const existingSessionId = await redisClient.hget(sessionKey, 'sessionId');
-        if (existingSessionId) {
-            await redisClient.hdel(sessionKey, 'sessionId');
-        }
+        // Get Device Info
+        const { DeviceService } = await import("../../services/device.service.js");
+        const { SessionService } = await import("../../services/session.service.js");
+        const deviceInfo = DeviceService.getDeviceInfo(req);
 
+        // Generate Session ID
         const accessSessionId = crypto.randomBytes(16).toString('hex');
-        
+        const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+        // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+        await SessionService.handleLoginSession(
+            student.id,
+            "student",
+            accessSessionId,
+            deviceInfo,
+            accessTokenExpires
+        );
+
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
 
@@ -832,6 +842,8 @@ export const loginStudentController = asyncHandler(
             sessionId: accessSessionId
         };
 
+        // Keep Redis session key for backward compatibility
+        const sessionKey = `activeSession:student:${student.id}`;
         await redisClient.hset(sessionKey, {
             sessionId: accessSessionId,
             studentId: student.id,

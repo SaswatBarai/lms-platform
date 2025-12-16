@@ -176,12 +176,23 @@ export const login= asyncHandler(
             throw new AppError("Invalid email or password", 401);
         }
 
-        const key = `activeSession:non-teaching-staff:${existingStaff.id}`;
-        const existingSessionId = await redisClient.hget(key, 'sessionId');
-        if(existingSessionId){
-            await redisClient.hdel(key, 'sessionId');
-        }
+        // Get Device Info
+        const { DeviceService } = await import("../../services/device.service.js");
+        const { SessionService } = await import("../../services/session.service.js");
+        const deviceInfo = DeviceService.getDeviceInfo(req);
+
+        // Generate Session ID
         const accessSessionId = crypto.randomBytes(16).toString('hex');
+        const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+        // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+        await SessionService.handleLoginSession(
+            existingStaff.id,
+            "nonTeachingStaff",
+            accessSessionId,
+            deviceInfo,
+            accessTokenExpires
+        );
         
         const tokenPaylaod = {
             id: existingStaff.id,
@@ -194,6 +205,8 @@ export const login= asyncHandler(
             sessionId: accessSessionId
         }
 
+        // Keep Redis session key for backward compatibility
+        const key = `activeSession:non-teaching-staff:${existingStaff.id}`;
         await redisClient.hset(key, {
             sessionId: accessSessionId,
             nonTeachingStaffId: existingStaff.id,

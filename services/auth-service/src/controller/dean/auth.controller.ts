@@ -141,14 +141,23 @@ export const loginDeanController = asyncHandler(
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(dean.id, "dean");
 
-        // Single device login: Handle session management
-        const sessionKey = `activeSession:dean:${dean.id}`;
-        const existingSessionId = await redisClient.hget(sessionKey, 'sessionId');
-        if (existingSessionId) {
-            await redisClient.hdel(sessionKey, 'sessionId');
-        }
+        // Get Device Info
+        const { DeviceService } = await import("../../services/device.service.js");
+        const { SessionService } = await import("../../services/session.service.js");
+        const deviceInfo = DeviceService.getDeviceInfo(req);
 
+        // Generate Session ID
         const accessSessionId = crypto.randomBytes(16).toString('hex');
+        const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+        // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+        await SessionService.handleLoginSession(
+            dean.id,
+            "dean",
+            accessSessionId,
+            deviceInfo,
+            accessTokenExpires
+        );
         
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
@@ -165,7 +174,8 @@ export const loginDeanController = asyncHandler(
             sessionId: accessSessionId
         };
 
-        // Store session in Redis
+        // Keep Redis session key for backward compatibility
+        const sessionKey = `activeSession:dean:${dean.id}`;
         await redisClient.hset(sessionKey, {
             sessionId: accessSessionId,
             deanId: dean.id,

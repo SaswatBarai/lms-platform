@@ -178,13 +178,23 @@ export const loginHodCOntroller = asyncHandler(
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(hod.id, "hod");
 
-        const key = `activeSession:hod:${hod.id}`;
-        const existingSessionId = await redisClient.hget(key, 'sessionId');
-        if (existingSessionId) {
-            await redisClient.hdel(key, 'sessionId');
-        }
+        // Get Device Info
+        const { DeviceService } = await import("../../services/device.service.js");
+        const { SessionService } = await import("../../services/session.service.js");
+        const deviceInfo = DeviceService.getDeviceInfo(req);
 
+        // Generate Session ID
         const accessSessionId = crypto.randomBytes(16).toString("hex");
+        const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+        // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+        await SessionService.handleLoginSession(
+            hod.id,
+            "hod",
+            accessSessionId,
+            deviceInfo,
+            accessTokenExpires
+        );
         
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
@@ -200,6 +210,8 @@ export const loginHodCOntroller = asyncHandler(
             sessionId: accessSessionId
         }
 
+        // Keep Redis session key for backward compatibility
+        const key = `activeSession:hod:${hod.id}`;
         await redisClient.hset(key, {
             sessionId: accessSessionId,
             hodId: hod.id,

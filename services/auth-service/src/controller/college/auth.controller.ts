@@ -99,27 +99,27 @@ export const loginCollegeController = asyncHandler(
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(college.id, "college");
         
+        // Get Device Info
+        const { DeviceService } = await import("../../services/device.service.js");
+        const { SessionService } = await import("../../services/session.service.js");
+        const deviceInfo = DeviceService.getDeviceInfo(req);
+
+        // Generate Session ID
+        const accessSessionId = crypto.randomBytes(16).toString('hex');
+        const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+        // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+        await SessionService.handleLoginSession(
+            college.id,
+            "college",
+            accessSessionId,
+            deviceInfo,
+            accessTokenExpires
+        );
+        
         // Generate PASETO tokens
         const { PasetoV4SecurityManager } = await import("@utils/security.js");
         const securityManager = PasetoV4SecurityManager.getInstance();
-
-        
-        let accessSessionId;
-
-        // Single device login: Always create a new session ID
-        // This invalidates any previous session for this college
-        const key = `activeSession:college:${college.id}`;
-        
-        // Check if there's an existing session
-        const existingSessionId = await redisClient.hget(key, 'sessionId');
-        if (existingSessionId) {
-            console.log(`Invalidating existing session for college ${college.id}: ${existingSessionId}`);
-            await redisClient.hdel(key, 'sessionId');
-            
-        }
-        
-        // Create new session ID (this will replace any existing session)
-        accessSessionId = crypto.randomBytes(16).toString('hex');
         
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
@@ -136,8 +136,8 @@ export const loginCollegeController = asyncHandler(
             sessionId: accessSessionId
         };
 
-        // Store the new session in Redis
-        // This will overwrite any existing session, effectively logging out other devices
+        // Keep Redis session key for backward compatibility
+        const key = `activeSession:college:${college.id}`;
         await redisClient.hset(key, {
             sessionId: accessSessionId,
             collegeId: college.id,

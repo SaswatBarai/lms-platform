@@ -3,6 +3,7 @@ import { AppError } from "@utils/AppError.js";
 import {Request,Response,NextFunction} from "express"
 import { CollegeContext, DeanContext, HodContext, NonTeachingStaffContext, OrganizationContext, StudentContext, TeacherContext} from "../types/express.js"
 import { PasetoRefreshPayload, PasetoTokenPayload, PasetoV4SecurityManager } from "@utils/security.js";
+import redisClient from "@config/redis.js";
 
 
 
@@ -25,10 +26,20 @@ export class AuthenticatedUser {
         const userEmail = req.headers['x-user-email'] as string;
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
 
         // SECURITY: Validate all required headers exist
         if (!userId || !userEmail || !userRole || !organizationId) {
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:organization:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
 
         const user = await prisma.organization.findUnique({
@@ -67,6 +78,7 @@ export class AuthenticatedUser {
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
         const collegeId = req.headers['x-user-college-id'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
 
         if (!collegeId) {
             throw new AppError("College ID is required - Please login as college admin", 401);
@@ -74,6 +86,15 @@ export class AuthenticatedUser {
         
         if (!userId || !userEmail || !userRole || !organizationId) {
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:college:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
 
         const college = await prisma.college.findUnique({
@@ -117,6 +138,7 @@ export class AuthenticatedUser {
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
         const collegeId = req.headers['x-user-college-id'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
         
         if (!collegeId) {
             throw new AppError("College ID is required - Please login as non-teaching staff", 401);
@@ -124,6 +146,15 @@ export class AuthenticatedUser {
         
         if (!userId || !userEmail || !userRole || !organizationId) {
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:nonTeachingStaff:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
         
         const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
@@ -173,6 +204,7 @@ export class AuthenticatedUser {
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
         const collegeId = req.headers['x-user-college-id'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
         
         if (!collegeId) {
             throw new AppError("College ID is required - Please login as HOD", 401);
@@ -180,6 +212,15 @@ export class AuthenticatedUser {
         
         if (!userId || !userEmail || !userRole || !organizationId) {
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:hod:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
         
         const hod = await prisma.hod.findUnique({
@@ -231,9 +272,19 @@ export class AuthenticatedUser {
         const collegeId = req.headers['x-user-college-id'] as string;
         const departmentId = req.headers['x-user-department-id'] as string;
         const employeeNo = req.headers['x-user-employee-no'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
 
         if(!userId || !userEmail || !userRole || !organizationId || !collegeId || !departmentId || !employeeNo){
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:teacher:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
 
         const teacher = await prisma.teacher.findUnique({
@@ -439,9 +490,19 @@ export class AuthenticatedUser {
         const sectionId = req.headers['x-user-section-id'] as string;
         const regNo = req.headers['x-user-reg-no'] as string;
         const name = req.headers['x-user-name'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
         
         if (!userId || !userEmail || !userRole) {
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:student:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
         
         const student = await prisma.student.findUnique({
@@ -560,9 +621,19 @@ export class AuthenticatedUser {
         const userRole = req.headers['x-user-role'] as string;
         const organizationId = req.headers['x-user-organization-id'] as string;
         const collegeId = req.headers['x-user-college-id'] as string;
+        const currentSessionId = req.headers['x-user-session-id'] as string;
 
         if(!userId || !userEmail || !userRole || !organizationId || !collegeId){
             throw new AppError("Missing required authentication headers", 401);
+        }
+
+        // SECURITY: Validate session ID for single device login
+        if (currentSessionId) {
+            const activeSessionKey = `user:active:session:dean:${userId}`;
+            const activeSessionId = await redisClient.get(activeSessionKey);
+            if (!activeSessionId || activeSessionId !== currentSessionId) {
+                throw new AppError("Session expired. You have logged in from another device.", 401);
+            }
         }
 
         const dean = await prisma.dean.findUnique({

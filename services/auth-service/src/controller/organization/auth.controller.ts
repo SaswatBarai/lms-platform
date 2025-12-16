@@ -230,25 +230,27 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
     // Phase 1: Reset Lockout on Success
     await LockoutService.resetAttempts(organization.id, "organization");
     
+    // Get Device Info
+    const { DeviceService } = await import("../../services/device.service.js");
+    const { SessionService } = await import("../../services/session.service.js");
+    const deviceInfo = DeviceService.getDeviceInfo(req);
+
+    // Generate Session ID
+    const accesssSessionId = crypto.randomBytes(16).toString('hex');
+    const accessTokenExpires = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000); // 1 day
+
+    // Handle Session Enforcement (Lock, Invalidate Old, Create New)
+    await SessionService.handleLoginSession(
+        organization.id,
+        "organization",
+        accesssSessionId,
+        deviceInfo,
+        accessTokenExpires
+    );
+    
     // Generate PASETO tokens
     const { PasetoV4SecurityManager } = await import("@utils/security.js");
     const securityManager = PasetoV4SecurityManager.getInstance();
-
-    
-    let accesssSessionId;
-
-    // Single device login: Always create a new session ID
-    // This invalidates any previous session for this organization
-    const key = `activeSession:org:${organization.id}`;
-    
-    // Check if there's an existing session
-    const existingSessionId = await redisClient.hget(key, 'sessionId');
-    if (existingSessionId) {
-        console.log(`Invalidating existing session for org ${organization.id}: ${existingSessionId}`);
-    }
-    
-    // Create new session ID (this will replace any existing session)
-    accesssSessionId = crypto.randomBytes(16).toString('hex');
     
     // Phase 1: Token Family for Rotation
     const tokenFamily = crypto.randomUUID();
@@ -264,8 +266,8 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         sessionId: accesssSessionId
     };
 
-    // Store the new session in Redis
-    // This will overwrite any existing session, effectively logging out other devices
+    // Keep Redis session key for backward compatibility
+    const key = `activeSession:org:${organization.id}`;
     await redisClient.hset(key, {
         sessionId: accesssSessionId,
         organizationId: organization.id,
