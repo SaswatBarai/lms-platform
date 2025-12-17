@@ -85,13 +85,30 @@ services:
               redis_timeout: 2000
               validate_session: true
 
+      # Bulk Import Health Check (Public - No Auth Required)
+      # Must be before protected routes to match first
+      - name: auth-service-bulk-health
+        paths:
+          - "/auth/api/bulk/health"
+        strip_path: false
+        methods:
+          - GET
+        regex_priority: 20
+        # No auth plugin - public endpoint
+
       # Bulk Import Routes (Protected)
+      # POST /auth/api/bulk/upload - Upload file and create import job
+      # POST /auth/api/bulk/validate - Validate file without importing
+      # GET /auth/api/bulk/jobs - List all jobs for user
       - name: auth-service-bulk-import-routes
         paths:
           - "/auth/api/bulk/upload"
           - "/auth/api/bulk/validate"
           - "/auth/api/bulk/jobs"
         strip_path: false
+        methods:
+          - GET
+          - POST
         plugins:
           - name: paseto-vault-auth-lua
             config:
@@ -107,14 +124,20 @@ services:
               redis_timeout: 2000
               validate_session: true
 
-      # Bulk Import Job Routes (Protected) - with regex for job IDs
+      # Bulk Import Job Routes (Protected) - Specific job operations
+      # GET /auth/api/bulk/jobs/:jobId - Get job status
+      # POST /auth/api/bulk/jobs/:jobId/rollback - Rollback job
+      # GET /auth/api/bulk/jobs/:jobId/errors - Get error report URL
       - name: auth-service-bulk-job-routes
         paths:
           - "~/auth/api/bulk/jobs/[^/]+$"
           - "~/auth/api/bulk/jobs/[^/]+/rollback$"
           - "~/auth/api/bulk/jobs/[^/]+/errors$"
         strip_path: false
-        regex_priority: 5
+        regex_priority: 10
+        methods:
+          - GET
+          - POST
         plugins:
           - name: paseto-vault-auth-lua
             config:

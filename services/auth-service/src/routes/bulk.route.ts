@@ -22,6 +22,15 @@ const upload = multer({
     }
 });
 
+// Health check endpoint (public, no auth required)
+router.get("/health", (req, res) => {
+    res.status(200).json({ 
+        status: "ok", 
+        service: "bulk-import-api",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Bulk Import Routes
 router.post(
     "/upload",
