@@ -58,6 +58,9 @@ export abstract class BaseWorker {
             await ProgressService.updateStats(jobId, validRows.length, errors.length);
             await ProgressService.updateProgress(jobId, total, total, "completed");
             
+            // 6. Send completion notification
+            await ProgressService.sendCompletionNotification(jobId, validRows.length, errors.length, errorUrl);
+            
             console.log(`[Worker] Job ${jobId} completed. Success: ${validRows.length}, Failed: ${errors.length}`);
 
         } catch (error) {

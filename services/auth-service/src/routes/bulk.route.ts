@@ -12,7 +12,7 @@ import {
 } from "../controller/bulk/bulk-job.controller.js";
 import { AuthenticatedUser } from "../middleware/authValidator.js";
 
-const router = Router();
+const router: Router = Router();
 
 // Configure multer for file uploads (memory storage)
 const upload = multer({
