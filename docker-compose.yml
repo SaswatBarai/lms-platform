@@ -420,7 +420,7 @@ services:
       - internal_net
       - lms-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:4004/health"]
       interval: 30s
       timeout: 10s
       retries: 3

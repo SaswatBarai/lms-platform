@@ -1,10 +1,14 @@
 # -----------------------------
 # 1️⃣ Base image for dependencies
 # -----------------------------
-FROM node:20-alpine AS base
+FROM node:20-slim AS base
 
 # Install OpenSSL and required dependencies for Prisma
-RUN apk add --no-cache openssl openssl-dev libc6-compat
+# Debian-based images have better network reliability
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm directly
 RUN npm install -g pnpm@latest
@@ -27,11 +31,15 @@ RUN pnpm run build
 # -----------------------------
 # 3️⃣ Production runtime stage
 # -----------------------------
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 WORKDIR /app
 
-# Install OpenSSL and required dependencies for Prisma runtime
-RUN apk add --no-cache openssl openssl-dev libc6-compat curl
+# Install OpenSSL and wget for healthchecks
+RUN apt-get update && apt-get install -y \
+    openssl \
+    ca-certificates \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install pnpm for production stage
 RUN npm install -g pnpm@latest
