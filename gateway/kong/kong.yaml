@@ -85,3 +85,48 @@ services:
               redis_timeout: 2000
               validate_session: true
 
+      # Bulk Import Routes (Protected)
+      - name: auth-service-bulk-import-routes
+        paths:
+          - "/auth/api/bulk/upload"
+          - "/auth/api/bulk/validate"
+          - "/auth/api/bulk/jobs"
+        strip_path: false
+        plugins:
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
+              redis_host: "redis"
+              redis_port: 6379
+              redis_password: "redis_pass"
+              redis_database: 0
+              redis_timeout: 2000
+              validate_session: true
+
+      # Bulk Import Job Routes (Protected) - with regex for job IDs
+      - name: auth-service-bulk-job-routes
+        paths:
+          - "~/auth/api/bulk/jobs/[^/]+$"
+          - "~/auth/api/bulk/jobs/[^/]+/rollback$"
+          - "~/auth/api/bulk/jobs/[^/]+/errors$"
+        strip_path: false
+        regex_priority: 5
+        plugins:
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
+              redis_host: "redis"
+              redis_port: 6379
+              redis_password: "redis_pass"
+              redis_database: 0
+              redis_timeout: 2000
+              validate_session: true
+

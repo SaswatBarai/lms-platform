@@ -1,14 +1,41 @@
-FROM node:18-alpine
+# -----------------------------
+# 1️⃣ Base image for dependencies
+# -----------------------------
+FROM node:20-alpine AS base
+
+# Install pnpm directly
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
+COPY package*.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-COPY package*.json ./
-RUN npm install
 
-COPY prisma ./prisma/
+# -----------------------------
+# 2️⃣ Build stage (for TypeScript)
+# -----------------------------
+FROM base AS build
 COPY . .
-
-RUN npm run build
+# Generate Prisma client during build
 RUN npx prisma generate
+RUN pnpm run build
 
-CMD ["npm", "start"]
+
+# -----------------------------
+# 3️⃣ Production runtime stage
+# -----------------------------
+FROM node:20-alpine AS production
+WORKDIR /app
+
+# Install pnpm for production stage
+RUN npm install -g pnpm@latest
+
+RUN apk add --no-cache curl
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
+COPY prisma ./prisma
+
+EXPOSE 4004
+
+CMD [ "sh", "-c", "npx prisma migrate deploy && pnpm start" ]

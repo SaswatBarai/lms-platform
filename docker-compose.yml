@@ -85,6 +85,47 @@ services:
     networks:
       - internal_net
 
+  # MinIO for S3-compatible storage (bulk imports)
+  minio:
+    image: minio/minio:latest
+    container_name: minio_cont
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - internal_net
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # MinIO bucket initialization
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 minioadmin minioadmin123;
+      mc mb myminio/lms-bulk-imports --ignore-existing;
+      mc anonymous set download myminio/lms-bulk-imports;
+      exit 0;
+      "
+    networks:
+      - internal_net
+      - lms-network
+
 #================Kong Gateway================#
 
   kong:
@@ -248,6 +289,12 @@ services:
       - PASETO_ISSUER=lms-auth-service
       - PASETO_AUDIENCE=lms-platform
       - SWAGGER_PATH=/app/swagger
+      # S3/MinIO configuration (for bulk imports)
+      - AWS_REGION=us-east-1
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET_NAME=lms-bulk-imports
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin123
     volumes:
       - ./services/auth-service/docs/swagger:/app/swagger:ro
     expose:
@@ -258,6 +305,7 @@ services:
       - mongo
       - kafka
       - vault
+      - minio
     networks:
       - internal_net
       - lms-network
@@ -334,6 +382,50 @@ services:
       retries: 3
       start_period: 30s
     restart: always
+
+  bulk-import-service:
+    build: ./services/bulk-import-service
+    container_name: bulk_import_service
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      - PORT=4004
+      - NODE_ENV=development
+      - DATABASE_URL=postgresql://lms_user:lms_pass@postgres:5432/lms_db
+      - REDIS_URL=redis://:redis_pass@redis:6379/0
+      - KAFKA_BROKERS=kafka:29092
+      - KAFKA_CLIENT_ID=bulk-import-service
+      - KAFKA_GROUP_ID=bulk-import-group
+      # S3/MinIO configuration
+      - AWS_REGION=us-east-1
+      - S3_ENDPOINT=http://minio:9000
+      - S3_BUCKET_NAME=lms-bulk-imports
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin123
+    expose:
+      - "4004"
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - internal_net
+      - lms-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
     
 
 volumes:
@@ -343,6 +435,7 @@ volumes:
   vault_data:
   vault_logs:
   kong_logs:
+  minio_data:
 
 
 

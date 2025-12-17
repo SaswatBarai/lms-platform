@@ -1,13 +1,27 @@
+import express from "express";
 import { consumer, producer } from "./config/kafka";
 import { StudentImportWorker } from "./workers/student-import.worker";
 import { TeacherImportWorker } from "./workers/teacher-import.worker";
 import { BulkImportJobPayload } from "./types/job.types";
+
+const app = express();
+const PORT = process.env.PORT || 4004;
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok", service: "bulk-import-service" });
+});
 
 const studentWorker = new StudentImportWorker();
 const teacherWorker = new TeacherImportWorker();
 
 const start = async () => {
     try {
+        // Start HTTP server for health checks
+        app.listen(PORT, () => {
+            console.log(`🏥 Health check server running on port ${PORT}`);
+        });
+
         await producer.connect();
         await consumer.connect();
         await consumer.subscribe({ topic: 'bulk.import.jobs', fromBeginning: false });
