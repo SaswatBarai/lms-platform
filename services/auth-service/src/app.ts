@@ -4,6 +4,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import organizationRoutes from "@routes/organization.route.js";
 import sessionRoutes from "@routes/session.route.js";
+import bulkRoutes from "@routes/bulk.route.js";
 import errorHandler from "@middleware/errorHandler.js";
 import { setupSwagger } from "@config/swagger.js";
 
@@ -61,6 +62,7 @@ if (process.env.NODE_ENV !== 'production') {
 //All routes
 app.use("/auth/api",organizationRoutes)
 app.use("/auth/api",sessionRoutes)
+app.use("/auth/api/bulk",bulkRoutes)
 
 //health check
 app.get("/auth/api/health",(req,res)=>{

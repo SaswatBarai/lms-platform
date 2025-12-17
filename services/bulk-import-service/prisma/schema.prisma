@@ -1,0 +1,373 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// Phase 3: Bulk Import Models (New)
+// ==========================================
+
+model BulkImportJob {
+  id              String    @id @default(uuid())
+  type            String    // "student_import", "teacher_import"
+  fileUrl         String    // S3 URL
+  fileName        String
+  uploadedBy      String
+  uploadedByType  String    // "admin", "college_admin"
+  collegeId       String?
+  status          String    // "pending", "processing", "completed", "failed", "rolled_back"
+  totalRows       Int?
+  successRows     Int       @default(0)
+  failedRows      Int       @default(0)
+  errorReportUrl  String?
+  options         Json?     // { skipDuplicates, sendWelcomeEmails }
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([uploadedBy])
+}
+
+model BulkImportRecord {
+  id         String   @id @default(uuid())
+  jobId      String
+  recordId   String   // ID of imported record (studentId, teacherId)
+  recordType String   // "student", "teacher"
+  createdAt  DateTime @default(now())
+
+  @@index([jobId])
+  @@index([recordId, recordType])
+}
+
+// ==========================================
+// Existing Auth Service Models (Mirrored)
+// ==========================================
+
+model Organization {
+  id                    String    @id @default(cuid())
+  name                  String    @db.VarChar(255)
+  email                 String    @unique @db.VarChar(255)
+  password              String    @db.VarChar(255)
+  recoveryEmail         String?   @db.VarChar(255)
+  address               String
+  phone                 String    @unique @db.VarChar(20)
+  totalStudents         Int       @default(0)
+  totalTeachers         Int       @default(0)
+  totalDeans            Int       @default(0)
+  totalNonTeachingStaff Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  passwordChangedAt     DateTime?
+  passwordExpiresAt     DateTime?
+  isLocked              Boolean   @default(false)
+  lockReason            String?
+  colleges              College[]
+}
+
+model College {
+  id                String             @id @default(cuid())
+  name              String             @db.VarChar(255)
+  organizationId    String
+  email             String             @unique @db.VarChar(255)
+  deanId            String?
+  password          String             @db.VarChar(255)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  recoveryEmail     String?            @db.VarChar(255)
+  phone             String             @unique @db.VarChar(20)
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean            @default(false)
+  lockReason        String?
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deans             Dean[]
+  departments       Department[]
+  hods              Hod[]
+  nonTeachingStaff  NonTeachingStaff[]
+  courses           Course[]
+}
+
+model Dean {
+  id                String    @id @default(cuid())
+  collegeId         String
+  mailId            String    @unique @db.VarChar(255)
+  password          String    @db.VarChar(255)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean   @default(false)
+  lockReason        String?
+  college           College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+}
+
+model Hod {
+  id                String       @id @default(cuid())
+  collegeId         String
+  name              String       @db.VarChar(255)
+  email             String       @unique @db.VarChar(255)
+  password          String       @db.VarChar(255)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean      @default(false)
+  lockReason        String?
+  departments       Department[]
+  college           College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+}
+
+model Department {
+  id        String    @id @default(cuid())
+  name      String    @db.VarChar(255)
+  shortName String    @db.VarChar(50)
+  hodId     String?
+  collegeId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  college   College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  hod       Hod?      @relation(fields: [hodId], references: [id])
+  students  Student[]
+  teachers  Teacher[]
+  sections  Section[]
+  subjects  Subject[]
+}
+
+model NonTeachingStaff {
+  id                String    @id @default(cuid())
+  collegeId         String
+  name              String    @db.VarChar(255)
+  email             String    @unique @db.VarChar(255)
+  password          String    @db.VarChar(255)
+  role              UserRole  @default(studentsection)
+  phone             String    @unique @db.VarChar(20)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean   @default(false)
+  lockReason        String?
+  college           College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model Student {
+  id                String     @id @default(cuid())
+  departmentId      String
+  batchId           String
+  sectionId         String
+  gender            Gender
+  name              String     @db.VarChar(255)
+  email             String     @unique @db.VarChar(255)
+  phone             String     @unique @db.VarChar(20)
+  password          String     @db.VarChar(255)
+  regNo             String     @unique @db.VarChar(100)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean    @default(false)
+  lockReason        String?
+  department        Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  batch             Batch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  section           Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+}
+
+model Teacher {
+  id                String           @id @default(cuid())
+  departmentId      String
+  name              String           @db.VarChar(255)
+  gender            Gender
+  email             String           @unique @db.VarChar(255)
+  phone             String           @unique @db.VarChar(20)
+  password          String           @db.VarChar(255)
+  employeeNo        String           @unique @db.VarChar(100)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean          @default(false)
+  lockReason        String?
+  department        Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sections          TeacherSection[]
+  subjects          TeacherSubject[]
+}
+
+enum CourseShortName {
+  BTECH
+  MTECH
+  BCA
+  MCA
+}
+
+enum CourseName {
+  BACHELOR_OF_TECHNOLOGY            @map("Bachelor of Technology")
+  MASTER_OF_TECHNOLOGY              @map("Master of Technology")
+  BACHELOR_OF_COMPUTER_APPLICATIONS @map("Bachelor of Computer Applications")
+  MASTER_OF_COMPUTER_APPLICATIONS   @map("Master of Computer Applications")
+}
+
+model Course {
+  id        String          @id @default(cuid())
+  name      CourseName      @default(BACHELOR_OF_TECHNOLOGY)
+  shortName CourseShortName @default(BTECH)
+  collegeId String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  college   College         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  batches   Batch[]
+}
+
+model Batch {
+  id        String    @id @default(cuid())
+  courseId  String
+  batchYear String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  course    Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sections  Section[]
+  students  Student[]
+}
+
+model RefreshToken {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  userId      String
+  userType    String
+  sessionId   String    @unique
+  tokenFamily String
+  deviceInfo  String?
+  ipAddress   String?   @db.VarChar(45)
+  lastUsedAt  DateTime  @default(now())
+  expiresAt   DateTime
+  isRevoked   Boolean   @default(false)
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, userType])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@index([isRevoked])
+}
+
+enum UserRole {
+  studentsection
+  regestral
+  adminstractor
+}
+
+model Section {
+  id              String           @id @default(cuid())
+  batchId         String
+  sectionNo       String           @db.VarChar(50)
+  capacity        Int?             @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  departmentId    String
+  batch           Batch            @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  department      Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  students        Student[]
+  teachers        TeacherSection[]
+  teacherSubjects TeacherSubject[]
+}
+
+model TeacherSection {
+  id        String   @id @default(cuid())
+  teacherId String
+  sectionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, sectionId])
+  @@index([teacherId])
+  @@index([sectionId])
+}
+
+model Subject {
+  id           String           @id @default(cuid())
+  name         String           @db.VarChar(255)
+  code         String           @db.VarChar(50)
+  shortName    String           @db.VarChar(50)
+  departmentId String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  department   Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  teachers     TeacherSubject[]
+
+  @@unique([name, code])
+  @@index([name])
+  @@index([code])
+}
+
+model TeacherSubject {
+  id        String   @id @default(cuid())
+  teacherId String
+  subjectId String
+  sectionId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, subjectId, sectionId])
+  @@index([teacherId])
+  @@index([subjectId])
+  @@index([sectionId])
+}
+
+model PasswordHistory {
+  id           String   @id @default(uuid())
+  userId       String
+  userType     String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, userType])
+  @@index([createdAt])
+}
+
+model AccountLockout {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  userType    String
+  lockedAt    DateTime @default(now())
+  lockedUntil DateTime
+  reason      String
+  unlockToken String?
+
+  @@index([userId, userType])
+}
+
+model UserSession {
+  id            String    @id @default(uuid())
+  userId        String
+  userType      String
+  sessionToken  String    @unique
+  deviceId      String
+  deviceType    String?
+  browser       String?
+  os            String?
+  ipAddress     String
+  location      String?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  invalidatedAt DateTime?
+  isActive      Boolean   @default(true)
+
+  @@index([userId, userType, isActive])
+  @@index([sessionToken])
+}

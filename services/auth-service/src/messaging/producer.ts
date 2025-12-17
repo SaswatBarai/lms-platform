@@ -585,6 +585,41 @@ export class KafkaProducer {
   }
 
   /**
+   * Send bulk import job to Kafka
+   */
+  public async sendBulkImportJob(payload: {
+    jobId: string;
+    importType: "student_import" | "teacher_import";
+    bucket: string;
+    s3Key: string;
+    userId: string;
+    collegeId?: string;
+  }): Promise<boolean> {
+    try {
+      await this.ensureConnected();
+      
+      const result = await this.producer!.send({
+        topic: 'bulk.import.jobs',
+        messages: [{
+          value: JSON.stringify(payload)
+        }]
+      });
+
+      if (result && result.length > 0) {
+        console.log(`[KafkaProducer] ✅ Bulk import job sent: ${payload.jobId}`);
+        return true;
+      }
+
+      console.error(`[KafkaProducer] ❌ Failed to send bulk import job`);
+      return false;
+
+    } catch (error) {
+      console.error(`[KafkaProducer] ❌ Error sending bulk import job:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Disconnect producer
    */
   public async disconnect(): Promise<void> {
