@@ -3,6 +3,9 @@
 # -----------------------------
 FROM node:20-alpine AS base
 
+# Install OpenSSL and required dependencies for Prisma
+RUN apk add --no-cache openssl openssl-dev libc6-compat
+
 # Install pnpm directly
 RUN npm install -g pnpm@latest
 
@@ -27,15 +30,22 @@ RUN pnpm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 
+# Install OpenSSL and required dependencies for Prisma runtime
+RUN apk add --no-cache openssl openssl-dev libc6-compat curl
+
 # Install pnpm for production stage
 RUN npm install -g pnpm@latest
 
-RUN apk add --no-cache curl
+# Copy all node_modules (including Prisma binaries)
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY package.json ./
+COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma
 
 EXPOSE 4004
 
-CMD [ "sh", "-c", "npx prisma migrate deploy && pnpm start" ]
+# Prisma will auto-detect OpenSSL, but we can help it
+ENV OPENSSL_CONF=/etc/ssl/openssl.cnf
+
+# Generate Prisma client on startup (migrations handled by auth-service)
+CMD [ "sh", "-c", "npx prisma generate && pnpm start" ]
