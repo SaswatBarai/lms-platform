@@ -1,6 +1,7 @@
 import { BulkImportJobPayload } from "../types/job.types";
 import { ParserService } from "../services/parser.service";
 import { ProgressService } from "../services/progress.service";
+import { CleanupService } from "../services/cleanup.service";
 import { ErrorReporter } from "../utils/errorReporter";
 import { ImportError } from "../types/import.types";
 import { ZodSchema } from "zod";
@@ -58,7 +59,15 @@ export abstract class BaseWorker {
             await ProgressService.updateStats(jobId, validRows.length, errors.length);
             await ProgressService.updateProgress(jobId, total, total, "completed");
             
-            // 6. Send completion notification
+            // 6. Cleanup: Delete the source CSV/JSON file from S3
+            const cleanupResult = await CleanupService.cleanupJobFiles(bucket, s3Key);
+            if (cleanupResult.sourceDeleted) {
+                console.log(`[Worker] Job ${jobId} source file deleted from S3: ${s3Key}`);
+            } else {
+                console.warn(`[Worker] Job ${jobId} failed to delete source file from S3: ${s3Key}`);
+            }
+            
+            // 7. Send completion notification
             await ProgressService.sendCompletionNotification(jobId, validRows.length, errors.length, errorUrl);
             
             console.log(`[Worker] Job ${jobId} completed. Success: ${validRows.length}, Failed: ${errors.length}`);
