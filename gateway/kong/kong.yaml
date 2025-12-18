@@ -34,6 +34,9 @@ services:
           - "/auth/api/regenerate-access-token-student"
           - "/auth/api/forgot-password-student"
           - "/auth/api/forgot-reset-password-student"
+          - "/auth/api/login-teacher"
+          - "/auth/api/forgot-password-teacher"
+          - "/auth/api/forgot-reset-password-teacher"
         strip_path: false
 
       - name: auth-service-swagger
@@ -60,12 +63,16 @@ services:
           - "/auth/api/add-batch"
           - "/auth/api/add-section"
           - "/auth/api/create-student-bulk"
+          - "/auth/api/create-teacher-bulk"
           - "/auth/api/create-hod"
           - "/auth/api/logout-hod"
           - "/auth/api/regenerate-access-token-hod"
           - "/auth/api/reset-password-hod"
           - "/auth/api/logout-student"
           - "/auth/api/reset-password-student"
+          - "/auth/api/logout-teacher"
+          - "/auth/api/regenerate-access-token-teacher"
+          - "/auth/api/reset-password-teacher"
           - "/auth/api/student/me/session"
           - "/auth/api/student/me/logout-all"
           - "/auth/api/admin/force-logout"

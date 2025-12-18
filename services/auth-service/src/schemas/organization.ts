@@ -500,8 +500,34 @@ export const teacherDetailsSchema = z.object({
         .nonempty({ message: "Employee number is required" })
 })
 
+// Schema for bulk teacher creation (password and employeeNo are auto-generated)
+export const teacherBulkInputSchema = z.object({
+    name: z.string({ message: "Name is required" })
+        .min(3, { message: "Name must be at least 3 characters" })
+        .max(255, { message: "Name must be at most 255 characters" })
+        .trim()
+        .nonempty({ message: "Name is required" }),
+    email: z.string({ message: "Email is required" })
+        .email({ message: "Invalid email address" })
+        .max(255, { message: "Email must be at most 255 characters" })
+        .toLowerCase()
+        .trim(),
+    phone: z.string({ message: "Phone number is required" })
+        .min(1, { message: "Phone number is required" })
+        .regex(/^\+?[\d\s\-\(\)]{10,20}$/, { message: "Invalid phone number format" })
+        .max(20, { message: "Phone number must be at most 20 characters" })
+        .trim(),
+    departmentId: z.string({ message: "Department ID is required" })
+        .min(1, { message: "Department ID is required" })
+        .trim()
+        .nonempty({ message: "Department ID is required" }),
+    gender: z.enum(["MALE", "FEMALE", "OTHER"], {
+        message: "Gender must be one of: MALE, FEMALE, OTHER"
+    })
+})
+
 export const createTeacherBulkSchema = z.object({
-    teachers: z.array(teacherDetailsSchema).min(1, {
+    teachers: z.array(teacherBulkInputSchema).min(1, {
         message: "Must provide at least one teacher."
     })
     .max(500,{

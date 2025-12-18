@@ -350,3 +350,40 @@ model UserSession {
   @@index([userId, userType, isActive])
   @@index([sessionToken])
 }
+
+// ==========================================
+// Phase 3: Bulk Import Models
+// ==========================================
+
+model BulkImportJob {
+  id              String    @id @default(uuid())
+  type            String    // "student_import", "teacher_import"
+  fileUrl         String    // S3 URL
+  fileName        String
+  uploadedBy      String
+  uploadedByType  String    // "admin", "college_admin"
+  collegeId       String?
+  status          String    // "pending", "processing", "completed", "failed", "rolled_back"
+  totalRows       Int?
+  successRows     Int       @default(0)
+  failedRows      Int       @default(0)
+  errorReportUrl  String?
+  options         Json?     // { skipDuplicates, sendWelcomeEmails }
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([uploadedBy])
+}
+
+model BulkImportRecord {
+  id         String   @id @default(uuid())
+  jobId      String
+  recordId   String   // ID of imported record (studentId, teacherId)
+  recordType String   // "student", "teacher"
+  createdAt  DateTime @default(now())
+
+  @@index([jobId])
+  @@index([recordId, recordType])
+}

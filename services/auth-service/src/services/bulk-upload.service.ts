@@ -40,12 +40,15 @@ export class BulkUploadService {
                 ContentType: file.mimetype || `text/${fileExtension === 'json' ? 'json' : 'csv'}`
             }
         });
-
-        await upload.done();
-        const fileUrl = `${s3Client.config.endpoint}/${S3_BUCKET_NAME}/${s3Key}`;
+        
+        let fileUrl = "";
+        if(await upload.done()){
+            fileUrl = `${s3Client.config.endpoint}/${S3_BUCKET_NAME}/${s3Key}`;
+        } else {
+            throw new Error("Failed to upload file to S3");
+        }
 
         // Create job record in database
-        // @ts-ignore - BulkImportJob model exists in shared database
         const job = await prisma.bulkImportJob.create({
             data: {
                 id: jobId,
@@ -56,7 +59,7 @@ export class BulkUploadService {
                 uploadedByType,
                 collegeId: collegeId || null,
                 status: "pending",
-                options: options || {}
+                options: JSON.parse(JSON.stringify(options || {}))
             }
         });
 
