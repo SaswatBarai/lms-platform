@@ -36,6 +36,23 @@ function generateRandomPassword(): string {
     return crypto.randomBytes(8).toString("hex");
 }
 
+/**
+ * Generate a section code based on department short name, batch year, and section number
+ * Format: DEPT-YY-S1ABC (e.g., CSE-24-S1XYZ)
+ */
+function generateSectionCode(deptShortName: string, batchYear: string, sectionNumber: number): string {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let suffix = "";
+    
+    for (let i = 0; i < 3; i++) {
+        suffix += chars[Math.floor(Math.random() * chars.length)];
+    }
+    
+    const year = batchYear.split("-")[0]?.slice(-2) || "XX";
+    
+    return `${deptShortName.toUpperCase()}-${year}-S${sectionNumber}${suffix}`;
+}
+
 export class StudentImportWorker extends BaseWorker {
     getValidationSchema() {
         return z.object({
@@ -57,8 +74,28 @@ export class StudentImportWorker extends BaseWorker {
         const batchId = rows[0].batchId;
         const departmentId = rows[0].departmentId;
 
+        // Fetch batch and department details for section code generation
+        const [batch, department] = await Promise.all([
+            this.prisma.batch.findUnique({
+                where: { id: batchId },
+                select: { id: true, batchYear: true }
+            }),
+            this.prisma.department.findUnique({
+                where: { id: departmentId },
+                select: { id: true, shortName: true }
+            })
+        ]);
+
+        if (!batch) {
+            throw new Error(`Batch not found: ${batchId}`);
+        }
+
+        if (!department) {
+            throw new Error(`Department not found: ${departmentId}`);
+        }
+
         // Fetch existing sections for this batch/department
-        const availableSections = await this.prisma.section.findMany({
+        let availableSections = await this.prisma.section.findMany({
             where: {
                 batchId,
                 departmentId
@@ -73,8 +110,92 @@ export class StudentImportWorker extends BaseWorker {
             }
         });
 
+        // Calculate existing capacity
+        const existingCapacity = availableSections.reduce((total: number, section: any) => {
+            const usedCapacity = section.students.length;
+            return total + (MAX_SECTION_CAPACITY - usedCapacity);
+        }, 0);
+
+        const totalStudentsToAdd = rows.length;
+        const additionalCapacityNeeded = totalStudentsToAdd - existingCapacity;
+
+        let sectionsCreated = 0;
+
+        // Auto-create sections if needed
+        if (additionalCapacityNeeded > 0 || availableSections.length === 0) {
+            const sectionsNeeded = availableSections.length === 0 
+                ? Math.ceil(totalStudentsToAdd / MAX_SECTION_CAPACITY)
+                : Math.ceil(additionalCapacityNeeded / MAX_SECTION_CAPACITY);
+
+            if (sectionsNeeded > 0) {
+                const generatedCodes = new Set<string>();
+                const existingSectionCodes = new Set(availableSections.map((s: any) => s.sectionNo));
+                const existingSectionCount = availableSections.length;
+                
+                const sectionsToCreateData: Array<{
+                    batchId: string;
+                    departmentId: string;
+                    sectionNo: string;
+                    capacity: number;
+                }> = [];
+
+                for (let i = 0; i < sectionsNeeded; i++) {
+                    let sectionCode: string;
+                    let attempts = 0;
+                    const maxAttempts = 100;
+                    const sectionNumber = existingSectionCount + i + 1;
+
+                    do {
+                        sectionCode = generateSectionCode(
+                            department.shortName || "SEC",
+                            batch.batchYear || "2024-2025",
+                            sectionNumber
+                        );
+                        attempts++;
+                    } while ((existingSectionCodes.has(sectionCode) || generatedCodes.has(sectionCode)) && attempts < maxAttempts);
+
+                    if (attempts >= maxAttempts) {
+                        throw new Error("Failed to generate unique section codes. Please try again.");
+                    }
+
+                    generatedCodes.add(sectionCode);
+                    sectionsToCreateData.push({
+                        batchId: batchId,
+                        departmentId: departmentId,
+                        sectionNo: sectionCode,
+                        capacity: MAX_SECTION_CAPACITY
+                    });
+                }
+
+                // Create the sections
+                if (sectionsToCreateData.length > 0) {
+                    await this.prisma.section.createMany({
+                        data: sectionsToCreateData
+                    });
+                    sectionsCreated = sectionsToCreateData.length;
+                    console.log(`[StudentImportWorker] Auto-created ${sectionsCreated} new sections for batch ${batchId}`);
+
+                    // Refresh available sections
+                    availableSections = await this.prisma.section.findMany({
+                        where: {
+                            batchId,
+                            departmentId
+                        },
+                        include: {
+                            students: {
+                                select: {
+                                    id: true,
+                                    gender: true
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
         if (availableSections.length === 0) {
-            throw new Error(`No sections found for batch ${batchId} and department ${departmentId}. Please create sections first.`);
+            throw new Error("Failed to create sections. Please try again.");
         }
 
         // Get existing registration numbers to avoid duplicates
@@ -324,6 +445,6 @@ export class StudentImportWorker extends BaseWorker {
             }))
         );
 
-        console.log(`[StudentImportWorker] Created ${studentsToCreate.length} students with section allocation`);
+        console.log(`[StudentImportWorker] Created ${studentsToCreate.length} students with section allocation${sectionsCreated > 0 ? ` (${sectionsCreated} new sections auto-created)` : ''}`);
     }
 }
