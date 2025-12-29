@@ -5,6 +5,10 @@ export interface BulkImportJobPayload {
     importType: 'student_import' | 'teacher_import';
     userId: string;
     collegeId?: string;
+    options?: {
+        skipDuplicates?: boolean;
+        sendWelcomeEmails?: boolean;
+    };
 }
 
 export interface ImportResult {

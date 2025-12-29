@@ -3,7 +3,7 @@ import { z } from "zod";
 import { BulkImportJobPayload } from "../types/job.types";
 import { hashPassword } from "../utils/password";
 import { ImporterService } from "../services/importer.service";
-import * as crypto from "node:crypto";
+import { producer } from "../config/kafka";
 
 const MAX_SECTION_CAPACITY = 70;
 
@@ -30,10 +30,6 @@ function generateRegNo(): string {
     }
     
     return regNo;
-}
-
-function generateRandomPassword(): string {
-    return crypto.randomBytes(8).toString("hex");
 }
 
 /**
@@ -204,6 +200,12 @@ export class StudentImportWorker extends BaseWorker {
         });
         const existingRegNoSet = new Set(existingRegNos.map((s: { regNo: string }) => s.regNo));
 
+        // Generate single default password hash for all students (same pattern as teacher import)
+        // Students will be required to change password on first login
+        console.log(`[StudentImportWorker] Generating default password hash...`);
+        const defaultPasswordHash = await hashPassword();
+        console.log(`[StudentImportWorker] Password hash generated.`);
+
         // Separate students by gender for balanced allocation
         const maleStudents = rows.filter((s: any) => s.gender === "MALE");
         const femaleStudents = rows.filter((s: any) => s.gender === "FEMALE");
@@ -309,15 +311,12 @@ export class StudentImportWorker extends BaseWorker {
                 }
                 existingRegNoSet.add(regNo);
 
-                const tempPassword = generateRandomPassword();
-                const hashedPassword = await hashPassword(tempPassword);
-
                 studentsToCreate.push({
                     name: student.name,
                     email: student.email,
                     phone: student.phone || `+91${Math.floor(1000000000 + Math.random() * 9000000000)}`,
                     gender: student.gender,
-                    password: hashedPassword,
+                    password: defaultPasswordHash,
                     regNo,
                     departmentId,
                     batchId,
@@ -355,15 +354,12 @@ export class StudentImportWorker extends BaseWorker {
                 }
                 existingRegNoSet.add(regNo);
 
-                const tempPassword = generateRandomPassword();
-                const hashedPassword = await hashPassword(tempPassword);
-
                 studentsToCreate.push({
                     name: student.name,
                     email: student.email,
                     phone: student.phone || `+91${Math.floor(1000000000 + Math.random() * 9000000000)}`,
                     gender: student.gender,
-                    password: hashedPassword,
+                    password: defaultPasswordHash,
                     regNo,
                     departmentId,
                     batchId,
@@ -401,15 +397,12 @@ export class StudentImportWorker extends BaseWorker {
                 }
                 existingRegNoSet.add(regNo);
 
-                const tempPassword = generateRandomPassword();
-                const hashedPassword = await hashPassword(tempPassword);
-
                 studentsToCreate.push({
                     name: student.name,
                     email: student.email,
                     phone: student.phone || `+91${Math.floor(1000000000 + Math.random() * 9000000000)}`,
                     gender: student.gender,
-                    password: hashedPassword,
+                    password: defaultPasswordHash,
                     regNo,
                     departmentId,
                     batchId,
@@ -433,7 +426,12 @@ export class StudentImportWorker extends BaseWorker {
             where: {
                 email: { in: emails }
             },
-            select: { id: true }
+            select: { 
+                id: true,
+                regNo: true,
+                name: true,
+                email: true
+            }
         });
 
         // Track records for rollback
@@ -446,5 +444,65 @@ export class StudentImportWorker extends BaseWorker {
         );
 
         console.log(`[StudentImportWorker] Created ${studentsToCreate.length} students with section allocation${sectionsCreated > 0 ? ` (${sectionsCreated} new sections auto-created)` : ''}`);
+        
+        // Send welcome emails if enabled (opt-in)
+        if (payload.options?.sendWelcomeEmails === true) {
+            try {
+                // Get college and department info for email
+                const college = payload.collegeId ? await this.prisma.college.findUnique({
+                    where: { id: payload.collegeId },
+                    select: { name: true }
+                }) : null;
+
+                const department = await this.prisma.department.findUnique({
+                    where: { id: departmentId },
+                    select: { name: true }
+                });
+
+                const collegeName = college?.name || "College";
+                const departmentName = department?.name || "Department";
+                const loginUrl = process.env.STUDENT_LOGIN_URL || "http://localhost:8000/auth/api/login-student";
+
+                // Send welcome emails via Kafka
+                console.log(`[StudentImportWorker] Sending welcome emails to ${createdStudents.length} students...`);
+                
+                // Producer is already connected at service startup
+                for (const student of createdStudents) {
+                    try {
+                        // Note: We don't send the actual password for security reasons
+                        // Instead, students should use "Forgot Password" to set their password
+                        // Or the system should require password change on first login
+                        await producer.send({
+                            topic: 'welcome-messages',
+                            messages: [{
+                                value: JSON.stringify({
+                                    action: 'email-notification',
+                                    type: 'student-welcome-email',
+                                    data: {
+                                        email: student.email,
+                                        name: student.name,
+                                        regNo: student.regNo,
+                                        tempPassword: 'Please use "Forgot Password" to set your password', // Security: No password sent via email
+                                        collegeName,
+                                        departmentName,
+                                        loginUrl
+                                    }
+                                })
+                            }]
+                        });
+                    } catch (emailError) {
+                        console.error(`[StudentImportWorker] Failed to send welcome email to ${student.email}:`, emailError);
+                        // Continue with other students even if one fails
+                    }
+                }
+                
+                console.log(`[StudentImportWorker] ✅ Welcome emails queued for ${createdStudents.length} students`);
+            } catch (emailError) {
+                console.error(`[StudentImportWorker] Error sending welcome emails:`, emailError);
+                // Don't fail the job if email sending fails
+            }
+        } else {
+            console.log(`[StudentImportWorker] Welcome emails disabled (sendWelcomeEmails: false or not set)`);
+        }
     }
 }

@@ -22,6 +22,20 @@ export abstract class BaseWorker {
         try {
             await ProgressService.updateProgress(jobId, 0, 0, "processing");
 
+            // Fetch job options from database
+            // @ts-ignore - BulkImportJob model exists in shared database
+            const job = await this.prisma.bulkImportJob.findUnique({
+                where: { id: jobId },
+                select: { options: true, collegeId: true }
+            });
+
+            // Merge options into payload
+            const payloadWithOptions: BulkImportJobPayload = {
+                ...payload,
+                options: job?.options as any || {},
+                collegeId: payload.collegeId || job?.collegeId || undefined
+            };
+
             // 1. Parse
             const rows = await ParserService.parseFile(bucket, s3Key);
             const total = rows.length;
@@ -40,7 +54,7 @@ export abstract class BaseWorker {
             // 3. Process Valid Rows (Batch Insert)
             // Note: In production, do this in chunks (e.g., 100)
             if (validRows.length > 0) {
-                await this.processBatch(validRows, payload);
+                await this.processBatch(validRows, payloadWithOptions);
             }
 
             // 4. Handle Errors

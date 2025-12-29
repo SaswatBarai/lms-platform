@@ -1,10 +1,8 @@
-import { Upload } from "@aws-sdk/lib-storage";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client, S3_BUCKET_NAME } from "../config/s3.js";
 import { prisma } from "../lib/prisma.js";
 import { KafkaProducer } from "../messaging/producer.js";
 import { v4 as uuidv4 } from "uuid";
-import { Readable } from "stream";
 
 export interface BulkUploadOptions {
     skipDuplicates?: boolean;
@@ -29,24 +27,30 @@ export class BulkUploadService {
         const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'csv';
         const s3Key = `imports/${jobId}/${fileName}`;
 
-        // Upload file to S3
-        const fileStream = Readable.from(file.buffer);
-        const upload = new Upload({
-            client: s3Client,
-            params: {
-                Bucket: S3_BUCKET_NAME,
-                Key: s3Key,
-                Body: fileStream,
-                ContentType: file.mimetype || `text/${fileExtension === 'json' ? 'json' : 'csv'}`
-            }
+        // Upload file to S3 using PutObjectCommand (more reliable than streaming)
+        console.log(`[BulkUploadService] Uploading file to S3: ${s3Key}, size: ${file.buffer?.length || 0} bytes`);
+        
+        if (!file.buffer || file.buffer.length === 0) {
+            throw new Error("File buffer is empty - upload failed");
+        }
+        
+        const putCommand = new PutObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: s3Key,
+            Body: file.buffer,
+            ContentType: file.mimetype || `text/${fileExtension === 'json' ? 'json' : 'csv'}`
         });
         
-        let fileUrl = "";
-        if(await upload.done()){
-            fileUrl = `${s3Client.config.endpoint}/${S3_BUCKET_NAME}/${s3Key}`;
-        } else {
-            throw new Error("Failed to upload file to S3");
+        try {
+            const result = await s3Client.send(putCommand);
+            console.log(`[BulkUploadService] S3 upload result:`, JSON.stringify(result.$metadata));
+        } catch (s3Error: any) {
+            console.error(`[BulkUploadService] S3 upload failed:`, s3Error.message || s3Error);
+            throw new Error(`Failed to upload file to S3: ${s3Error.message}`);
         }
+        
+        const fileUrl = `http://minio:9000/${S3_BUCKET_NAME}/${s3Key}`;
+        console.log(`[BulkUploadService] File uploaded successfully: ${fileUrl}`);
 
         // Create job record in database
         const job = await prisma.bulkImportJob.create({

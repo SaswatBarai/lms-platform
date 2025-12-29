@@ -41,10 +41,14 @@ stream.write('name,email,phone,gender,departmentId,batchId,sectionId\n');
 
 const timestamp = Date.now();
 
+// Generate unique phone numbers using timestamp + random suffix
+const basePhone = timestamp % 10000000; // Use last 7 digits of timestamp as base
+
 for (let i = 0; i < COUNT; i++) {
     const name = `Student_${i}`;
     const email = `student${i}_${timestamp}@test.com`;
-    const phone = `+91${9000000000 + i}`;
+    // Use truly unique phone: +91 + base from timestamp + sequential index
+    const phone = `+91${7000000000 + basePhone + i}`;
     const gender = i % 3 === 0 ? 'MALE' : (i % 3 === 1 ? 'FEMALE' : 'OTHER');
     
     // sectionId can be empty - worker will auto-assign based on gender balancing
