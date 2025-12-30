@@ -12,6 +12,7 @@ services:
       - name: auth-service-routes
         paths:
           - "/auth/api/health"
+          - "/auth/api/metrics"
           - "/auth/api/create-organization"
           - "/auth/api/verify-organization-otp"
           - "/auth/api/resend-organization-otp"

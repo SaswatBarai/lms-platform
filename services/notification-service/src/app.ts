@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import morgan from "morgan";
 import cors from "cors";
 import helmet from "helmet";
+import { register } from "./config/metrics.js";
 
 
 const app:Application = express();
@@ -16,7 +17,12 @@ app.get("/health",(req,res)=>{
     res.status(200).json({message:"Notification service is running"});
 });
 
-
+// Add metrics endpoint
+app.get("/metrics", async (req, res) => {
+    res.setHeader('Content-Type', register.contentType);
+    res.send(await register.metrics());
+  });
+  
 
 
 
