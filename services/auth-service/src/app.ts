@@ -1,3 +1,4 @@
+import "./config/tracing.js";
 import express,{Application} from "express"
 import morgan from "morgan";
 import helmet from "helmet";
@@ -7,7 +8,6 @@ import sessionRoutes from "@routes/session.route.js";
 import bulkRoutes from "@routes/bulk.route.js";
 import errorHandler from "@middleware/errorHandler.js";
 import { setupSwagger } from "@config/swagger.js";
-import "./config/tracing.js";
 import healthRoutes from "@routes/health.route.js"; // [NEW]
 import { metricsMiddleware } from "@middleware/metricsMiddleware.js"; // [NEW]
 import { tracingMiddleware } from "@middleware/tracingMiddleware.js"; // [NEW]
@@ -88,11 +88,6 @@ app.use("/auth/api", healthRoutes);
 app.use("/auth/api",organizationRoutes)
 app.use("/auth/api",sessionRoutes)
 app.use("/auth/api/bulk",bulkRoutes)
-
-//health check
-app.get("/auth/api/health",(req,res)=>{
-    res.status(200).json({status:"ok"});
-})
 
 
 
