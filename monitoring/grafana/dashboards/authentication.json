@@ -1,0 +1,238 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {},
+      "targets": [
+        {
+          "expr": "rate(auth_login_attempts_total[5m])",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Login Attempts",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 8},
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(auth_login_attempts_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Login Attempts",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 8},
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(auth_login_attempts_total{status=\"success\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Successful Logins",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 8},
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(auth_login_attempts_total{status=\"failure\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Failed Logins",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": 0},
+              {"color": "yellow", "value": 80},
+              {"color": "green", "value": 95}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "id": 5,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(auth_login_attempts_total{status=\"success\"}[5m])) / sum(rate(auth_login_attempts_total[5m])) * 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Login Success Rate",
+      "type": "gauge"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "id": 6,
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum(auth_login_attempts_total) by (status)",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Login Attempts Over Time",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["auth", "authentication"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Authentication",
+  "uid": "authentication",
+  "version": 1,
+  "refresh": "10s"
+}

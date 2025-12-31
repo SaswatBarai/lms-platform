@@ -436,11 +436,28 @@ services:
     container_name: lms_prometheus
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/prometheus/rules:/etc/prometheus/rules
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
     ports:
       - "9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - lms-network
+      - internal_net
+    depends_on:
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: lms_alertmanager
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
     networks:
       - lms-network
       - internal_net

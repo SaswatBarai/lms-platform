@@ -35,10 +35,10 @@ export class BulkUploadService {
         }
         
         const putCommand = new PutObjectCommand({
-            Bucket: S3_BUCKET_NAME,
-            Key: s3Key,
+                Bucket: S3_BUCKET_NAME,
+                Key: s3Key,
             Body: file.buffer,
-            ContentType: file.mimetype || `text/${fileExtension === 'json' ? 'json' : 'csv'}`
+                ContentType: file.mimetype || `text/${fileExtension === 'json' ? 'json' : 'csv'}`
         });
         
         try {

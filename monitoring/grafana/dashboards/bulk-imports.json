@@ -1,0 +1,236 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {},
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{route=~\"/bulk.*\"}[5m])",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Import Requests",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 2,
+      "options": {},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{route=~\"/bulk.*\"}[5m]))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Import Response Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          }
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "pieType": "pie",
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status_code) (rate(http_requests_total{route=~\"/bulk.*\"}[5m]))",
+          "legendFormat": "{{status_code}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Import Status Codes",
+      "type": "piechart"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 0, "y": 16},
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(http_requests_total{route=~\"/bulk.*\"}[1h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Bulk Import Requests",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 8, "y": 16},
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(http_requests_total{route=~\"/bulk.*\",status_code=~\"5..\"}[1h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Import Errors",
+      "type": "stat"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": 0},
+              {"color": "yellow", "value": 80},
+              {"color": "green", "value": 95}
+            ]
+          },
+          "unit": "percent"
+        }
+      },
+      "gridPos": {"h": 4, "w": 8, "x": 16, "y": 16},
+      "id": 6,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"],
+          "fields": ""
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "expr": "(1 - sum(rate(http_requests_total{route=~\"/bulk.*\",status_code=~\"5..\"}[5m])) / sum(rate(http_requests_total{route=~\"/bulk.*\"}[5m]))) * 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Bulk Import Success Rate",
+      "type": "gauge"
+    }
+  ],
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["bulk", "imports"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Bulk Imports",
+  "uid": "bulk-imports",
+  "version": 1,
+  "refresh": "10s"
+}

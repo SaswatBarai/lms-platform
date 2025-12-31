@@ -1,0 +1,39 @@
+global:
+  resolve_timeout: 5m
+  # The default SMTP "from" address
+  smtp_from: 'alertmanager@example.com' 
+  # Google SMTP server configuration
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_auth_username: 'saswatbarai611@gmail.com' # REPLACE THIS
+  smtp_auth_password: 'sajzxwbjibqk '    # REPLACE THIS (16-char App Password)
+  smtp_require_tls: true
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'slack-notifications'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'slack-notifications'
+      continue: true
+    - match:
+        severity: warning
+      receiver: 'slack-notifications'
+
+receivers:
+  - name: 'slack-notifications'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL'  # Replace with your Slack webhook URL
+        channel: '#alerts'
+        title: 'LMS Platform Alert'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+  - name: 'email-notifications'
+    email_configs:
+      - to: 'saswatbarai612@gmail.com' # Where to send alerts
+        send_resolved: true
+        headers:
+          Subject: "LMS Alert: {{ .CommonLabels.alertname }}"

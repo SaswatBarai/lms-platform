@@ -8,8 +8,10 @@ import bulkRoutes from "@routes/bulk.route.js";
 import errorHandler from "@middleware/errorHandler.js";
 import { setupSwagger } from "@config/swagger.js";
 import "./config/tracing.js";
-import { metricsMiddleware } from "./middleware/metricsMiddleware.js";
-import { register } from "./config/metrics.js";
+import healthRoutes from "@routes/health.route.js"; // [NEW]
+import { metricsMiddleware } from "@middleware/metricsMiddleware.js"; // [NEW]
+import { tracingMiddleware } from "@middleware/tracingMiddleware.js"; // [NEW]
+import { register } from "@config/metrics.js"; // [NEW]
 import { logger } from "./config/logger.js";
 
 const app:Application = express();
@@ -17,6 +19,7 @@ const app:Application = express();
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
+app.use(tracingMiddleware);
 app.use(metricsMiddleware);
 const morganFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
 
@@ -81,6 +84,7 @@ app.get("/auth/api/metrics", async (req, res) => {
 });
 
 //All routes
+app.use("/auth/api", healthRoutes);
 app.use("/auth/api",organizationRoutes)
 app.use("/auth/api",sessionRoutes)
 app.use("/auth/api/bulk",bulkRoutes)

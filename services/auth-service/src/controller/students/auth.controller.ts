@@ -12,6 +12,7 @@ import process from "node:process";
 import { LockoutService } from "../../services/lockout.service.js";
 import { PasswordService } from "../../services/password.service.js";
 import * as requestIp from "request-ip";
+import { loginAttemptsTotal } from "../../config/metrics.js";
 
 const MAX_SECTION_CAPACITY = 70;
 const MIN_STUDENTS_PER_SECTION = 5;
@@ -787,6 +788,7 @@ export const loginStudentController = asyncHandler(
         });
 
         if (!student) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid credentials. Please check your email/registration number and password.", 401);
         }
 
@@ -795,6 +797,9 @@ export const loginStudentController = asyncHandler(
         if (!isPasswordValid) {
             // Phase 1: Handle Failed Attempt
             await LockoutService.handleFailedAttempt(student.id, "student", student.email);
+            
+            // Track failed login attempt
+            loginAttemptsTotal.inc({ status: 'failure' });
             
             // Phase 1: Audit Log Failure
             const kafka = KafkaProducer.getInstance();
@@ -805,6 +810,9 @@ export const loginStudentController = asyncHandler(
 
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(student.id, "student");
+        
+        // Track successful login attempt
+        loginAttemptsTotal.inc({ status: 'success' });
 
         // Get Device Info
         const { DeviceService } = await import("../../services/device.service.js");
