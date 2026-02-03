@@ -5,12 +5,14 @@ import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions'
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
 
-// Enable diagnostic logging for debugging
+// Enable diagnostic logging for debugging only in development
+// This helps see if traces are actually being sent or rejected
 if (process.env.NODE_ENV === 'development') {
   diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 }
 
-// Configure the OTLP exporter with proper settings
+// Configure the OTLP exporter
+// Ensure this URL matches your docker-compose service name (http://jaeger:4318)
 const traceExporter = new OTLPTraceExporter({
   url: process.env.JAEGER_ENDPOINT || 'http://jaeger:4318/v1/traces',
   headers: {
@@ -28,8 +30,20 @@ const sdk = new NodeSDK({
   traceExporter,
   instrumentations: [
     getNodeAutoInstrumentations({
+      // 1. Disable File System instrumentation to reduce massive noise (fs.open, fs.read)
       '@opentelemetry/instrumentation-fs': {
-        enabled: false, // Disable fs instrumentation to reduce noise
+        enabled: false,
+      },
+      // 2. Configure Express instrumentation
+      '@opentelemetry/instrumentation-express': {
+        enabled: true,
+      },
+      // 3. Disable other noisy low-level network traces if not needed
+      '@opentelemetry/instrumentation-net': { enabled: false },
+      '@opentelemetry/instrumentation-dns': { enabled: false },
+      // 4. Ensure HTTP is enabled to capture incoming/outgoing requests
+      '@opentelemetry/instrumentation-http': {
+        enabled: true,
       },
     }),
   ],

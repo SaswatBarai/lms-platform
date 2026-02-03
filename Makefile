@@ -359,6 +359,10 @@ prune-all: ## Remove ALL unused Docker resources (including volumes)
 	docker system prune -af --volumes
 	@echo "$(GREEN)✓ Full prune complete$(RESET)"
 
+cleanup-storage: ## Comprehensive storage cleanup (Docker + caches)
+	@echo "$(GREEN)Running comprehensive storage cleanup...$(RESET)"
+	@./cleanup-storage.sh
+
 # =============================================================================
 # DEVELOPMENT SHORTCUTS
 # =============================================================================
