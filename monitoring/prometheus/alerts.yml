@@ -1,32 +1,32 @@
 groups:
-  - name: auth_service_alerts
+  - name: auth-service-alerts
     rules:
       - alert: HighErrorRate
         expr: rate(http_requests_total{status_code=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
-        for: 5m
+        for: 2m
         labels:
           severity: critical
         annotations:
           summary: "High Error Rate detected in {{ $labels.service }}"
-          description: "Error rate is above 5% for the last 5 minutes."
+          description: "Error rate is > 5% for the last 5 minutes."
 
       - alert: HighLatency
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, route)) > 2
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High Latency in {{ $labels.service }}"
-          description: "p95 latency is above 1s for the last 5 minutes."
+          summary: "High Latency in {{ $labels.route }}"
+          description: "P95 latency is > 2s."
 
       - alert: ServiceDown
-        expr: up == 0
+        expr: up{job="auth-service"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Service {{ $labels.instance }} is down"
-          description: "Service has been unreachable for more than 1 minute."
+          summary: "Auth Service is down"
+          description: "Auth Service has been unreachable for more than 1 minute."
 
       - alert: HighMemoryUsage
         expr: process_resident_memory_bytes / 1024 / 1024 > 500

@@ -19,7 +19,7 @@ BASE_URL="http://localhost:8000"
    docker-compose ps
    ```
 
-2. Access Swagger UI for interactive testing:
+2. Access API docs (Scalar) for interactive testing:
    - http://localhost:8000/auth/api/api-docs
 
 3. Save cookies for authenticated requests:
@@ -1187,7 +1187,7 @@ echo -e "\n=== Test Complete ==="
    - Use `-c cookies.txt` to save cookies
    - Use `-b cookies.txt` to send cookies
    - Check notification service logs for OTPs in console mode
-   - Use Swagger UI for interactive testing: http://localhost:8000/auth/api/api-docs
+   - Use API docs (Scalar) for interactive testing: http://localhost:8000/auth/api/api-docs
 
 ---
 

@@ -76,6 +76,6 @@ All protected endpoints require:
 
 ## 📚 Access Documentation
 
-- **Swagger UI**: http://localhost:8000/auth/api/api-docs
+- **API docs (Scalar)**: http://localhost:8000/auth/api/api-docs
 - **Direct Service**: http://localhost:4001/api-docs
 

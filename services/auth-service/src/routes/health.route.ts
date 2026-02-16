@@ -4,46 +4,38 @@ import redis from '../config/redis.js';
 
 const router:Router = Router();
 
-// Liveness Probe
+// Liveness Probe (Is the service running?)
 router.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({ status: 'UP', timestamp: new Date().toISOString() });
 });
 
-// Readiness Probe (checks dependencies)
+// Readiness Probe (Can it accept traffic?)
 router.get('/health/ready', async (req: Request, res: Response) => {
-  const checks: Record<string, any> = {
-    timestamp: new Date().toISOString(),
-    services: {}
+  const details: Record<string, string> = {
+    database: 'down',
+    redis: 'down',
+    timestamp: new Date().toISOString()
   };
-  
-  let isHealthy = true;
 
-  // Check Database
   try {
+    // Check DB
     await prisma.$queryRaw`SELECT 1`;
-    checks.services.database = { status: 'up' };
-  } catch (error) {
-    checks.services.database = { status: 'down', error: 'Connection failed' };
-    isHealthy = false;
-  }
+    details.database = 'up';
 
-  // Check Redis
-  try {
+    // Check Redis
     const ping = await redis.ping();
     if (ping === 'PONG') {
-        checks.services.redis = { status: 'up' };
+      details.redis = 'up';
+    }
+
+    if (details.database === 'up' && details.redis === 'up') {
+      res.status(200).json({ status: 'READY', details });
     } else {
-        throw new Error('Redis ping failed');
+      res.status(503).json({ status: 'NOT_READY', details });
     }
   } catch (error) {
-    checks.services.redis = { status: 'down', error: 'Connection failed' };
-    isHealthy = false;
+    res.status(503).json({ status: 'NOT_READY', details, error: 'Dependency failure' });
   }
-
-  // Kafka check can be added here similar to others
-
-  const statusCode = isHealthy ? 200 : 503;
-  res.status(statusCode).json(checks);
 });
 
 export default router;

@@ -7,7 +7,7 @@ import organizationRoutes from "@routes/organization.route.js";
 import sessionRoutes from "@routes/session.route.js";
 import bulkRoutes from "@routes/bulk.route.js";
 import errorHandler from "@middleware/errorHandler.js";
-import { setupSwagger } from "@config/swagger.js";
+import { setupApiDocs } from "@config/api-docs.js";
 import healthRoutes from "@routes/health.route.js"; // [NEW]
 import { metricsMiddleware } from "@middleware/metricsMiddleware.js"; // [NEW]
 import { tracingMiddleware } from "@middleware/tracingMiddleware.js"; // [NEW]
@@ -34,7 +34,7 @@ app.use(
   })
 );
 
-// CORS for Swagger UI
+// CORS for API docs
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
@@ -53,11 +53,11 @@ app.use(
           contentSecurityPolicy: {
             directives: {
               defaultSrc: ["'self'"],
-              styleSrc: ["'self'", "'unsafe-inline'"],
-              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
               imgSrc: ["'self'", "data:", "https:"],
               connectSrc: ["'self'", "http://localhost:8000", "http://localhost:4001"],
-              fontSrc: ["'self'", "data:"],
+              fontSrc: ["'self'", "data:", "https://cdn.jsdelivr.net"],
             },
           },
           crossOriginEmbedderPolicy: false,
@@ -73,9 +73,9 @@ app.get("/",(req,res)=>{
     res.status(200).json({message:"Auth Service is up and running"});
 })
 
-// Setup Swagger BEFORE other routes
+// Setup API docs (Scalar) before other routes
 if (process.env.NODE_ENV !== 'production') {
-    setupSwagger(app);
+    setupApiDocs(app);
 }
 
 app.get("/auth/api/metrics", async (req, res) => {

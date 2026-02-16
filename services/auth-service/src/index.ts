@@ -1,3 +1,4 @@
+import "./config/tracing.js"
 import app from "./app.js"
 import { initKafkaProducer } from "./messaging/kafka.js";
 import dotenv from "dotenv";

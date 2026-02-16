@@ -40,7 +40,7 @@ services:
           - "/auth/api/forgot-reset-password-teacher"
         strip_path: false
 
-      - name: auth-service-swagger
+      - name: auth-service-api-docs
         paths:
           - "~/auth/api/api-docs.*"
         strip_path: false
@@ -160,4 +160,41 @@ services:
               redis_database: 0
               redis_timeout: 2000
               validate_session: true
+
+#---------------------------------------------------
+# Monitoring stack (Prometheus, Grafana, Jaeger, Kibana)
+# Access via: http://localhost:8000/monitoring/<service>
+#---------------------------------------------------
+
+  - name: prometheus
+    url: http://prometheus:9090
+    routes:
+      - name: prometheus-route
+        paths:
+          - "/monitoring/prometheus"
+        strip_path: true
+
+  - name: grafana
+    url: http://grafana:3000
+    routes:
+      - name: grafana-route
+        paths:
+          - "/monitoring/grafana"
+        strip_path: true
+
+  - name: jaeger
+    url: http://jaeger:16686
+    routes:
+      - name: jaeger-route
+        paths:
+          - "/monitoring/jaeger"
+        strip_path: true
+
+  - name: kibana
+    url: http://kibana:5601
+    routes:
+      - name: kibana-route
+        paths:
+          - "/monitoring/kibana"
+        strip_path: true
 
