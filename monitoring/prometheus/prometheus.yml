@@ -18,9 +18,23 @@ scrape_configs:
         labels:
           service: 'auth-service'
 
-  # - job_name: 'notification-service'
-  #   metrics_path: '/metrics'
-  #   static_configs:
-  #     - targets: ['notification-service:4002']
-  #       labels:
-  #         service: 'notification-service'
+  - job_name: 'notification-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['notification-service:4002']
+        labels:
+          service: 'notification-service'
+
+  - job_name: 'infrastructure-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['infrastructure-service:4003']
+        labels:
+          service: 'infrastructure-service'
+
+  - job_name: 'bulk-import-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['bulk-import-service:4004']
+        labels:
+          service: 'bulk-import-service'

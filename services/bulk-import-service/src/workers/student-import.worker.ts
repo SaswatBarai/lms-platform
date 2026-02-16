@@ -4,6 +4,7 @@ import { BulkImportJobPayload } from "../types/job.types";
 import { hashPassword } from "../utils/password";
 import { ImporterService } from "../services/importer.service";
 import { producer } from "../config/kafka";
+import { logger } from "../config/logger";
 
 const MAX_SECTION_CAPACITY = 70;
 
@@ -169,7 +170,7 @@ export class StudentImportWorker extends BaseWorker {
                         data: sectionsToCreateData
                     });
                     sectionsCreated = sectionsToCreateData.length;
-                    console.log(`[StudentImportWorker] Auto-created ${sectionsCreated} new sections for batch ${batchId}`);
+                    logger.info(`[StudentImportWorker] Auto-created ${sectionsCreated} new sections for batch ${batchId}`);
 
                     // Refresh available sections
                     availableSections = await this.prisma.section.findMany({
@@ -491,7 +492,7 @@ export class StudentImportWorker extends BaseWorker {
                             }]
                         });
                     } catch (emailError) {
-                        console.error(`[StudentImportWorker] Failed to send welcome email to ${student.email}:`, emailError);
+                        logger.error(`[StudentImportWorker] Failed to send welcome email to ${student.email}:`, emailError);
                         // Continue with other students even if one fails
                     }
                 }

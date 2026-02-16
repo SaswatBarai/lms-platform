@@ -1,6 +1,7 @@
 import { EmailService } from "@services/email.service.js";
 import { nonTeachingStaffPasswordResetEmailTemplate, passwordResetEmailTemplate, hodPasswordResetEmailTemplate, studentPasswordResetEmailTemplate, teacherPasswordResetEmailTemplate, deanPasswordResetEmailTemplate } from "../templates/index.js";
 import { ForgotPasswordData, StudentForgotPasswordData, TeacherForgotPasswordData, DeanForgotPasswordData } from "../types/notification.types.js";
+import { logger } from "../config/logger.js";
 
 interface ExtendedForgotPasswordData extends ForgotPasswordData {
   collegeName?: string;
@@ -21,7 +22,7 @@ export class PasswordResetHandler {
     const { email, sessionToken } = data;
 
     if (!email || !sessionToken) {
-      console.error("[PasswordResetHandler] Missing email or session token for organization");
+      logger.error("[PasswordResetHandler] Missing email or session token for organization");
       return false;
     }
 
@@ -52,7 +53,7 @@ export class PasswordResetHandler {
     const { email, sessionToken } = data;
 
     if (!email || !sessionToken) {
-      console.error("[PasswordResetHandler] Missing email or session token for college");
+      logger.error("[PasswordResetHandler] Missing email or session token for college");
       return false;
     }
 
@@ -82,7 +83,7 @@ export class PasswordResetHandler {
     const { email, sessionToken, collegeName,name } = data;
     
     if (!email || !sessionToken || !collegeName) {
-      console.error("[PasswordResetHandler] Missing email, session token, or college name for non-teaching staff");
+      logger.error("[PasswordResetHandler] Missing email, session token, or college name for non-teaching staff");
       return false;
     }
     console.log(`[PasswordResetHandler] Processing non-teaching staff password reset for ${email}`);
@@ -107,7 +108,7 @@ export class PasswordResetHandler {
   public static async handleHodPasswordReset(data: HodForgotPasswordData):Promise<boolean> {
     const {name,email,sessionToken,departShortName,departmentName,collegeName} = data;
     if (!email || !sessionToken || !collegeName || !departmentName || !departShortName || !name) {
-      console.error("[PasswordResetHandler] Missing required fields for HOD password reset");
+      logger.error("[PasswordResetHandler] Missing required fields for HOD password reset");
       return false;
     }
     console.log(`[PasswordResetHandler] Processing HOD password reset for ${email}`);
@@ -137,7 +138,7 @@ export class PasswordResetHandler {
     const { email, sessionToken, name, regNo, collegeName, departmentName } = data;
 
     if (!email || !sessionToken || !name || !regNo || !collegeName || !departmentName) {
-      console.error("[PasswordResetHandler] Missing required fields for student password reset");
+      logger.error("[PasswordResetHandler] Missing required fields for student password reset");
       return false;
     }
 
@@ -176,7 +177,7 @@ export class PasswordResetHandler {
     const { email, sessionToken, name, employeeNo, collegeName, departmentName } = data;
 
     if (!email || !sessionToken || !name || !employeeNo || !collegeName || !departmentName) {
-      console.error("[PasswordResetHandler] Missing required fields for teacher password reset");
+      logger.error("[PasswordResetHandler] Missing required fields for teacher password reset");
       return false;
     }
 
@@ -215,7 +216,7 @@ export class PasswordResetHandler {
     const { email, sessionToken, collegeName } = data;
 
     if (!email || !sessionToken || !collegeName) {
-      console.error("[PasswordResetHandler] Missing required fields for dean password reset");
+      logger.error("[PasswordResetHandler] Missing required fields for dean password reset");
       return false;
     }
 

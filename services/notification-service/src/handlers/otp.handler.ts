@@ -1,6 +1,7 @@
 import { EmailService } from "@services/email.service.js";
 import { otpEmailTemplate } from "../templates/index.js";
 import { OTPData } from "../types/notification.types.js";
+import { logger } from "../config/logger.js";
 
 export class OTPHandler {
   /**
@@ -10,7 +11,7 @@ export class OTPHandler {
     const { email, otp } = data;
 
     if (!email || !otp) {
-      console.error("[OTPHandler] Missing email or OTP");
+      logger.error("[OTPHandler] Missing email or OTP");
       return false;
     }
 

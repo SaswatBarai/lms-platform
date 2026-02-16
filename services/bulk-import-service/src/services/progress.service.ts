@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import { env } from "../config/env";
 import { producer } from "../config/kafka";
+import { logger } from "../config/logger";
 
 const redis = new Redis(env.REDIS_URL);
 // @ts-ignore - Prisma client import for commonjs
@@ -53,7 +54,7 @@ export class ProgressService {
             });
 
             if (!job) {
-                console.error(`[ProgressService] Job ${jobId} not found for notification`);
+                logger.error(`[ProgressService] Job ${jobId} not found for notification`);
                 return;
             }
 
@@ -76,9 +77,9 @@ export class ProgressService {
                 }]
             });
 
-            console.log(`[ProgressService] Completion notification sent for job ${jobId}`);
+            logger.info(`[ProgressService] Completion notification sent for job ${jobId}`);
         } catch (error) {
-            console.error(`[ProgressService] Failed to send completion notification for job ${jobId}:`, error);
+            logger.error(`[ProgressService] Failed to send completion notification for job ${jobId}:`, error);
         }
     }
 }

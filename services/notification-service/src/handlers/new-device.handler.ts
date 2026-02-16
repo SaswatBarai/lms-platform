@@ -1,6 +1,7 @@
 import { EmailService } from "@services/email.service.js";
 import { newDeviceLoginTemplate } from "../templates/new-device-login.template.js";
 import { NewDeviceLoginData } from "../types/notification.types.js";
+import { logger } from "../config/logger.js";
 
 export class NewDeviceHandler {
   /**
@@ -25,7 +26,7 @@ export class NewDeviceHandler {
     } = data;
 
     if (!email || !name || !userType) {
-      console.error("[NewDeviceHandler] Missing required fields (email, name, userType)");
+      logger.error("[NewDeviceHandler] Missing required fields (email, name, userType)");
       return false;
     }
 

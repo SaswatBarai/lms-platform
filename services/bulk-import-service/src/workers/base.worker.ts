@@ -5,6 +5,7 @@ import { CleanupService } from "../services/cleanup.service";
 import { ErrorReporter } from "../utils/errorReporter";
 import { ImportError } from "../types/import.types";
 import { ZodSchema } from "zod";
+import { logger } from "../config/logger";
 // @ts-ignore - Prisma client import for commonjs
 const { PrismaClient } = require("@prisma/client");
 
@@ -17,7 +18,7 @@ export abstract class BaseWorker {
 
     async execute(payload: BulkImportJobPayload) {
         const { jobId, bucket, s3Key } = payload;
-        console.log(`[Worker] Starting job ${jobId}`);
+        logger.info(`[Worker] Starting job ${jobId}`);
 
         try {
             await ProgressService.updateProgress(jobId, 0, 0, "processing");
@@ -76,18 +77,18 @@ export abstract class BaseWorker {
             // 6. Cleanup: Delete the source CSV/JSON file from S3
             const cleanupResult = await CleanupService.cleanupJobFiles(bucket, s3Key);
             if (cleanupResult.sourceDeleted) {
-                console.log(`[Worker] Job ${jobId} source file deleted from S3: ${s3Key}`);
+                logger.info(`[Worker] Job ${jobId} source file deleted from S3: ${s3Key}`);
             } else {
-                console.warn(`[Worker] Job ${jobId} failed to delete source file from S3: ${s3Key}`);
+                logger.warn(`[Worker] Job ${jobId} failed to delete source file from S3: ${s3Key}`);
             }
             
             // 7. Send completion notification
             await ProgressService.sendCompletionNotification(jobId, validRows.length, errors.length, errorUrl);
             
-            console.log(`[Worker] Job ${jobId} completed. Success: ${validRows.length}, Failed: ${errors.length}`);
+            logger.info(`[Worker] Job ${jobId} completed. Success: ${validRows.length}, Failed: ${errors.length}`);
 
         } catch (error) {
-            console.error(`[Worker] Job ${jobId} failed`, error);
+            logger.error(`[Worker] Job ${jobId} failed`, error);
             await ProgressService.updateProgress(jobId, 0, 0, "failed");
         }
     }

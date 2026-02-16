@@ -2,6 +2,7 @@ import { EmailService } from "@services/email.service.js";
 import { welcomeEmailTemplate, staffWelcomeEmailTemplate, teacherWelcomeEmailTemplate, studentWelcomeEmailTemplate, deanWelcomeEmailTemplate } from "../templates/index.js";
 import { WelcomeEmailData, StaffWelcomeEmailData, TeacherWelcomeEmailData, HodWelcomeEmailData, StudentWelcomeEmailData, DeanWelcomeEmailData } from "../types/notification.types.js";
 import { hodWelcomeEmailTemplate } from "templates/hod-welcome.template.js";
+import { logger } from "../config/logger.js";
 
 export class WelcomeEmailHandler {
   /**
@@ -11,7 +12,7 @@ export class WelcomeEmailHandler {
     const { email, collegeName, loginUrl } = data;
 
     if (!email) {
-      console.error("[WelcomeEmailHandler] Missing email for college welcome");
+      logger.error("[WelcomeEmailHandler] Missing email for college welcome");
       return false;
     }
 
@@ -44,7 +45,7 @@ export class WelcomeEmailHandler {
     const { email, name, tempPassword, loginUrl,collegeName } = data;
 
     if (!email || !name || !tempPassword) {
-      console.error("[WelcomeEmailHandler] Missing required data for staff welcome");
+      logger.error("[WelcomeEmailHandler] Missing required data for staff welcome");
       return false;
     }
 
@@ -78,7 +79,7 @@ export class WelcomeEmailHandler {
     const { email, name, tempPassword, collegeName, loginUrl } = data;
 
     if (!email || !name || !tempPassword || !collegeName || !loginUrl) {
-      console.error("[WelcomeEmailHandler] Missing required data for hod welcome");
+      logger.error("[WelcomeEmailHandler] Missing required data for hod welcome");
       return false;
     }
 
@@ -115,7 +116,7 @@ export class WelcomeEmailHandler {
     const { email, name, tempPassword, employeeNo, collegeName, loginUrl } = data;
 
     if (!email || !name || !tempPassword || !employeeNo || !collegeName) {
-      console.error("[WelcomeEmailHandler] Missing required data for teacher welcome");
+      logger.error("[WelcomeEmailHandler] Missing required data for teacher welcome");
       return false;
     }
 
@@ -153,7 +154,7 @@ export class WelcomeEmailHandler {
     const { email, name, regNo, tempPassword, collegeName, departmentName, loginUrl } = data;
 
     if (!email || !name || !regNo || !tempPassword || !collegeName || !departmentName) {
-      console.error("[WelcomeEmailHandler] Missing required data for student welcome");
+      logger.error("[WelcomeEmailHandler] Missing required data for student welcome");
       return false;
     }
 
@@ -192,7 +193,7 @@ export class WelcomeEmailHandler {
     const { email, name, tempPassword, collegeName, loginUrl } = data;
 
     if (!email || !name || !tempPassword || !collegeName) {
-      console.error("[WelcomeEmailHandler] Missing required data for dean welcome");
+      logger.error("[WelcomeEmailHandler] Missing required data for dean welcome");
       return false;
     }
 

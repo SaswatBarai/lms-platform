@@ -1,5 +1,6 @@
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { s3Client } from "../config/s3";
+import { logger } from "../config/logger";
 
 export class CleanupService {
     /**
@@ -16,10 +17,10 @@ export class CleanupService {
             });
 
             await s3Client.send(command);
-            console.log(`[CleanupService] Successfully deleted S3 file: ${bucket}/${key}`);
+            logger.info(`[CleanupService] Successfully deleted S3 file: ${bucket}/${key}`);
             return true;
         } catch (error) {
-            console.error(`[CleanupService] Failed to delete S3 file: ${bucket}/${key}`, error);
+            logger.error(`[CleanupService] Failed to delete S3 file: ${bucket}/${key}`, error);
             return false;
         }
     }

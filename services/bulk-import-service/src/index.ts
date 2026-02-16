@@ -1,11 +1,24 @@
+import "./config/tracing.js";
 import express from "express";
 import { consumer, producer } from "./config/kafka";
 import { StudentImportWorker } from "./workers/student-import.worker";
 import { TeacherImportWorker } from "./workers/teacher-import.worker";
 import { BulkImportJobPayload } from "./types/job.types";
+import client from 'prom-client';
+import { logger } from "./config/logger.js";
 
 const app = express();
 const PORT = process.env.PORT || 4004;
+
+// Initialize Metrics
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+// Metrics endpoint
+app.get("/metrics", async (req, res) => {
+    res.setHeader('Content-Type', register.contentType);
+    res.send(await register.metrics());
+});
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -19,21 +32,21 @@ const start = async () => {
     try {
         // Start HTTP server for health checks
         app.listen(PORT, () => {
-            console.log(`🏥 Health check server running on port ${PORT}`);
+            logger.info(`🏥 Health check server running on port ${PORT}`);
         });
 
         await producer.connect();
         await consumer.connect();
         await consumer.subscribe({ topic: 'bulk.import.jobs', fromBeginning: false });
 
-        console.log("🚀 Bulk Import Worker Service Started");
+        logger.info("🚀 Bulk Import Worker Service Started");
 
         await consumer.run({
             eachMessage: async ({ topic, message }) => {
                 if (!message.value) return;
                 
                 const payload = JSON.parse(message.value.toString()) as BulkImportJobPayload;
-                console.log(`Processing Job: ${payload.jobId} [Type: ${payload.importType}]`);
+                logger.info(`Processing Job: ${payload.jobId} [Type: ${payload.importType}]`);
 
                 try {
                     if (payload.importType === 'student_import') {
@@ -41,7 +54,7 @@ const start = async () => {
                     } else if (payload.importType === 'teacher_import') {
                         await teacherWorker.execute(payload);
                     } else {
-                        console.warn(`Unknown import type: ${payload.importType}`);
+                        logger.warn(`Unknown import type: ${payload.importType}`);
                         // Publish failure event for unknown type
                         await producer.send({
                             topic: 'bulk.import.failed',
@@ -62,7 +75,7 @@ const start = async () => {
                         messages: [{ value: JSON.stringify({ jobId: payload.jobId, status: 'completed' }) }]
                     });
                 } catch (error) {
-                    console.error(`[Worker] Job ${payload.jobId} failed:`, error);
+                    logger.error(`[Worker] Job ${payload.jobId} failed:`, error);
                     // Publish failure event
                     await producer.send({
                         topic: 'bulk.import.failed',
@@ -78,7 +91,7 @@ const start = async () => {
             }
         });
     } catch (e) {
-        console.error("Failed to start worker", e);
+        logger.error("Failed to start worker", e);
     }
 };
 

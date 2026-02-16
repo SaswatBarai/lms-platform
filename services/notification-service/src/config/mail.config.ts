@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import env from "./env.js";
+import { logger } from "./logger.js";
 
 // Create transporter only if EMAIL_MODE is 'email'
 // In console mode, transporter won't be initialized
@@ -46,36 +47,36 @@ let isTransporterVerified = false;
 const verifyTransporter = async (retries = 3, delay = 5000): Promise<void> => {
     // Skip verification if in console mode
     if (env.EMAIL_MODE === 'console') {
-        console.log('[mail] 📧 Console mode enabled - skipping transporter verification');
+        logger.info('[mail] 📧 Console mode enabled - skipping transporter verification');
         return;
     }
 
     // Skip verification if transporter is not initialized
     if (!transporter) {
-        console.log('[mail] ⚠️  Transporter not initialized - check EMAIL_MODE and credentials');
+        logger.info('[mail] ⚠️  Transporter not initialized - check EMAIL_MODE and credentials');
         return;
     }
 
     for (let i = 0; i < retries; i++) {
         try {
             await transporter.verify();
-            console.log('[mail] ✅ Gmail transporter configured and verified successfully');
+            logger.info('[mail] ✅ Gmail transporter configured and verified successfully');
             isTransporterVerified = true;
             return;
         } catch (error: any) {
-            console.error(`[mail] ❌ Verification attempt ${i + 1}/${retries} failed:`, error.message);
+            logger.error(`[mail] ❌ Verification attempt ${i + 1}/${retries} failed:`, error.message);
             
             if (i < retries - 1) {
-                console.log(`[mail] ⏳ Retrying in ${delay/1000} seconds...`);
+                logger.info(`[mail] ⏳ Retrying in ${delay/1000} seconds...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
             } else {
-                console.error('[mail] ⚠️  Gmail transporter verification failed after all retries');
-                console.log('[mail] 📝 Will use console logging for emails');
-                console.log('[mail] 💡 Please verify:');
-                console.log('[mail]    - Gmail 2FA is enabled');
-                console.log('[mail]    - App Password is correctly set in MAIL_PASS');
-                console.log('[mail]    - MAIL_USER matches the Gmail account');
-                console.log('[mail]    - Network allows outbound SMTP connections');
+                logger.error('[mail] ⚠️  Gmail transporter verification failed after all retries');
+                logger.info('[mail] 📝 Will use console logging for emails');
+                logger.info('[mail] 💡 Please verify:');
+                logger.info('[mail]    - Gmail 2FA is enabled');
+                logger.info('[mail]    - App Password is correctly set in MAIL_PASS');
+                logger.info('[mail]    - MAIL_USER matches the Gmail account');
+                logger.info('[mail]    - Network allows outbound SMTP connections');
             }
         }
     }
@@ -84,10 +85,10 @@ const verifyTransporter = async (retries = 3, delay = 5000): Promise<void> => {
 // Start verification asynchronously (don't block startup) - only if email mode
 if (env.EMAIL_MODE === 'email') {
     verifyTransporter().catch(err => {
-        console.error('[mail] Verification error:', err);
+        logger.error('[mail] Verification error:', err);
     });
 } else {
-    console.log('[mail] 📧 Console mode active - emails will be logged to console');
+    logger.info('[mail] 📧 Console mode active - emails will be logged to console');
 }
 
 export const getTransporterStatus = (): boolean => {

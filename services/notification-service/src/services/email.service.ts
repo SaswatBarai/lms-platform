@@ -1,5 +1,6 @@
 import { transporter, getTransporterStatus } from "@config/mail.config.js";
 import env from "@config/env.js";
+import { logger } from "../config/logger.js";
 
 interface EmailOptions {
   to: string;
@@ -44,14 +45,14 @@ export class EmailService {
     // Email mode - send actual emails
     // Check if transporter is available and verified
     if (!transporter) {
-      console.warn(`[EmailService] ⚠️  Transporter not initialized. Falling back to console mode.`);
+      logger.warn(`[EmailService] ⚠️  Transporter not initialized. Falling back to console mode.`);
       this.logToConsole(to, subject, html, "Transporter not initialized, using console fallback", tempPassword);
       return { success: true };
     }
 
     const isVerified = getTransporterStatus();
     if (!isVerified) {
-      console.warn(`[EmailService] ⚠️  Transporter not verified. Falling back to console mode.`);
+      logger.warn(`[EmailService] ⚠️  Transporter not verified. Falling back to console mode.`);
       this.logToConsole(to, subject, html, "Transporter not verified, using console fallback", tempPassword);
       return { success: true };
     }
@@ -60,11 +61,11 @@ export class EmailService {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         if (attempt > 0) {
-          console.log(`[EmailService] Retry attempt ${attempt}/${retries} for ${to}`);
+          logger.info(`[EmailService] Retry attempt ${attempt}/${retries} for ${to}`);
           await this.delay(Math.pow(2, attempt) * this.RETRY_DELAY_MS);
         }
 
-        console.log(`[EmailService] 📤 Sending email to ${to}: ${subject}`);
+        logger.info(`[EmailService] 📤 Sending email to ${to}: ${subject}`);
         
         const result = await transporter.sendMail({
           from: `LMS Platform <${env.MAIL_USER || 'noreply@lms-platform.com'}>`,
@@ -74,7 +75,7 @@ export class EmailService {
         });
 
         if (result.rejected.length > 0) {
-          console.error(`[EmailService] ❌ Email rejected for ${to}:`, result.rejected);
+          logger.error(`[EmailService] ❌ Email rejected for ${to}:`, result.rejected);
           
           if (attempt === retries) {
             this.logToConsole(to, subject, html, "Email rejected by server", tempPassword);
@@ -83,12 +84,12 @@ export class EmailService {
           continue;
         }
 
-        console.log(`[EmailService] ✅ Email sent successfully to ${to}`);
-        console.log(`[EmailService] 📨 Message ID: ${result.messageId}`);
+        logger.info(`[EmailService] ✅ Email sent successfully to ${to}`);
+        logger.info(`[EmailService] 📨 Message ID: ${result.messageId}`);
         return { success: true, messageId: result.messageId };
 
       } catch (error: any) {
-        console.error(`[EmailService] ❌ Error sending email to ${to}:`, error.message);
+        logger.error(`[EmailService] ❌ Error sending email to ${to}:`, error.message);
         
         this.handleError(error);
 
@@ -107,12 +108,12 @@ export class EmailService {
    */
   private static handleError(error: any): void {
     if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') {
-      console.error(`[EmailService] 🌐 Network/Connection error detected`);
+      logger.error(`[EmailService] 🌐 Network/Connection error detected`);
     } else if (error.message.includes('BadCredentials') || error.message.includes('Username and Password not accepted')) {
-      console.error(`[EmailService] 🔒 Gmail authentication failed. Please check:`);
-      console.error(`[EmailService]    - Gmail 2FA is enabled`);
-      console.error(`[EmailService]    - App Password is correctly set`);
-      console.error(`[EmailService]    - Credentials match Gmail account`);
+      logger.error(`[EmailService] 🔒 Gmail authentication failed. Please check:`);
+      logger.error(`[EmailService]    - Gmail 2FA is enabled`);
+      logger.error(`[EmailService]    - App Password is correctly set`);
+      logger.error(`[EmailService]    - Credentials match Gmail account`);
     }
   }
 
