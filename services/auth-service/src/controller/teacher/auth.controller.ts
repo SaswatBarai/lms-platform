@@ -11,6 +11,7 @@ import process from "node:process";
 import { LockoutService } from "../../services/lockout.service.js";
 import { PasswordService } from "../../services/password.service.js";
 import * as requestIp from "request-ip";
+import { loginAttemptsTotal } from "../../config/metrics.js";
 
 interface ValidationError {
     index: number;
@@ -19,12 +20,12 @@ interface ValidationError {
     message: string;
 }
 
-const generateEmployeeNo = async():Promise<string> => {
+const generateEmployeeNo = async (): Promise<string> => {
     const prefix = "SOA";
-    function randomAlphaNumeric(length:number = 5):string {
+    function randomAlphaNumeric(length: number = 5): string {
         const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         let result = "";
-        for(let i =0; i<length; i++){
+        for (let i = 0; i < length; i++) {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
         return result;
@@ -33,7 +34,7 @@ const generateEmployeeNo = async():Promise<string> => {
     let attempts = 0;
     const MAX_ATTEMPTS = 10;
     let employeeNo = "";
-    
+
     do {
         const randomAlpha = randomAlphaNumeric();
         employeeNo = `${prefix}${randomAlpha}`;
@@ -45,41 +46,41 @@ const generateEmployeeNo = async():Promise<string> => {
             exist = false;
         }
         attempts++;
-    }while(exist && attempts < MAX_ATTEMPTS);
+    } while (exist && attempts < MAX_ATTEMPTS);
 
     return employeeNo;
 }
 
 export const createBulkTeacherController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {role,collegeId:NonTeachingStaffCollegeId} = req.nonTeachingStaff;
-        const {collegeId,teachers}:CreateTeacherBulkInput = req.body;
-        
-        if(role !== NonTeachingStaffRole.STUDENT_SECTION){
+    async (req: Request, res: Response) => {
+        const { role, collegeId: NonTeachingStaffCollegeId } = req.nonTeachingStaff;
+        const { collegeId, teachers }: CreateTeacherBulkInput = req.body;
+
+        if (role !== NonTeachingStaffRole.STUDENT_SECTION) {
             throw new AppError("You are not authorized to create teachers. Only student section staff can create teachers.", 403);
         }
-        if(collegeId !== NonTeachingStaffCollegeId){
+        if (collegeId !== NonTeachingStaffCollegeId) {
             throw new AppError("You are not authorized to create teachers for this college.", 403);
         }
-        if(teachers.length === 0){
+        if (teachers.length === 0) {
             throw new AppError("Must provide at least one teacher.", 400);
         }
-        if(teachers.length > 500){
+        if (teachers.length > 500) {
             throw new AppError("Cannot create more than 500 teachers at once.", 400);
         }
 
         // Check for existing teachers in database
         const existingTeachers = await prisma.teacher.findMany({
-                where:{
-                OR:[
+            where: {
+                OR: [
                     {
-                        email:{
-                            in:teachers.map(teacher => teacher.email)
+                        email: {
+                            in: teachers.map(teacher => teacher.email)
                         }
                     },
                     {
-                        phone:{
-                            in:teachers.map(teacher => teacher.phone)
+                        phone: {
+                            in: teachers.map(teacher => teacher.phone)
                         }
                     }
                 ]
@@ -166,7 +167,7 @@ export const createBulkTeacherController = asyncHandler(
             });
         }
 
-        if(validTeachers.length === 0){
+        if (validTeachers.length === 0) {
             throw new AppError("No valid teachers to create after validation", 400);
         }
 
@@ -198,14 +199,14 @@ export const createBulkTeacherController = asyncHandler(
         }> = [];
 
         // Prepare teachers for database insertion
-        for(const teacher of validTeachers){
-            const {departmentId, email, phone, name, gender} = teacher;
-            
+        for (const teacher of validTeachers) {
+            const { departmentId, email, phone, name, gender } = teacher;
+
             // Generate a random password 
             const password = crypto.randomBytes(8).toString("hex");
             const hashedPassword = await hashPassword(password);
             const employeeNo = await generateEmployeeNo();
-            
+
             // Add to teachers to create
             teachersToCreate.push({
                 departmentId,
@@ -216,7 +217,7 @@ export const createBulkTeacherController = asyncHandler(
                 password: hashedPassword,
                 employeeNo
             });
-            
+
             // Store for email notification
             teacherMessages.push({
                 email,
@@ -260,12 +261,12 @@ export const createBulkTeacherController = asyncHandler(
 )
 
 export const loginTeacherController = asyncHandler(
-    async(req:Request,res:Response) => {
+    async (req: Request, res: Response) => {
         const { identifier, password }: { identifier: string; password: string } = req.body;
         const ip = requestIp.getClientIp(req) || "unknown";
         const userAgent = req.headers['user-agent'] || "unknown";
 
-        if(!identifier || !password){
+        if (!identifier || !password) {
             throw new AppError("Email/Employee number and password are required", 400);
         }
 
@@ -293,6 +294,7 @@ export const loginTeacherController = asyncHandler(
         });
 
         if (!teacher) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid credentials. Please check your email/employee number and password.", 401);
         }
 
@@ -302,9 +304,12 @@ export const loginTeacherController = asyncHandler(
         // Verify password
         const isPasswordValid = await verifyPassword(teacher.password, password);
         if (!isPasswordValid) {
+            // Track failed login attempt
+            loginAttemptsTotal.inc({ status: 'failure' });
+
             // Phase 1: Handle Failed Attempt
             await LockoutService.handleFailedAttempt(teacher.id, "teacher", teacher.email);
-            
+
             // Phase 1: Audit Log Failure
             const kafka = KafkaProducer.getInstance();
             // await kafka.sendAuditLog({ userId: teacher.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
@@ -339,7 +344,7 @@ export const loginTeacherController = asyncHandler(
                 employeeNo: teacher.employeeNo
             }
         );
-        
+
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
 
@@ -374,6 +379,9 @@ export const loginTeacherController = asyncHandler(
         const refreshSessionId = crypto.randomBytes(16).toString('hex');
         const refreshToken = await securityManager.generateRefreshToken(teacher.id, refreshSessionId);
 
+        // Track successful login attempt
+        loginAttemptsTotal.inc({ status: 'success' });
+
         // Phase 1: Audit Log Success
         const kafka = KafkaProducer.getInstance();
         // await kafka.sendAuditLog({ userId: teacher.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
@@ -406,12 +414,12 @@ export const loginTeacherController = asyncHandler(
                 }
             }
         });
-    } 
+    }
 )
 
 export const forgotPasswordTeacherController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email} = req.body;
+    async (req: Request, res: Response) => {
+        const { email } = req.body;
 
         if (!email || !validateEmail(email)) {
             throw new AppError("Valid email is required", 400);
@@ -423,7 +431,7 @@ export const forgotPasswordTeacherController = asyncHandler(
         if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
             throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
         }
-        
+
         // Check if a reset request is already pending
         const existingToken = await redisClient.exists(`teacher-forgot-password-${email.toLowerCase()}`);
         if (existingToken) {
@@ -486,8 +494,8 @@ export const forgotPasswordTeacherController = asyncHandler(
 )
 
 export const resetForgotPasswordTeacherController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email, sessionToken, newPassword}:ResetForgotPasswordTeacherInput = req.body;
+    async (req: Request, res: Response) => {
+        const { email, sessionToken, newPassword }: ResetForgotPasswordTeacherInput = req.body;
 
         if (!email || !sessionToken || !newPassword) {
             throw new AppError("Email, session token, and new password are required", 400);
@@ -515,9 +523,9 @@ export const resetForgotPasswordTeacherController = asyncHandler(
             // Phase 1: Password Policy & History
             PasswordService.validatePolicy(newPassword);
             await PasswordService.checkHistory(teacher.id, "teacher", newPassword);
-            
+
             const hashedPassword = await hashPassword(newPassword);
-            
+
             // Phase 1: Transaction to save history and update password
             await prisma.$transaction(async (tx) => {
                 await tx.teacher.update({
@@ -571,9 +579,9 @@ export const resetForgotPasswordTeacherController = asyncHandler(
 //Authenticated Routes 
 
 export const logoutTeacherController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} = req.teacher;
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.teacher;
+        if (!id) {
             throw new AppError("Teacher not found", 404);
         }
         const sessionKey = `activeSession:teacher:${id}`;
@@ -589,17 +597,17 @@ export const logoutTeacherController = asyncHandler(
 
 
 export const raiseUpdatePasswordTeacherController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {oldPassword, newPassword}:UpdatePasswordTeacherInput = req.body;
-        if([oldPassword, newPassword].every(password => !password)){
+    async (req: Request, res: Response) => {
+        const { oldPassword, newPassword }: UpdatePasswordTeacherInput = req.body;
+        if ([oldPassword, newPassword].every(password => !password)) {
             throw new AppError("Old password and new password are required", 400);
         }
 
         // Phase 1: Password Policy & History
         PasswordService.validatePolicy(newPassword);
 
-        const {id} = req.teacher;
-        if(!id){
+        const { id } = req.teacher;
+        if (!id) {
             throw new AppError("Teacher not found", 404);
         }
 
@@ -609,15 +617,15 @@ export const raiseUpdatePasswordTeacherController = asyncHandler(
             where: { id },
             select: { password: true }
         });
-        if(!teacher){
+        if (!teacher) {
             throw new AppError("Teacher not found", 404);
         }
         const isPasswordValid = await verifyPassword(teacher.password, oldPassword);
-        if(!isPasswordValid){
+        if (!isPasswordValid) {
             throw new AppError("Invalid old password", 400);
         }
         const hashedNewPassword = await hashPassword(newPassword);
-        
+
         // Phase 1: Transaction to save history and update password
         await prisma.$transaction(async (tx) => {
             await tx.teacher.update({
@@ -651,9 +659,9 @@ export const raiseUpdatePasswordTeacherController = asyncHandler(
 
 // [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenTeacherController = asyncHandler(
-    async(req: Request, res: Response) => {
+    async (req: Request, res: Response) => {
         const { id } = req.teacher; // This comes from authValidator validating the OLD refresh token
-        
+
         // [ADDED] Extract the old refresh token payload to get the tokenFamily
         const refreshToken = req.cookies.refreshToken;
         if (!refreshToken) {
@@ -662,12 +670,12 @@ export const regenerateAccessTokenTeacherController = asyncHandler(
 
         const securityManager = PasetoV4SecurityManager.getInstance();
         const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
-        
+
         // [ADDED] Phase 1: Token Rotation Logic
         // 1. Check for Reuse: If this token was already used, lock the user!
         const usedTokenKey = `usedRefreshToken:teacher:${oldRefreshPayload.sessionId}`;
         const isTokenUsed = await redisClient.exists(usedTokenKey);
-        
+
         if (isTokenUsed) {
             // Token reuse detected - potential attack!
             const teacher = await prisma.teacher.findUnique({ where: { id }, select: { email: true } });
@@ -683,7 +691,7 @@ export const regenerateAccessTokenTeacherController = asyncHandler(
 
         const sessionKey = `activeSession:teacher:${id}`;
         const sessionId = await redisClient.hget(sessionKey, 'sessionId');
-        
+
         if (!sessionId) {
             throw new AppError("Session not found. Please login again.", 404);
         }

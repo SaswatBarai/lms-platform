@@ -10,6 +10,7 @@ import redisClient from "@config/redis.js";
 import { LockoutService } from "../../services/lockout.service.js";
 import { PasswordService } from "../../services/password.service.js";
 import * as requestIp from "request-ip";
+import { loginAttemptsTotal } from "../../config/metrics.js";
 
 export const createHodController = asyncHandler(
     async (req: Request, res: Response) => {
@@ -158,6 +159,7 @@ export const loginHodCOntroller = asyncHandler(
         });
 
         if (!hod) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid email or password", 401);
         }
 
@@ -166,9 +168,12 @@ export const loginHodCOntroller = asyncHandler(
 
         const isPasswordValid = await verifyPassword(hod.password, password);
         if (!isPasswordValid) {
+            // Track failed login attempt
+            loginAttemptsTotal.inc({ status: 'failure' });
+
             // Phase 1: Handle Failed Attempt
             await LockoutService.handleFailedAttempt(hod.id, "hod", hod.email);
-            
+
             // Phase 1: Audit Log Failure
             const kafka = KafkaProducer.getInstance();
             // await kafka.sendAuditLog({ userId: hod.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
@@ -212,7 +217,7 @@ export const loginHodCOntroller = asyncHandler(
                 departmentName: department?.name || ""
             }
         );
-        
+
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
 
@@ -241,6 +246,9 @@ export const loginHodCOntroller = asyncHandler(
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
         const refreshToken = await securityManager.generateRefreshToken(hod.id, sessionId);
 
+        // Track successful login attempt
+        loginAttemptsTotal.inc({ status: 'success' });
+
         // Phase 1: Audit Log Success
         const kafka = KafkaProducer.getInstance();
         // await kafka.sendAuditLog({ userId: hod.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
@@ -267,8 +275,8 @@ export const loginHodCOntroller = asyncHandler(
 
 // [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenHod = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} = req.hod; // This comes from authValidator validating the OLD refresh token
+    async (req: Request, res: Response) => {
+        const { id } = req.hod; // This comes from authValidator validating the OLD refresh token
 
         // [ADDED] Extract the old refresh token payload to get the tokenFamily
         const refreshToken = req.cookies.refreshToken;
@@ -278,12 +286,12 @@ export const regenerateAccessTokenHod = asyncHandler(
 
         const securityManager = PasetoV4SecurityManager.getInstance();
         const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
-        
+
         // [ADDED] Phase 1: Token Rotation Logic
         // 1. Check for Reuse: If this token was already used, lock the user!
         const usedTokenKey = `usedRefreshToken:hod:${oldRefreshPayload.sessionId}`;
         const isTokenUsed = await redisClient.exists(usedTokenKey);
-        
+
         if (isTokenUsed) {
             // Token reuse detected - potential attack!
             const hod = await prisma.hod.findUnique({ where: { id }, select: { email: true } });
@@ -299,7 +307,7 @@ export const regenerateAccessTokenHod = asyncHandler(
 
         const key = `activeSession:hod:${id}`;
         const sessionId = await redisClient.hget(key, 'sessionId');
-        if(!sessionId){
+        if (!sessionId) {
             throw new AppError("Session not found", 404);
         }
 
@@ -309,20 +317,20 @@ export const regenerateAccessTokenHod = asyncHandler(
         }
 
         const hod = await prisma.hod.findUnique({
-            where:{
+            where: {
                 id
             },
-            include:{
-                college:{
-                    select:{
+            include: {
+                college: {
+                    select: {
                         organizationId: true,
                         id: true
                     }
                 }
-            }   
+            }
         })
 
-        if(!hod){
+        if (!hod) {
             throw new AppError("Hod not found", 404);
         }
 
@@ -379,9 +387,9 @@ export const regenerateAccessTokenHod = asyncHandler(
 
 
 export const logoutHodController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} = req.hod;
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.hod;
+        if (!id) {
             throw new AppError("Hod not found", 404);
         }
         const key = `activeSession:hod:${id}`;
@@ -397,71 +405,71 @@ export const logoutHodController = asyncHandler(
 )
 
 export const forgotPasswordConotroller = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email} = req.body;
-        if(!email){
+    async (req: Request, res: Response) => {
+        const { email } = req.body;
+        if (!email) {
             throw new AppError("Email is required", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
-        
+
         // Email-based rate limiting: 3 requests per 15 minutes per email
         const emailRateLimitKey = `forgot-password:email:hod:${email.toLowerCase()}`;
         const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
         if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
             throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
         }
-        
+
         // Check if a reset request is already pending
-        if(await redisClient.exists(`hod-auth-${email}`)){
+        if (await redisClient.exists(`hod-auth-${email}`)) {
             throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
         }
 
         //let us check the hod is already present or not 
         const hod = await prisma.hod.findUnique({
-            where:{
+            where: {
                 email
             },
-            include:{
-                college:{
-                    select:{
+            include: {
+                college: {
+                    select: {
                         id: true,
                         name: true
                     }
                 }
             }
         });
-        if(!hod){
+        if (!hod) {
             // Increment rate limit even for non-existent emails to prevent enumeration
             await redisClient.incr(emailRateLimitKey);
             await redisClient.expire(emailRateLimitKey, 15 * 60);
             throw new AppError("Hod not found", 404);
         }
-        
+
         // Increment email rate limit
         await redisClient.incr(emailRateLimitKey);
         await redisClient.expire(emailRateLimitKey, 15 * 60);
         //department name
         const department = await prisma.department.findFirst({
-            where:{
-                hodId:hod.id
+            where: {
+                hodId: hod.id
             },
-            select:{
+            select: {
                 name: true,
                 shortName: true
             }
         })
-        if(!department){
+        if (!department) {
             throw new AppError("Department not found", 404);
         }
 
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`hod-auth-${email}`, 10 * 60, sessionToken);//10 minutes
         const kafkaProducer = KafkaProducer.getInstance();
-        
-        const isPublished = await kafkaProducer.sendHodForgotPassword(email,sessionToken,hod.college.name,department.name, department.shortName, hod.name)
-        if(!isPublished){
+
+        const isPublished = await kafkaProducer.sendHodForgotPassword(email, sessionToken, hod.college.name, department.name, department.shortName, hod.name)
+        if (!isPublished) {
             throw new AppError("Failed to send forgot password email", 500);
         }
         return res.status(200).json({
@@ -474,39 +482,39 @@ export const forgotPasswordConotroller = asyncHandler(
 
 
 export const resetForgotPasswordHodController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email, password, token}:ForgotResetPasswordInput = req.body;
-        if(!email || !password || !token){
+    async (req: Request, res: Response) => {
+        const { email, password, token }: ForgotResetPasswordInput = req.body;
+        if (!email || !password || !token) {
             throw new AppError("Missing required fields", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
         const redisKey = `hod-auth-${email}`;
         const sessionToken = await redisClient.get(redisKey);
-        if(!sessionToken){
+        if (!sessionToken) {
             throw new AppError("Session token not found", 404);
         }
-        if(sessionToken !== token){
+        if (sessionToken !== token) {
             throw new AppError("Invalid session token", 400);
         }
-        
+
         try {
             // Phase 1: Password Policy & History
             PasswordService.validatePolicy(password);
-            
+
             const hod = await prisma.hod.findUnique({
                 where: { email }
             });
-            
+
             if (!hod) {
                 throw new AppError("HOD not found", 404);
             }
 
             await PasswordService.checkHistory(hod.id, "hod", password);
-            
+
             const hashedPassword = await hashPassword(password);
-            
+
             // Phase 1: Transaction to save history and update password
             await prisma.$transaction(async (tx) => {
                 await tx.hod.update({
@@ -547,12 +555,12 @@ export const resetForgotPasswordHodController = asyncHandler(
 )
 
 export const resetPasswordHodController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email, newPassword,oldPassword}:ResetPasswordInput = req.body;
-        if(!email || !newPassword || !oldPassword){
+    async (req: Request, res: Response) => {
+        const { email, newPassword, oldPassword }: ResetPasswordInput = req.body;
+        if (!email || !newPassword || !oldPassword) {
             throw new AppError("Missing required fields", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
 
@@ -560,22 +568,22 @@ export const resetPasswordHodController = asyncHandler(
         PasswordService.validatePolicy(newPassword);
 
         const hod = await prisma.hod.findUnique({
-            where:{
+            where: {
                 email
             }
         })
-        if(!hod){
+        if (!hod) {
             throw new AppError("Hod not found", 404);
         }
 
         await PasswordService.checkHistory(hod.id, "hod", newPassword);
 
         const isPasswordValid = await verifyPassword(hod.password, oldPassword);
-        if(!isPasswordValid){
+        if (!isPasswordValid) {
             throw new AppError("Invalid old password", 400);
         }
         const hashedPassword = await hashPassword(newPassword);
-        
+
         // Phase 1: Transaction to save history and update password
         await prisma.$transaction(async (tx) => {
             await tx.hod.update({

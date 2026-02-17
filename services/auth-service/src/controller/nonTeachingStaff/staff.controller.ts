@@ -10,21 +10,23 @@ import { AppError } from "@utils/AppError.js";
 import redisClient from "@config/redis.js";
 import { resetPasswordService, ResetPasswordType } from "@services/organization.service.js";
 import { PasswordService } from "../../services/password.service.js";
+import { loginAttemptsTotal } from "../../config/metrics.js";
+import pkg from "@prisma/client";
 
 // The controller function for bulk staff creation
 export const createNonTeachingStaffBulkController = asyncHandler(async (req: Request, res: Response) => {
-    
+
     // 1. Get College ID from authenticated admin
     const { id: collegeId } = req.college; // From AuthenticatedUser.checkCollege middleware
     const college = await prisma.college.findUnique({
-        where:{
-            id:collegeId
+        where: {
+            id: collegeId
         },
-        select:{
-            name:true
+        select: {
+            name: true
         }
     })
-    if(!college){
+    if (!college) {
         throw new AppError("College not found", 404);
     }
     // 2. Get the array of staff from the validated body
@@ -150,11 +152,11 @@ export const createNonTeachingStaffBulkController = asyncHandler(async (req: Req
     });
 });
 
-export const login= asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email,password}:LoginNonTeachingStaffInput = req.body;
+export const login = asyncHandler(
+    async (req: Request, res: Response) => {
+        const { email, password }: LoginNonTeachingStaffInput = req.body;
         const existingStaff = await prisma.nonTeachingStaff.findUnique({
-            where:{
+            where: {
                 email
             },
             include: {
@@ -168,12 +170,14 @@ export const login= asyncHandler(
             }
         })
 
-        if(!existingStaff){
+        if (!existingStaff) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid email or password", 401);
         }
 
         const isPasswordValid = await verifyPassword(existingStaff.password, password);
-        if(!isPasswordValid){
+        if (!isPasswordValid) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid email or password", 401);
         }
 
@@ -199,7 +203,7 @@ export const login= asyncHandler(
                 collegeName: existingStaff.college.name
             }
         );
-        
+
         const tokenPaylaod = {
             id: existingStaff.id,
             email: existingStaff.email,
@@ -227,6 +231,9 @@ export const login= asyncHandler(
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
         const refreshToken = await securityManager.generateRefreshToken(existingStaff.id, sessionId);
 
+        // Track successful login attempt
+        loginAttemptsTotal.inc({ status: 'success' });
+
         const isProduction = process?.env?.NODE_ENV === "production";
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
@@ -250,48 +257,48 @@ export const login= asyncHandler(
 )
 
 export const resetPasswordNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email,oldPassword,newPassword}:ResetPasswordInput = req.body;
-        const {success,message} = await resetPasswordService({oldPassword,newPassword,type:ResetPasswordType.NON_TEACHING_STAFF, email});
-        if(!success){
+    async (req: Request, res: Response) => {
+        const { email, oldPassword, newPassword }: ResetPasswordInput = req.body;
+        const { success, message } = await resetPasswordService({ oldPassword, newPassword, type: ResetPasswordType.NON_TEACHING_STAFF, email });
+        if (!success) {
             throw new AppError(message, 400);
         }
         return res.status(200).json({
             success: true,
             message: message
         });
-        
+
     }
 )
 
 export const addCourseNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const courseArrray:AddCourseInput[] = req.body;
+    async (req: Request, res: Response) => {
+        const courseArrray: AddCourseInput[] = req.body;
         const collegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
         const userId = req.nonTeachingStaff.id;
 
         //let us check first is this staff is part of the college or not 
         const staff = await prisma.nonTeachingStaff.findUnique({
-            where:{
-                id:userId
+            where: {
+                id: userId
             },
-            include:{
-                college:{
-                    select:{
-                        id:true
+            include: {
+                college: {
+                    select: {
+                        id: true
                     }
                 }
             }
         })
-        if(!staff){
+        if (!staff) {
             throw new AppError("Staff not found", 404);
         }
-        if(staff.collegeId != collegeId){
+        if (staff.collegeId != collegeId) {
             throw new AppError("Staff is not part of the college", 403);
         }
 
-        if(role != NonTeachingStaffRole.REGISTRAR){
+        if (role != NonTeachingStaffRole.REGISTRAR) {
             throw new AppError("You are not authorized to add courses as you are not a registrar", 403);
         }
 
@@ -299,21 +306,21 @@ export const addCourseNonTeachingStaffController = asyncHandler(
         const coursename = courseArrray.map(course => course.name);
         const courseshortName = courseArrray.map(course => course.shortName);
         const existingCourses = await prisma.course.findMany({
-            where:{
-                OR:[
-                    {name: {in:coursename}},
-                    {shortName: {in:courseshortName}},
+            where: {
+                OR: [
+                    { name: { in: coursename } },
+                    { shortName: { in: courseshortName } },
                 ]
             }
         })
         const existingCourseName = new Set(existingCourses.map((course: { name: string; }) => course.name));
         const existingCourseShortName = new Set(existingCourses.map((course: { shortName: string; }) => course.shortName));
         const validCourses: typeof courseArrray = [];
-        const errors:{
-            index:number;
-            field:string;
-            value:string;
-            message:string;
+        const errors: {
+            index: number;
+            field: string;
+            value: string;
+            message: string;
         }[] = [];
         // Define valid course name and shortName combinations
         const validCourseCombinations: Record<string, string> = {
@@ -325,7 +332,7 @@ export const addCourseNonTeachingStaffController = asyncHandler(
 
         courseArrray.forEach((course, index) => {
             let hasError = false;
-            
+
             // Validate that shortName and name combination is valid
             const expectedName = validCourseCombinations[course.shortName];
             if (!expectedName) {
@@ -345,8 +352,8 @@ export const addCourseNonTeachingStaffController = asyncHandler(
                 });
                 hasError = true;
             }
-            
-            if(existingCourseName.has(course.name)){
+
+            if (existingCourseName.has(course.name)) {
                 errors.push({
                     index,
                     field: "name",
@@ -355,7 +362,7 @@ export const addCourseNonTeachingStaffController = asyncHandler(
                 })
                 hasError = true;
             }
-            if(existingCourseShortName.has(course.shortName)){
+            if (existingCourseShortName.has(course.shortName)) {
                 errors.push({
                     index,
                     field: "shortName",
@@ -365,12 +372,12 @@ export const addCourseNonTeachingStaffController = asyncHandler(
                 hasError = true;
             }
 
-            if(!hasError){
+            if (!hasError) {
                 validCourses.push(course);
             }
 
         })
-        if(errors.length > 0){
+        if (errors.length > 0) {
             return res.status(400).json({
                 success: false,
                 message: "Some courses could not be added due to duplicate name or short name",
@@ -389,7 +396,7 @@ export const addCourseNonTeachingStaffController = asyncHandler(
                 }
             })
         })
-        if(courses.count !== validCourses.length){
+        if (courses.count !== validCourses.length) {
             throw new AppError("Failed to add courses", 400);
         }
         return res.status(200).json({
@@ -401,46 +408,46 @@ export const addCourseNonTeachingStaffController = asyncHandler(
 )
 
 export const addDepartmentNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const deapartmentsArray:AddDepartmentInput[] = req.body;
+    async (req: Request, res: Response) => {
+        const deapartmentsArray: AddDepartmentInput[] = req.body;
         const collegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
         const userId = req.nonTeachingStaff.id;
 
         //let us check first is this staff is part of the college or not 
         const staff = await prisma.nonTeachingStaff.findUnique({
-            where:{
-                id:userId
+            where: {
+                id: userId
             }
         })
-        if(!staff){
+        if (!staff) {
             throw new AppError("Staff not found", 404);
         }
-        if(staff.collegeId !== collegeId){
+        if (staff.collegeId !== collegeId) {
             throw new AppError("Staff is not part of the college", 403);
         }
-        if(role !== NonTeachingStaffRole.REGISTRAR){
+        if (role !== NonTeachingStaffRole.REGISTRAR) {
             throw new AppError("You are not authorized to add departments as you are not a registrar", 403);
         }
         //now we will check is the departments already exist or not 
         const deptname = deapartmentsArray.map((dep) => dep.name);
         const deptshortName = deapartmentsArray.map((dep) => dep.shortName);
         const existingDepartments = await prisma.department.findMany({
-            where:{
-                OR:[
-                    {name: {in:deptname}},
-                    {shortName: {in:deptshortName}},
+            where: {
+                OR: [
+                    { name: { in: deptname } },
+                    { shortName: { in: deptshortName } },
                 ]
             }
         })
 
-        const existingDeptName = new Set(existingDepartments.map(dep => dep.name));
-        const existingDeptShortName = new Set(existingDepartments.map(dep => dep.shortName));
+        const existingDeptName = new Set(existingDepartments.map((dep: { name: string; shortName: string }) => dep.name));
+        const existingDeptShortName = new Set(existingDepartments.map((dep: { name: string; shortName: string }) => dep.shortName));
         const validDepartments: typeof deapartmentsArray = [];
         const errors: { index: number; field: string; value: string; message: string }[] = [];
-        deapartmentsArray.forEach((department,index) => {
+        deapartmentsArray.forEach((department, index) => {
             let hasError = false;
-            if(existingDeptName.has(department.name)){
+            if (existingDeptName.has(department.name)) {
                 errors.push({
                     index,
                     field: "name",
@@ -449,7 +456,7 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
                 })
                 hasError = true;
             }
-            if(existingDeptShortName.has(department.shortName)){
+            if (existingDeptShortName.has(department.shortName)) {
                 errors.push({
                     index,
                     field: "shortName",
@@ -457,11 +464,11 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
                     message: `Department short name '${department.shortName}' already exists`
                 })
             }
-            if(!hasError){
+            if (!hasError) {
                 validDepartments.push(department);
             }
         })
-        if(errors.length > 0){
+        if (errors.length > 0) {
             return res.status(400).json({
                 success: false,
                 message: "Some departments could not be added due to duplicate name or short name",
@@ -480,7 +487,7 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
                 }
             })
         })
-        if(departments.count !== validDepartments.length){
+        if (departments.count !== validDepartments.length) {
             throw new AppError("Failed to add departments", 400);
         }
         return res.status(200).json({
@@ -488,25 +495,25 @@ export const addDepartmentNonTeachingStaffController = asyncHandler(
             message: "Departments added successfully",
             data: departments
         });
-        
+
     }
 )
 
 
 export const regenerateAccessTokenNonTeachingStaff = asyncHandler(
-    async(req:Request,res:Response) => {
-        const {id} = req.nonTeachingStaff;
+    async (req: Request, res: Response) => {
+        const { id } = req.nonTeachingStaff;
         const key = `activeSession:non-teaching-staff:${id}`;
         const sessionId = await redisClient.hget(key, 'sessionId');
-        if(!sessionId){
+        if (!sessionId) {
             throw new AppError("Session not found", 404);
         }
         const nonTeachingStaff = await prisma.nonTeachingStaff.findUnique({
-            where:{
+            where: {
                 id
             }
         })
-        if(!nonTeachingStaff){
+        if (!nonTeachingStaff) {
             throw new AppError("Non-teaching staff not found", 404);
         }
         const securityManager = PasetoV4SecurityManager.getInstance();
@@ -534,12 +541,12 @@ export const regenerateAccessTokenNonTeachingStaff = asyncHandler(
 
 
 export const forgotPasswordNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email} =  req.body;
-        if(!email){
+    async (req: Request, res: Response) => {
+        const { email } = req.body;
+        if (!email) {
             throw new AppError("Email is required", 400);
-        } 
-        if(!validateEmail(email)){
+        }
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
 
@@ -549,25 +556,25 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
         if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
             throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
         }
-        
+
         // Check if a reset request is already pending
-        if(await redisClient.exists(`non-teaching-staff-auth-${email}`)){
+        if (await redisClient.exists(`non-teaching-staff-auth-${email}`)) {
             throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
         }
-        
+
         const staff = await prisma.nonTeachingStaff.findUnique({
-            where:{
+            where: {
                 email
             },
-            include:{
-                college:{
-                    select:{
-                      name:true  
+            include: {
+                college: {
+                    select: {
+                        name: true
                     }
                 }
             }
         })
-        if(!staff){
+        if (!staff) {
             // Increment rate limit even for non-existent emails to prevent enumeration
             await redisClient.incr(emailRateLimitKey);
             await redisClient.expire(emailRateLimitKey, 15 * 60);
@@ -587,7 +594,7 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
         const kafkaProducer = KafkaProducer.getInstance();
         const isPublished = await kafkaProducer.sendNonTeachingStaffForgotPassword(email, sessionToken, staff.name, staff.college.name);
 
-        if(!isPublished){
+        if (!isPublished) {
             throw new AppError("Failed to send forgot password email", 500);
         }
         return res.status(200).json({
@@ -602,44 +609,44 @@ export const forgotPasswordNonTeachingStaffController = asyncHandler(
 
 
 export const resetForgotPasswordNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email,password,token}:ForgotResetPasswordInput = req.body;
-        if(!email || !password || !token){
+    async (req: Request, res: Response) => {
+        const { email, password, token }: ForgotResetPasswordInput = req.body;
+        if (!email || !password || !token) {
             throw new AppError("Missing required fields", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
-        if(token.length !== 64){
+        if (token.length !== 64) {
             throw new AppError("Invalid token", 400);
         }
         const redisKey = `non-teaching-staff-auth-${email}`;
         const sessionToken = await redisClient.get(redisKey);
-        if(!sessionToken){
+        if (!sessionToken) {
             throw new AppError("Invalid token", 400);
         }
-        if(sessionToken !== token){
+        if (sessionToken !== token) {
             throw new AppError("Invalid token", 400);
         }
-        
+
         try {
             // Phase 1: Password Policy & History
             PasswordService.validatePolicy(password);
-            
+
             const staff = await prisma.nonTeachingStaff.findUnique({
                 where: { email }
             });
-            
+
             if (!staff) {
                 throw new AppError("Non-teaching staff not found", 404);
             }
 
             await PasswordService.checkHistory(staff.id, "nonTeachingStaff", password);
-            
+
             const hashedPassword = await hashPassword(password);
-            
+
             // Phase 1: Transaction to save history and update password
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: any) => {
                 await tx.nonTeachingStaff.update({
                     where: { id: staff.id },
                     data: {
@@ -688,9 +695,9 @@ export const resetForgotPasswordNonTeachingStaffController = asyncHandler(
 )
 
 export const logoutNonTeachingStaffController = asyncHandler(
-    async(req:Request,res:Response) => {
-        const {id} = req.nonTeachingStaff;
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.nonTeachingStaff;
+        if (!id) {
             throw new AppError("Non-teaching staff not found", 404);
         }
         const key = `activeSession:non-teaching-staff:${id}`;
@@ -705,74 +712,74 @@ export const logoutNonTeachingStaffController = asyncHandler(
 )
 
 export const addBatchNonTeachingStaffController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {courseId, batchYear}: AddBatchInput = req.body;
+    async (req: Request, res: Response) => {
+        const { courseId, batchYear }: AddBatchInput = req.body;
         const collegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
         const userId = req.nonTeachingStaff.id;
 
         // Check if staff is part of the college
         const staff = await prisma.nonTeachingStaff.findUnique({
-            where:{
-                id:userId
+            where: {
+                id: userId
             },
-            include:{
-                college:{
-                    select:{
-                        id:true
+            include: {
+                college: {
+                    select: {
+                        id: true
                     }
                 }
             }
         })
-        if(!staff){
+        if (!staff) {
             throw new AppError("Staff not found", 404);
         }
-        if(staff.collegeId !== collegeId){
+        if (staff.collegeId !== collegeId) {
             throw new AppError("Staff is not part of the college", 403);
         }
 
         // Check if staff is a registrar
-        if(role !== NonTeachingStaffRole.REGISTRAR){
+        if (role !== NonTeachingStaffRole.REGISTRAR) {
             throw new AppError("You are not authorized to add batches as you are not a registrar", 403);
         }
 
         // Validate that the course exists and belongs to the college
         const course = await prisma.course.findUnique({
-            where:{
+            where: {
                 id: courseId
             },
-            include:{
-                college:{
-                    select:{
+            include: {
+                college: {
+                    select: {
                         id: true
                     }
                 }
             }
         });
 
-        if(!course){
+        if (!course) {
             throw new AppError("Course not found", 404);
         }
 
-        if(course.collegeId !== collegeId){
+        if (course.collegeId !== collegeId) {
             throw new AppError("Course does not belong to your college", 403);
         }
 
         // Check if batch already exists for this course and batchYear
         const existingBatch = await prisma.batch.findFirst({
-            where:{
+            where: {
                 courseId: courseId,
                 batchYear: batchYear
             }
         });
 
-        if(existingBatch){
+        if (existingBatch) {
             throw new AppError(`Batch with year '${batchYear}' already exists for this course`, 409);
         }
 
         // Create the batch
         const batch = await prisma.batch.create({
-            data:{
+            data: {
                 courseId: courseId,
                 batchYear: batchYear
             }
@@ -810,7 +817,7 @@ function generateSectionCode(): string {
 }
 
 export const addSectionNonTeachingStaffController = asyncHandler(
-    async(req:Request,res:Response) => {
+    async (req: Request, res: Response) => {
         /**
          * we will take input as 
          * {
@@ -819,7 +826,7 @@ export const addSectionNonTeachingStaffController = asyncHandler(
          * batch_id: id of the batch to add the section to
          * }
          */
-        const {batch_id,department_id,no_of_section}:AddSectionInput = req.body;
+        const { batch_id, department_id, no_of_section }: AddSectionInput = req.body;
         const MAX_SECTION_CAPACITY = 70; // Default maximum capacity for all sections
         const collegeId = req.nonTeachingStaff.collegeId;
         const role = req.nonTeachingStaff.role;
@@ -827,39 +834,39 @@ export const addSectionNonTeachingStaffController = asyncHandler(
 
         // Check if staff is part of the college
         const staff = await prisma.nonTeachingStaff.findUnique({
-            where:{
-                id:userId
+            where: {
+                id: userId
             },
-            include:{
-                college:{
-                    select:{
-                        id:true
+            include: {
+                college: {
+                    select: {
+                        id: true
                     }
                 }
             }
         })
-        if(!staff){
+        if (!staff) {
             throw new AppError("Staff not found", 404);
         }
-        if(staff.collegeId !== collegeId){
+        if (staff.collegeId !== collegeId) {
             throw new AppError("Staff is not part of the college", 403);
         }
 
         // Check if staff is a registrar
-        if(role !== NonTeachingStaffRole.STUDENT_SECTION){
+        if (role !== NonTeachingStaffRole.STUDENT_SECTION) {
             throw new AppError("You are not authorized to add sections as you are not a registrar", 403);
         }
 
         // Validate that the batch exists and belongs to the college
         const batch = await prisma.batch.findUnique({
-            where:{
+            where: {
                 id: batch_id
             },
-            include:{
-                course:{
-                    include:{
-                        college:{
-                            select:{
+            include: {
+                course: {
+                    include: {
+                        college: {
+                            select: {
                                 id: true
                             }
                         }
@@ -868,46 +875,46 @@ export const addSectionNonTeachingStaffController = asyncHandler(
             }
         });
 
-        if(!batch){
+        if (!batch) {
             throw new AppError("Batch not found", 404);
         }
 
-        if(batch.course.collegeId !== collegeId){
+        if (batch.course.collegeId !== collegeId) {
             throw new AppError("Batch does not belong to your college", 403);
         }
 
         // Validate that the department exists and belongs to the college
         const department = await prisma.department.findUnique({
-            where:{
+            where: {
                 id: department_id
             },
-            include:{
-                college:{
-                    select:{
+            include: {
+                college: {
+                    select: {
                         id: true
                     }
                 }
             }
         });
 
-        if(!department){
+        if (!department) {
             throw new AppError("Department not found", 404);
         }
 
-        if(department.collegeId !== collegeId){
+        if (department.collegeId !== collegeId) {
             throw new AppError("Department does not belong to your college", 403);
         }
 
         // Check if batch and department belong to the same college (already validated above, but double-check)
-        if(batch.course.collegeId !== department.collegeId){
+        if (batch.course.collegeId !== department.collegeId) {
             throw new AppError("Batch and department must belong to the same college", 400);
         }
 
         // Generate unique section codes
         const sectionsToCreate = [];
         const generatedCodes = new Set<string>();
-        
-        for(let i = 0; i < no_of_section; i++){
+
+        for (let i = 0; i < no_of_section; i++) {
             let sectionCode: string;
             let attempts = 0;
             const maxAttempts = 100;
@@ -916,7 +923,7 @@ export const addSectionNonTeachingStaffController = asyncHandler(
             do {
                 sectionCode = generateSectionCode();
                 attempts++;
-                
+
                 // Check if code already exists in database
                 const existingSection = await prisma.section.findFirst({
                     where: {
@@ -926,13 +933,13 @@ export const addSectionNonTeachingStaffController = asyncHandler(
                     }
                 });
 
-                if(!existingSection && !generatedCodes.has(sectionCode)){
+                if (!existingSection && !generatedCodes.has(sectionCode)) {
                     generatedCodes.add(sectionCode);
                     break;
                 }
-            } while(attempts < maxAttempts);
+            } while (attempts < maxAttempts);
 
-            if(attempts >= maxAttempts){
+            if (attempts >= maxAttempts) {
                 throw new AppError("Failed to generate unique section codes. Please try again.", 500);
             }
 
@@ -948,7 +955,7 @@ export const addSectionNonTeachingStaffController = asyncHandler(
         const createdSections = await prisma.section.createMany({
             data: sectionsToCreate
         });
-        if(createdSections.count !== no_of_section){
+        if (createdSections.count !== no_of_section) {
             throw new AppError("Failed to create sections", 500);
         }
         return res.status(201).json({

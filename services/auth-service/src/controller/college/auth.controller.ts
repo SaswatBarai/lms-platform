@@ -11,15 +11,16 @@ import { KafkaProducer } from "@messaging/producer.js";
 import { LockoutService } from "../../services/lockout.service.js";
 import { PasswordService } from "../../services/password.service.js";
 import * as requestIp from "request-ip";
+import { loginAttemptsTotal } from "../../config/metrics.js";
 
 
 
 
 export const createCollegeController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {name,email,password,organizationId,recoveryEmail,phone}:CreateCollegeInput = req.body;
-        if(!name || !email || !phone || !password || !organizationId || !recoveryEmail){
-            throw new AppError("Missing required fields",400);
+    async (req: Request, res: Response) => {
+        const { name, email, password, organizationId, recoveryEmail, phone }: CreateCollegeInput = req.body;
+        if (!name || !email || !phone || !password || !organizationId || !recoveryEmail) {
+            throw new AppError("Missing required fields", 400);
         }
         const result = await createCollegeService({
             name,
@@ -34,7 +35,7 @@ export const createCollegeController = asyncHandler(
         if (result.success && result.data) {
             try {
                 const kafkaProducer = KafkaProducer.getInstance();
-                
+
                 await kafkaProducer.sendCollegeWelcomeEmail(
                     result.data.email,
                     result.data.name,
@@ -57,11 +58,11 @@ export const createCollegeController = asyncHandler(
 )
 
 export const loginCollegeController = asyncHandler(
-    async(req:Request, res:Response) => {
+    async (req: Request, res: Response) => {
         const { email, password }: LoginCollegeInput = req.body;
         const ip = requestIp.getClientIp(req) || "unknown";
         const userAgent = req.headers['user-agent'] || "unknown";
-        
+
         // Find college by email
         const college = await prisma.college.findUnique({
             where: { email },
@@ -74,21 +75,25 @@ export const loginCollegeController = asyncHandler(
                 }
             }
         });
-        
+
         if (!college) {
+            loginAttemptsTotal.inc({ status: 'failure' });
             throw new AppError("Invalid email or password", 401);
         }
 
         // Phase 1: Lockout Check
         await LockoutService.checkLockout(college.id, "college");
-        
+
         // Verify password
         const isPasswordValid = await verifyPassword(college.password, password);
-        
+
         if (!isPasswordValid) {
+            // Track failed login attempt
+            loginAttemptsTotal.inc({ status: 'failure' });
+
             // Phase 1: Handle Failed Attempt
             await LockoutService.handleFailedAttempt(college.id, "college", college.email);
-            
+
             // Phase 1: Audit Log Failure
             const kafka = KafkaProducer.getInstance();
             // await kafka.sendAuditLog({ userId: college.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
@@ -98,7 +103,7 @@ export const loginCollegeController = asyncHandler(
 
         // Phase 1: Reset Lockout on Success
         await LockoutService.resetAttempts(college.id, "college");
-        
+
         // Get Device Info
         const { DeviceService } = await import("../../services/device.service.js");
         const { SessionService } = await import("../../services/session.service.js");
@@ -121,11 +126,11 @@ export const loginCollegeController = asyncHandler(
                 collegeName: college.name
             }
         );
-        
+
         // Generate PASETO tokens
         const { PasetoV4SecurityManager } = await import("@utils/security.js");
         const securityManager = PasetoV4SecurityManager.getInstance();
-        
+
         // Phase 1: Token Family for Rotation
         const tokenFamily = crypto.randomUUID();
 
@@ -157,10 +162,13 @@ export const loginCollegeController = asyncHandler(
         const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID for refresh token
         const refreshToken = await securityManager.generateRefreshToken(college.id, sessionId);
 
+        // Track successful login attempt
+        loginAttemptsTotal.inc({ status: 'success' });
+
         // Phase 1: Audit Log Success
         const kafka = KafkaProducer.getInstance();
         // await kafka.sendAuditLog({ userId: college.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
-        
+
 
         res.cookie("accessToken", accessToken, {
             httpOnly: true,
@@ -173,8 +181,8 @@ export const loginCollegeController = asyncHandler(
             maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
         });
 
-        
-        
+
+
         res.status(200).json({
             success: true,
             message: "Login successful",
@@ -200,15 +208,15 @@ export const loginCollegeController = asyncHandler(
 )
 
 export const logoutCollege = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} =  req.college;
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.college;
+        if (!id) {
             return res.status(400).json({
-                success:false,
-                message:"Bad Request"
+                success: false,
+                message: "Bad Request"
             })
         }
-        
+
         await redisClient.hdel(`activeSession:college:${id}`, 'sessionId');
         res.clearCookie("accessToken");
         res.clearCookie("refreshToken");
@@ -222,9 +230,9 @@ export const logoutCollege = asyncHandler(
 
 // [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenCollege = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} = req.college; // This comes from authValidator validating the OLD refresh token
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.college; // This comes from authValidator validating the OLD refresh token
+        if (!id) {
             throw new AppError("College not found", 404);
         }
 
@@ -236,12 +244,12 @@ export const regenerateAccessTokenCollege = asyncHandler(
 
         const securityManager = PasetoV4SecurityManager.getInstance();
         const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
-        
+
         // [ADDED] Phase 1: Token Rotation Logic
         // 1. Check for Reuse: If this token was already used, lock the user!
         const usedTokenKey = `usedRefreshToken:college:${oldRefreshPayload.sessionId}`;
         const isTokenUsed = await redisClient.exists(usedTokenKey);
-        
+
         if (isTokenUsed) {
             // Token reuse detected - potential attack!
             const college = await prisma.college.findUnique({ where: { id }, select: { email: true } });
@@ -257,7 +265,7 @@ export const regenerateAccessTokenCollege = asyncHandler(
 
         const key = `activeSession:college:${id}`;
         const sessionId = await redisClient.hget(key, 'sessionId');
-        if(!sessionId){
+        if (!sessionId) {
             throw new AppError("Session not found", 404);
         }
 
@@ -267,11 +275,11 @@ export const regenerateAccessTokenCollege = asyncHandler(
         }
 
         const college = await prisma.college.findUnique({
-            where:{
+            where: {
                 id
             }
         })
-        if(!college){
+        if (!college) {
             throw new AppError("College not found", 404);
         }
 
@@ -328,51 +336,51 @@ export const regenerateAccessTokenCollege = asyncHandler(
 
 
 export const forgotPasswordCollege = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email} = req.body;
-        if(!email){
+    async (req: Request, res: Response) => {
+        const { email } = req.body;
+        if (!email) {
             throw new AppError("Email is required", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
-        
+
         // Email-based rate limiting: 3 requests per 15 minutes per email
         const emailRateLimitKey = `forgot-password:email:college:${email.toLowerCase()}`;
         const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
         if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
             throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
         }
-        
+
         // Check if a reset request is already pending
         const existingToken = await redisClient.exists(`college-auth-${email}`);
         if (existingToken) {
             throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
         }
-        
+
         const college = await prisma.college.findUnique({
-            where:{
+            where: {
                 email
             }
         })
-        if(!college){
+        if (!college) {
             // Increment rate limit even for non-existent emails to prevent enumeration
             await redisClient.incr(emailRateLimitKey);
             await redisClient.expire(emailRateLimitKey, 15 * 60);
             throw new AppError("College not found", 404);
         }
-        
+
         // Increment email rate limit
         await redisClient.incr(emailRateLimitKey);
         await redisClient.expire(emailRateLimitKey, 15 * 60);
-        
+
         const sessionToken = crypto.randomBytes(32).toString("hex");
         await redisClient.setex(`college-auth-${email}`, 10 * 60, sessionToken);
 
         const kafkaProducer = KafkaProducer.getInstance();
-        
+
         const isPublished = await kafkaProducer.sendCollegeForgotPassword(email, sessionToken);
-        if(isPublished){
+        if (isPublished) {
             return res.status(200).json({
                 success: true,
                 message: "Forgot password email sent successfully"
@@ -386,43 +394,43 @@ export const forgotPasswordCollege = asyncHandler(
 
 //forgot password
 export const resetForgotPasswordCollegeController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email, token, password}:ForgotResetPasswordInput = req.body;
-        if(!email || !token || !password){
+    async (req: Request, res: Response) => {
+        const { email, token, password }: ForgotResetPasswordInput = req.body;
+        if (!email || !token || !password) {
             throw new AppError("Email and token are required", 400);
         }
-        if(!validateEmail(email)){
+        if (!validateEmail(email)) {
             throw new AppError("Invalid email", 400);
         }
-        if(token.length !== 64){
+        if (token.length !== 64) {
             throw new AppError("Invalid token", 400);
         }
 
         const redisKey = `college-auth-${email}`;
         const sessionToken = await redisClient.get(redisKey);
-        if(!sessionToken){
+        if (!sessionToken) {
             throw new AppError("Invalid token", 400);
         }
-        if(sessionToken !== token){
+        if (sessionToken !== token) {
             throw new AppError("Invalid token", 400);
         }
-        
+
         try {
             // Phase 1: Password Policy & History
             PasswordService.validatePolicy(password);
-            
+
             const college = await prisma.college.findUnique({
                 where: { email }
             });
-            
+
             if (!college) {
                 throw new AppError("College not found", 404);
             }
 
             await PasswordService.checkHistory(college.id, "college", password);
-            
+
             const hashedPassword = await hashPassword(password);
-            
+
             // Phase 1: Transaction to save history and update password
             await prisma.$transaction(async (tx) => {
                 await tx.college.update({
@@ -464,29 +472,29 @@ export const resetForgotPasswordCollegeController = asyncHandler(
 
 
 export const resetPasswordCollegeController = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {email,oldPassword,newPassword}:ResetPasswordInput= req.body;
-        
+    async (req: Request, res: Response) => {
+        const { email, oldPassword, newPassword }: ResetPasswordInput = req.body;
+
         // Phase 1: Password Policy & History
         PasswordService.validatePolicy(newPassword);
-        
+
         const college = await prisma.college.findUnique({
             where: { email }
         });
-        
+
         if (!college) {
             throw new AppError("College not found", 404);
         }
 
         await PasswordService.checkHistory(college.id, "college", newPassword);
-        
+
         const isPasswordValid = await verifyPassword(college.password, oldPassword);
         if (!isPasswordValid) {
             throw new AppError("Current password is incorrect", 400);
         }
 
         const hashedPassword = await hashPassword(newPassword);
-        
+
         // Phase 1: Transaction to save history and update password
         await prisma.$transaction(async (tx) => {
             await tx.college.update({

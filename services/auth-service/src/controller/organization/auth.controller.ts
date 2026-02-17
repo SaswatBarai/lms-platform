@@ -9,16 +9,17 @@ import redisClient from "@config/redis.js"
 import { hashPassword, PasetoV4SecurityManager, validateEmail, verifyPassword } from "@utils/security.js"
 import crypto from "crypto"
 import { AppError } from "@utils/AppError.js"
-import {prisma} from "@lib/prisma.js"
+import { prisma } from "@lib/prisma.js"
 import { LockoutService } from "../../services/lockout.service.js";
 import { PasswordService } from "../../services/password.service.js";
 import * as requestIp from "request-ip";
+import { loginAttemptsTotal } from "../../config/metrics.js";
 
 
 
 export const createOrganizationController = asyncHandler(async (req: Request, res: Response) => {
     const { name, email, password, phone, recoveryEmail, address }: CreateOrganizationInput = req.body;
-    
+
     const existingOrg = await prisma.organization.findFirst({
         where: {
             OR: [
@@ -90,7 +91,7 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
     }
     //delete the hashed otp from redis
     await redisClient.del(`org-auth-otp-${email}`);
-    
+
     //create organization account
     const orgData = await redisClient.hgetall(`org-auth-${email}`);
     if (!orgData || Object.keys(orgData).length === 0) {
@@ -114,7 +115,7 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
             recoveryEmail: orgData.recoveryEmail!,
             address: orgData.address || '' // address is optional
         })
-        
+
         if (!createOrgResult.success) {
             throw new AppError(createOrgResult.message, 500);
         }
@@ -124,7 +125,7 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
             `org-auth-${email}`,
             `org-auth-otp-cooldown-${email}`
         ];
-        
+
         // Delete all keys in parallel
         await Promise.all(keysToDelete.map(key => redisClient.del(key).catch(err => {
             console.error(`[Redis] Failed to delete key ${key}:`, err);
@@ -141,32 +142,32 @@ export const verifyOrganizationOtpController = asyncHandler(async (req: Request,
             `org-auth-${email}`,
             `org-auth-otp-cooldown-${email}`
         ];
-        
+
         // Delete all keys in parallel (don't wait for errors)
         Promise.all(keysToDelete.map(key => redisClient.del(key).catch(err => {
             console.error(`[Redis] Failed to delete key ${key} during error cleanup:`, err);
         }))).catch(() => {
             // Ignore cleanup errors
         });
-        
+
         // Re-throw the original error
         throw error;
     }
 })
 
 
-export const resendOrganizationOtpController = asyncHandler(async (req:Request,res:Response) => {
+export const resendOrganizationOtpController = asyncHandler(async (req: Request, res: Response) => {
     const { email }: { email: string } = req.body;
     if (!validateEmail(email)) {
         throw new AppError("Invalid email format", 400);
     }
-    
+
     // Check if organization data exists in Redis to get session token
     const orgData = await redisClient.hgetall(`org-auth-${email}`);
     if (!orgData || !orgData.sessionToken) {
         throw new AppError("Session not found. Please restart the registration process.", 400);
     }
-    
+
     const coolDownKey = `org-auth-otp-cooldown-${email}`;
     const isInCoolDown = await redisClient.exists(coolDownKey);
     if (isInCoolDown) {
@@ -174,7 +175,7 @@ export const resendOrganizationOtpController = asyncHandler(async (req:Request,r
     }
     const otp = generateOtp();
     const kafkaProducer = KafkaProducer.getInstance();
-    
+
     //save otp in redis with 10 minutes expiry
     const hashedOTP = await hashOtp(otp, orgData.sessionToken);
     await redisClient.setex(`org-auth-otp-${email}`, 10 * 60, hashedOTP);
@@ -200,26 +201,30 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
     const { email, password }: LoginOrganizationInput = req.body;
     const ip = requestIp.getClientIp(req) || "unknown";
     const userAgent = req.headers['user-agent'] || "unknown";
-    
+
     // Find organization by email
     const organization = await prisma.organization.findUnique({
         where: { email }
     });
-    
+
     if (!organization) {
+        loginAttemptsTotal.inc({ status: 'failure' });
         throw new AppError("Invalid email or password", 401);
     }
 
     // Phase 1: Lockout Check
     await LockoutService.checkLockout(organization.id, "organization");
-    
+
     // Verify password
     const isPasswordValid = await verifyPassword(organization.password, password);
-    
+
     if (!isPasswordValid) {
+        // Track failed login attempt
+        loginAttemptsTotal.inc({ status: 'failure' });
+
         // Phase 1: Handle Failed Attempt
         await LockoutService.handleFailedAttempt(organization.id, "organization", organization.email);
-        
+
         // Phase 1: Audit Log Failure
         const kafka = KafkaProducer.getInstance();
         // await kafka.sendAuditLog({ userId: organization.id, action: "LOGIN_FAILED", ip, userAgent, success: false });
@@ -229,7 +234,7 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
 
     // Phase 1: Reset Lockout on Success
     await LockoutService.resetAttempts(organization.id, "organization");
-    
+
     // Get Device Info
     const { DeviceService } = await import("../../services/device.service.js");
     const { SessionService } = await import("../../services/session.service.js");
@@ -251,11 +256,11 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
             name: organization.name
         }
     );
-    
+
     // Generate PASETO tokens
     const { PasetoV4SecurityManager } = await import("@utils/security.js");
     const securityManager = PasetoV4SecurityManager.getInstance();
-    
+
     // Phase 1: Token Family for Rotation
     const tokenFamily = crypto.randomUUID();
 
@@ -285,10 +290,13 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
     const sessionId = crypto.randomBytes(16).toString('hex'); // Generate unique session ID
     const refreshToken = await securityManager.generateRefreshToken(organization.id, sessionId);
 
+    // Track successful login attempt
+    loginAttemptsTotal.inc({ status: 'success' });
+
     // Phase 1: Audit Log Success
     const kafka = KafkaProducer.getInstance();
     // await kafka.sendAuditLog({ userId: organization.id, action: "LOGIN_SUCCESS", ip, userAgent, success: true });
-    
+
     // Store refresh token in database (optional - you might want to add a refreshToken field to Organization model)
     // For now, we'll just return both tokens
 
@@ -302,7 +310,7 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
         secure: process.env.NODE_ENV === "production",
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
-    
+
     res.status(200).json({
         success: true,
         message: "Login successful",
@@ -330,8 +338,8 @@ export const loginOrganizationController = asyncHandler(async (req: Request, res
 
 
 export const logoutOrganization = asyncHandler(async (req: Request, res: Response) => {
-    const {id} = req.organization
-    if(!id){
+    const { id } = req.organization
+    if (!id) {
         throw new AppError("Organization not found", 404);
     }
     const key = `activeSession:org:${id}`;
@@ -347,9 +355,9 @@ export const logoutOrganization = asyncHandler(async (req: Request, res: Respons
 
 // [UPDATED] Renamed to reflect Rotation behavior
 export const regenerateAccessTokenOrganization = asyncHandler(
-    async(req:Request, res:Response) => {
-        const {id} = req.organization; // This comes from authValidator validating the OLD refresh token
-        if(!id){
+    async (req: Request, res: Response) => {
+        const { id } = req.organization; // This comes from authValidator validating the OLD refresh token
+        if (!id) {
             throw new AppError("Organization not found", 404);
         }
 
@@ -361,12 +369,12 @@ export const regenerateAccessTokenOrganization = asyncHandler(
 
         const securityManager = PasetoV4SecurityManager.getInstance();
         const oldRefreshPayload = await securityManager.verifyRefreshToken(refreshToken);
-        
+
         // [ADDED] Phase 1: Token Rotation Logic
         // 1. Check for Reuse: If this token was already used, lock the user!
         const usedTokenKey = `usedRefreshToken:organization:${oldRefreshPayload.sessionId}`;
         const isTokenUsed = await redisClient.exists(usedTokenKey);
-        
+
         if (isTokenUsed) {
             // Token reuse detected - potential attack!
             const organization = await prisma.organization.findUnique({ where: { id }, select: { email: true } });
@@ -382,7 +390,7 @@ export const regenerateAccessTokenOrganization = asyncHandler(
 
         const key = `activeSession:org:${id}`;
         const sessionId = await redisClient.hget(key, 'sessionId');
-        if(!sessionId){
+        if (!sessionId) {
             throw new AppError("Session not found", 404);
         }
 
@@ -392,11 +400,11 @@ export const regenerateAccessTokenOrganization = asyncHandler(
         }
 
         const organization = await prisma.organization.findUnique({
-            where:{
+            where: {
                 id
             }
         })
-        if(!organization){
+        if (!organization) {
             throw new AppError("Organization not found", 404);
         }
 
@@ -449,50 +457,50 @@ export const regenerateAccessTokenOrganization = asyncHandler(
     }
 )
 
-export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
-    const {email} = req.body;
-    if(!email){
+export const forgotPasswordOrganization = asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body;
+    if (!email) {
         throw new AppError("Email is required", 400);
     }
-    if(!validateEmail(email)){
+    if (!validateEmail(email)) {
         throw new AppError("Invalid email", 400);
     }
-    
+
     // Email-based rate limiting: 3 requests per 15 minutes per email
     const emailRateLimitKey = `forgot-password:email:org:${email.toLowerCase()}`;
     const emailRateLimitCount = await redisClient.get(emailRateLimitKey);
     if (emailRateLimitCount && parseInt(emailRateLimitCount) >= 3) {
         throw new AppError("Too many password reset requests for this email. Please wait 15 minutes before trying again.", 429);
     }
-    
+
     // Check if a reset request is already pending
     const existingToken = await redisClient.exists(`org-auth-${email}`);
     if (existingToken) {
         throw new AppError("A password reset request is already pending. Please check your email or wait 10 minutes.", 400);
     }
-    
+
     const organization = await prisma.organization.findUnique({
-        where:{
+        where: {
             email
         }
     })
-    if(!organization){
+    if (!organization) {
         // Increment rate limit even for non-existent emails to prevent enumeration
         await redisClient.incr(emailRateLimitKey);
         await redisClient.expire(emailRateLimitKey, 15 * 60);
         throw new AppError("Organization not found", 404);
     }
-    
+
     // Increment email rate limit
     await redisClient.incr(emailRateLimitKey);
     await redisClient.expire(emailRateLimitKey, 15 * 60);
-    
+
     const sessionToken = crypto.randomBytes(32).toString("hex");
     await redisClient.setex(`org-auth-${email}`, 10 * 60, sessionToken);//10 minutes
     const kafkaProducer = KafkaProducer.getInstance();
-    
+
     const isPublished = await kafkaProducer.sendOrganizationForgotPassword(email, sessionToken);
-    if(isPublished){
+    if (isPublished) {
         return res.status(200).json({
             success: true,
             message: "Forgot password email sent successfully"
@@ -503,42 +511,42 @@ export const forgotPasswordOrganization = asyncHandler(async (req:Request, res:R
     }
 })
 
-export const resetForgotPasswordOrganization = asyncHandler(async (req:Request, res:Response) => {
-    const {email, token, password}:ForgotResetPasswordInput = req.body;
-    if(!email || !token || !password){
+export const resetForgotPasswordOrganization = asyncHandler(async (req: Request, res: Response) => {
+    const { email, token, password }: ForgotResetPasswordInput = req.body;
+    if (!email || !token || !password) {
         throw new AppError("Email and token are required", 400);
     }
-    if(!validateEmail(email)){
+    if (!validateEmail(email)) {
         throw new AppError("Invalid email", 400);
     }
-    if(token.length !== 64){
+    if (token.length !== 64) {
         throw new AppError("Invalid token", 400);
     }
     const redisKey = `org-auth-${email}`;
     const sessionToken = await redisClient.get(redisKey);
-    if(!sessionToken){
+    if (!sessionToken) {
         throw new AppError("Invalid token", 400);
     }
-    if(sessionToken !== token){
+    if (sessionToken !== token) {
         throw new AppError("Invalid token", 400);
     }
-    
+
     try {
         // Phase 1: Password Policy & History
         PasswordService.validatePolicy(password);
-        
+
         const organization = await prisma.organization.findUnique({
             where: { email }
         });
-        
+
         if (!organization) {
             throw new AppError("Organization not found", 404);
         }
 
         await PasswordService.checkHistory(organization.id, "organization", password);
-        
+
         const hashedPassword = await hashPassword(password);
-        
+
         // Phase 1: Transaction to save history and update password
         await prisma.$transaction(async (tx) => {
             await tx.organization.update({
@@ -578,29 +586,29 @@ export const resetForgotPasswordOrganization = asyncHandler(async (req:Request, 
 })
 
 
-export const resetPasswordOrganizationController = asyncHandler(async (req:Request, res:Response) => {
-    const {email,oldPassword,newPassword}:ResetPasswordInput= req.body;
-    
+export const resetPasswordOrganizationController = asyncHandler(async (req: Request, res: Response) => {
+    const { email, oldPassword, newPassword }: ResetPasswordInput = req.body;
+
     // Phase 1: Password Policy & History
     PasswordService.validatePolicy(newPassword);
-    
+
     const organization = await prisma.organization.findUnique({
         where: { email }
     });
-    
+
     if (!organization) {
         throw new AppError("Organization not found", 404);
     }
 
     await PasswordService.checkHistory(organization.id, "organization", newPassword);
-    
+
     const isPasswordValid = await verifyPassword(organization.password, oldPassword);
     if (!isPasswordValid) {
         throw new AppError("Current password is incorrect", 400);
     }
 
     const hashedPassword = await hashPassword(newPassword);
-    
+
     // Phase 1: Transaction to save history and update password
     await prisma.$transaction(async (tx) => {
         await tx.organization.update({

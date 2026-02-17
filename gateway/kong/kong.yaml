@@ -180,7 +180,8 @@ services:
       - name: grafana-route
         paths:
           - "/monitoring/grafana"
-        strip_path: true
+        strip_path: false
+        preserve_host: true
 
   - name: jaeger
     url: http://jaeger:16686

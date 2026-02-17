@@ -494,6 +494,9 @@ services:
       # Subpath for Kong: http://localhost:8000/monitoring/grafana
       - GF_SERVER_ROOT_URL=http://localhost:8000/monitoring/grafana
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SECURITY_CSRF_TRUSTED_ORIGINS=http://localhost:8000
+      - GF_SECURITY_COOKIE_SAMESITE=lax
     networks:
       - lms-network
       - internal_net
