@@ -3,6 +3,7 @@ import {Request,Response,NextFunction} from "express"
 declare global {
     namespace Express {
         interface Request {
+            user?: AuthUser;
             organization: OrganizationContext;
             college: CollegeContext;
             nonTeachingStaff: NonTeachingStaffContext;
@@ -12,6 +13,12 @@ declare global {
             dean: DeanContext;
         }
     }
+}
+
+export interface AuthUser {
+    id: string;
+    role: string;
+    email?: string;
 }
 
 export interface OrganizationContext {

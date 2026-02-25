@@ -161,6 +161,35 @@ services:
               redis_timeout: 2000
               validate_session: true
 
+      # API Keys Management Routes (Protected)
+      # POST /auth/api/api-keys - Create new API key
+      # GET /auth/api/api-keys - List user's API keys
+      # DELETE /auth/api/api-keys/:id - Revoke an API key
+      - name: auth-service-api-keys-routes
+        paths:
+          - "/auth/api/api-keys"
+          - "~/auth/api/api-keys/[^/]+$"
+        strip_path: false
+        regex_priority: 10
+        methods:
+          - GET
+          - POST
+          - DELETE
+        plugins:
+          - name: paseto-vault-auth-lua
+            config:
+              vault_address: "http://vault:8200"
+              vault_token: "dev-root-token"
+              header_prefix: "X-User-"
+              cache_timeout: 3600
+              required_roles: []
+              redis_host: "redis"
+              redis_port: 6379
+              redis_password: "redis_pass"
+              redis_database: 0
+              redis_timeout: 2000
+              validate_session: true
+
 #---------------------------------------------------
 # Monitoring stack (Prometheus, Grafana, Jaeger, Kibana)
 # Access via: http://localhost:8000/monitoring/<service>
@@ -198,4 +227,63 @@ services:
         paths:
           - "/monitoring/kibana"
         strip_path: true
+
+#---------------------------------------------------
+# Global Plugins (Phase 5 Enhancement)
+#---------------------------------------------------
+plugins:
+  # 1. Rate Limiting: Prevent DDoS and spam requests
+  - name: rate-limiting
+    config:
+      minute: 100
+      hour: 1000
+      policy: redis
+      redis_host: "redis"
+      redis_port: 6379
+      redis_password: "redis_pass"
+      redis_timeout: 2000
+
+  # 2. Request Transformer: Automatically inject tracking IDs and API versions
+  - name: request-transformer
+    config:
+      add:
+        headers:
+          - "X-API-Version: v1"
+          - "X-Request-ID: $(uuid)" # Vital for Jaeger Tracing
+
+  # 3. CORS: Secure cross-origin requests from the frontend
+  - name: cors
+    config:
+      origins: 
+        - "*" # Note: In production, change this to ["https://lms.example.com"]
+      methods: 
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+      headers: 
+        - Authorization
+        - Content-Type
+        - x-api-key # Allow the new API keys through!
+      max_age: 3600
+
+  # 4. Proxy Cache: Cache frequent GET requests to save database load
+  - name: proxy-cache
+    config:
+      strategy: memory
+      content_type: ["application/json"]
+      cache_ttl: 300 # 5 minutes
+      request_method: ["GET"] # Only cache GET requests!
+
+  # 5. Kafka Log: Stream all gateway access logs directly to Kafka for Analytics
+  - name: kafka-log
+    config:
+      bootstrap_servers:
+        - host: kafka
+          port: 9092
+      topic: gateway.access.logs
+      keepalive: 60000
+      producer_request_acks: 1 # Wait for leader acknowledgement
+      producer_request_timeout: 2000
 

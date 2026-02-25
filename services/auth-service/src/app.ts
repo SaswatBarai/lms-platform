@@ -4,6 +4,7 @@ import morgan from "morgan";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import organizationRoutes from "@routes/organization.route.js";
+import apiKeyRouter from "@routes/api-key.route.js";
 import sessionRoutes from "@routes/session.route.js";
 import bulkRoutes from "@routes/bulk.route.js";
 import errorHandler from "@middleware/errorHandler.js";
@@ -83,11 +84,11 @@ app.get("/auth/api/metrics", async (req, res) => {
   res.send(await register.metrics());
 });
 
-//All routes
 app.use("/auth/api", healthRoutes);
-app.use("/auth/api",organizationRoutes)
-app.use("/auth/api",sessionRoutes)
-app.use("/auth/api/bulk",bulkRoutes)
+app.use("/auth/api", organizationRoutes)
+app.use("/auth/api", sessionRoutes)
+app.use("/auth/api/bulk", bulkRoutes)
+app.use("/auth/api/api-keys", apiKeyRouter)
 
 
 

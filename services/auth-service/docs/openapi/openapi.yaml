@@ -1909,6 +1909,119 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api-keys:
+    post:
+      summary: Create a new API Key
+      description: |
+        Generate a new API key for system-to-system authentication.
+        Only admins and college admins can create API keys.
+      operationId: createApiKey
+      tags:
+        - API Keys
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: Display name for the API key
+                  example: "Mobile App Integration"
+                description:
+                  type: string
+                  description: Optional description of the API key's purpose
+                  example: "For mobile app to sync student data"
+                scopes:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of scopes/permissions (defaults to ['read:basic'])
+                  example: ["read:basic", "read:students"]
+      responses:
+        '201':
+          description: API Key created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  data:
+                    $ref: '#/components/schemas/ApiKey'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      summary: List API Keys
+      description: Retrieve all API keys created by the authenticated user
+      operationId: listApiKeys
+      tags:
+        - API Keys
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  results:
+                    type: integer
+                    example: 3
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ApiKeyListItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api-keys/{id}:
+    delete:
+      summary: Revoke an API Key
+      description: Revoke/disable an API key. The key can no longer be used for authentication.
+      operationId: revokeApiKey
+      tags:
+        - API Keys
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The API Key ID to revoke
+          schema:
+            type: string
+      responses:
+        '204':
+          description: API Key revoked successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2909,6 +3022,97 @@ components:
               format: date-time
             endpoint:
               type: string
+
+    ApiKey:
+      type: object
+      description: Complete API Key response after creation
+      properties:
+        id:
+          type: string
+          description: Unique API Key identifier
+          example: "key_xyz123abc"
+        name:
+          type: string
+          description: Display name for the API key
+          example: "Mobile App Integration"
+        prefix:
+          type: string
+          description: Public prefix of the API key (safe to log)
+          example: "key_xyz"
+        hash:
+          type: string
+          description: Hashed API key (never shown after creation)
+          example: "scrypt(...)$..."
+        scopes:
+          type: array
+          items:
+            type: string
+          description: Array of permissions/scopes
+          example: ["read:basic", "read:students"]
+        isActive:
+          type: boolean
+          description: Whether the API key is currently active
+          example: true
+        createdBy:
+          type: string
+          description: User ID who created this API key
+          example: "org_abc123"
+        createdByType:
+          type: string
+          description: Role of the creator
+          enum: ["admin", "college_admin", "organization"]
+          example: "organization"
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last use, null if never used
+          example: "2026-02-26T10:30:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: When this API key was created
+          example: "2026-02-20T15:45:00Z"
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: When this API key was revoked, null if still active
+          example: null
+
+    ApiKeyListItem:
+      type: object
+      description: API Key information for list responses
+      properties:
+        id:
+          type: string
+          description: Unique API Key identifier
+          example: "key_xyz123abc"
+        name:
+          type: string
+          description: Display name for the API key
+          example: "Mobile App Integration"
+        prefix:
+          type: string
+          description: Public prefix of the API key
+          example: "key_xyz"
+        scopes:
+          type: array
+          items:
+            type: string
+          description: Array of permissions/scopes
+          example: ["read:basic"]
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of last use
+          example: "2026-02-26T10:30:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: When this API key was created
+          example: "2026-02-20T15:45:00Z"
 
     ErrorResponse:
       type: object
