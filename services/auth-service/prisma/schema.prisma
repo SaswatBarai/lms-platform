@@ -26,7 +26,7 @@ model Organization {
   isLocked          Boolean   @default(false)
   lockReason        String?
   colleges              College[]
-}
+}prisma/schema.prisma
 
 model College {
   id               String             @id @default(cuid())
@@ -128,7 +128,15 @@ model Student {
   sectionId   String
   gender      Gender     
   name         String     @db.VarChar(255)
-  email        String     @unique @db.VarChar(255)
+  email        String     @unique @db.VarCh
+  name        String       @db.VarChar(255)
+  email       String       @unique @db.VarChar(255)
+  password    String       @db.VarChar(255)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  passwordChangedAt DateTime?
+  passwordExpiresAt DateTime?
+  isLocked          Boolean   @default(false)ar(255)
   phone        String     @unique @db.VarChar(20)
   password     String     @db.VarChar(255)
   regNo        String     @unique @db.VarChar(100)
@@ -207,7 +215,30 @@ model RefreshToken {
   id          String    @id @default(cuid())
   token       String    @unique
   userId      String
-  userType    String
+  userType    StringR_OF_TECHNOLOGY)
+  shortName    CourseShortName @default(BTECH)
+  collegeId    String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  batches      Batch[]
+}
+
+//Here batch means like couurse btech there will be 4  years 
+//batch 2023 to 2027
+//batch 2024 to 2028
+//  
+model Batch {
+  id           String     @id @default(cuid())
+  courseId     String
+  batchYear    String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sections     Section[]
+  students     Student[]
+}
+
   sessionId   String    @unique
   tokenFamily String
   deviceInfo  String?
@@ -289,6 +320,9 @@ model TeacherSubject {
   id        String   @id @default(cuid())
   teacherId String
   subjectId String
+  teacherId String
+  sectionId String
+  createdAt DateTime @default(now())
   sectionId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -317,6 +351,9 @@ model PasswordHistory {
   @@index([createdAt])
 }
 
+  teacherId String
+  sectionId String
+  createdAt DateTime @default(now())
 model AccountLockout {
   id            String   @id @default(uuid())
   userId        String   @unique
@@ -386,4 +423,38 @@ model BulkImportRecord {
 
   @@index([jobId])
   @@index([recordId, recordType])
+}
+
+
+model ApiKey {
+  id            String    @id @default(uuid())
+  keyHash       String    @unique // SHA-256 hash of the generated key
+  prefix        String    // First 8 chars (e.g., "lms_live_") for UI identification
+  name          String    // e.g., "Mobile App v1"
+  description   String?
+  createdBy     String    // User ID of the admin who created it
+  createdByType String    // "admin", "college_admin"
+  scopes        String[]  // ["read:courses", "write:attendance"]
+  rateLimit     Int       @default(1000) // Requests per hour
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([keyHash])
+  @@index([createdBy])
+}
+
+model ApiKeyUsage {
+  id         String   @id @default(uuid())
+  apiKeyId   String
+  endpoint   String
+  method     String
+  statusCode Int
+  latency    Int      // milliseconds
+  timestamp  DateTime @default(now())
+
+  @@index([apiKeyId, timestamp])
+  @@index([endpoint])
 }
