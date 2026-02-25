@@ -4,37 +4,69 @@ global:
   smtp_from: 'alertmanager@example.com' 
   # Google SMTP server configuration
   smtp_smarthost: 'smtp.gmail.com:587'
-  smtp_auth_username: 'saswatbarai611@gmail.com' # REPLACE THIS
-  smtp_auth_password: 'sajzxwbjibqk '    # REPLACE THIS (16-char App Password)
+  smtp_auth_username: 'saswatbarai611@gmail.com' 
+  smtp_auth_password: 'sajzxwbjibqk '  # Note: Avoid committing raw passwords to version control!
   smtp_require_tls: true
 
 route:
-  group_by: ['alertname']
+  group_by: ['alertname', 'service']
   group_wait: 10s
-  group_interval: 10s
+  group_interval: 1m
   repeat_interval: 1h
-  receiver: 'email-notifications'
+  # Default receiver if nothing matches
+  receiver: 'slack-notifications'
+  
   routes:
+    # CRITICAL alerts go to PagerDuty, Slack, and Email
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      continue: true # Continue evaluating to send to Slack & Email too
+      
     - match:
         severity: critical
       receiver: 'email-notifications'
       continue: true
+      
+    - match:
+        severity: critical
+      receiver: 'slack-notifications'
+
+    # WARNING alerts go to Slack and Email only
     - match:
         severity: warning
       receiver: 'email-notifications'
+      continue: true
+      
+    - match:
+        severity: warning
+      receiver: 'slack-notifications'
 
 receivers:
   - name: 'email-notifications'
     email_configs:
-      - to: 'saswatbarai612@gmail.com' # Where to send alerts
+      - to: 'devops@example.com' # From PRD. (You can change back to saswatbarai612@gmail.com for testing)
         send_resolved: true
         headers:
-          Subject: "LMS Alert: {{ .CommonLabels.alertname }}"
-  # Slack notifications disabled - uncomment and add webhook URL if needed
-  # - name: 'slack-notifications'
-  #   slack_configs:
-  #     - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'  # Replace with your Slack webhook URL
-  #       channel: '#alerts'
-  #       title: 'LMS Platform Alert'
-  #       text: '{{ range .Alerts }}{{ .Annotations.summary }}\n{{ .Annotations.description }}{{ end }}'
-  #       send_resolved: true
+          Subject: "[{{ .Status | toUpper }}] LMS Alert: {{ .CommonLabels.alertname }}"
+        html: '<b>Alert:</b> {{ .CommonLabels.alertname }}<br><b>Severity:</b> {{ .CommonLabels.severity }}<br><b>Summary:</b> {{ range .Alerts }}{{ .Annotations.summary }}<br><b>Description:</b> {{ .Annotations.description }}{{ end }}'
+
+  - name: 'slack-notifications'
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL' # Replace with actual webhook
+        channel: '#lms-alerts'
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        text: >-
+          *Severity:* `{{ .CommonLabels.severity }}`
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Time:* {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_INTEGRATION_KEY' # Replace with actual key
+        send_resolved: true
+        description: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} - {{ .CommonLabels.service }}'
