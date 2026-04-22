@@ -42,7 +42,7 @@
     "skipLibCheck": true,
 
     // Module Resolution
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "baseUrl": "./src",
     "paths": {
       "@config/*": ["config/*"],

@@ -21,12 +21,12 @@ model Organization {
   totalNonTeachingStaff Int       @default(0)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
-  passwordChangedAt DateTime?
-  passwordExpiresAt DateTime?
-  isLocked          Boolean   @default(false)
-  lockReason        String?
+  passwordChangedAt     DateTime?
+  passwordExpiresAt     DateTime?
+  isLocked              Boolean   @default(false)
+  lockReason            String?
   colleges              College[]
-}prisma/schema.prisma
+}
 
 model College {
   id               String             @id @default(cuid())
@@ -120,23 +120,14 @@ enum Gender {
   OTHER
 }
 
-
 model Student {
   id           String     @id @default(cuid())
   departmentId String
-  batchId     String
-  sectionId   String
-  gender      Gender     
+  batchId      String
+  sectionId    String
+  gender       Gender
   name         String     @db.VarChar(255)
-  email        String     @unique @db.VarCh
-  name        String       @db.VarChar(255)
-  email       String       @unique @db.VarChar(255)
-  password    String       @db.VarChar(255)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  passwordChangedAt DateTime?
-  passwordExpiresAt DateTime?
-  isLocked          Boolean   @default(false)ar(255)
+  email        String     @unique @db.VarChar(255)
   phone        String     @unique @db.VarChar(20)
   password     String     @db.VarChar(255)
   regNo        String     @unique @db.VarChar(100)
@@ -155,7 +146,7 @@ model Teacher {
   id           String     @id @default(cuid())
   departmentId String
   name         String     @db.VarChar(255)
-  gender       Gender     
+  gender       Gender
   email        String     @unique @db.VarChar(255)
   phone        String     @unique @db.VarChar(20)
   password     String     @db.VarChar(255)
@@ -186,23 +177,23 @@ enum CourseName {
 }
 
 model Course {
-  id           String     @id @default(cuid())
-  name         CourseName @default(BACHELOR_OF_TECHNOLOGY)
+  id           String         @id @default(cuid())
+  name         CourseName     @default(BACHELOR_OF_TECHNOLOGY)
   shortName    CourseShortName @default(BTECH)
   collegeId    String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  college      College        @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   batches      Batch[]
 }
 
-//Here batch means like couurse btech there will be 4  years 
+//Here batch means like couurse btech there will be 4  years
 //batch 2023 to 2027
 //batch 2024 to 2028
-//  
+//
 model Batch {
   id           String     @id @default(cuid())
-  courseId     String
+  courseId      String
   batchYear    String
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -215,30 +206,7 @@ model RefreshToken {
   id          String    @id @default(cuid())
   token       String    @unique
   userId      String
-  userType    StringR_OF_TECHNOLOGY)
-  shortName    CourseShortName @default(BTECH)
-  collegeId    String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  college      College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
-  batches      Batch[]
-}
-
-//Here batch means like couurse btech there will be 4  years 
-//batch 2023 to 2027
-//batch 2024 to 2028
-//  
-model Batch {
-  id           String     @id @default(cuid())
-  courseId     String
-  batchYear    String
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  course       Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  sections     Section[]
-  students     Student[]
-}
-
+  userType    String
   sessionId   String    @unique
   tokenFamily String
   deviceInfo  String?
@@ -262,24 +230,21 @@ enum UserRole {
   adminstractor
 }
 
-
-
 model Section {
-  id       String   @id @default(cuid())
-  batchId  String 
-  sectionNo String   @db.VarChar(50)
-  capacity  Int?       @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  batchId      String
+  sectionNo    String   @db.VarChar(50)
+  capacity     Int?     @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   departmentId String
 
-  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)  
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  batch       Batch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  department  Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
 
-  students     Student[]
-  teachers     TeacherSection[]
+  students        Student[]
+  teachers        TeacherSection[]
   teacherSubjects TeacherSubject[]
-  
 }
 
 model TeacherSection {
@@ -297,32 +262,27 @@ model TeacherSection {
   @@index([sectionId])
 }
 
-
-
 model Subject {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(255)
-  code      String   @db.VarChar(50)
-  shortName String   @db.VarChar(50)
+  id           String   @id @default(cuid())
+  name         String   @db.VarChar(255)
+  code         String   @db.VarChar(50)
+  shortName    String   @db.VarChar(50)
   departmentId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   teachers   TeacherSubject[]
+
   @@unique([name, code])
   @@index([name])
   @@index([code])
 }
 
-
 model TeacherSubject {
   id        String   @id @default(cuid())
   teacherId String
   subjectId String
-  teacherId String
-  sectionId String
-  createdAt DateTime @default(now())
   sectionId String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -337,53 +297,45 @@ model TeacherSubject {
   @@index([sectionId])
 }
 
-
-
-
 model PasswordHistory {
-  id        String   @id @default(uuid())
-  userId    String
-  userType  String   // "student", "teacher", "organization", "college", "dean", "hod", "staff"
+  id           String   @id @default(uuid())
+  userId       String
+  userType     String   // "student", "teacher", "organization", "college", "dean", "hod", "staff"
   passwordHash String
-  createdAt DateTime @default(now())
-  
+  createdAt    DateTime @default(now())
+
   @@index([userId, userType])
   @@index([createdAt])
 }
 
-  teacherId String
-  sectionId String
-  createdAt DateTime @default(now())
 model AccountLockout {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  userType      String
-  lockedAt      DateTime @default(now())
-  lockedUntil   DateTime
-  reason        String   // "brute_force", "admin_action"
-  unlockToken   String?  // For admin unlock
-  
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  userType    String
+  lockedAt    DateTime @default(now())
+  lockedUntil DateTime
+  reason      String   // "brute_force", "admin_action"
+  unlockToken String?  // For admin unlock
+
   @@index([userId, userType])
 }
 
-
-
 model UserSession {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   userId        String
-  userType      String   // "student", "teacher", "organization", etc.
-  sessionToken  String   @unique // The Access Token JTI or Session ID
-  deviceId      String   // SHA-256 hash of device fingerprint
-  deviceType    String?  // "mobile", "desktop", "tablet"
+  userType      String    // "student", "teacher", "organization", etc.
+  sessionToken  String    @unique // The Access Token JTI or Session ID
+  deviceId      String    // SHA-256 hash of device fingerprint
+  deviceType    String?   // "mobile", "desktop", "tablet"
   browser       String?
   os            String?
   ipAddress     String
-  location      String?  // "Mumbai, India"
-  createdAt     DateTime @default(now())
+  location      String?   // "Mumbai, India"
+  createdAt     DateTime  @default(now())
   expiresAt     DateTime
   invalidatedAt DateTime? // If set, this session is dead
-  isActive      Boolean  @default(true)
-  
+  isActive      Boolean   @default(true)
+
   @@index([userId, userType, isActive])
   @@index([sessionToken])
 }
@@ -424,7 +376,6 @@ model BulkImportRecord {
   @@index([jobId])
   @@index([recordId, recordType])
 }
-
 
 model ApiKey {
   id            String    @id @default(uuid())
